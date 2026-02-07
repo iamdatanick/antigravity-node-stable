@@ -38,9 +38,11 @@ def test_workflow_manifest_has_single_templates_key():
             # Track brace depth
             spec_depth += line.count('{') - line.count('}')
             
-            # Check for "templates" key
-            if ('"templates":' in line or "'templates':" in line) and '{' not in line[:line.index('templates')]:
-                templates_keys.append(i)
+            # Check for "templates" key (look for "templates": pattern)
+            if '"templates":' in line or "'templates':" in line:
+                # Verify it's actually a key by checking for the colon
+                if ':' in line and 'templates' in line:
+                    templates_keys.append(i)
             
             # Exit spec section when we close all braces
             if spec_depth < 0:
@@ -152,7 +154,17 @@ def test_query_prevents_sql_injection():
         with pytest.raises(ValueError, match="Forbidden SQL keyword"):
             memory.query("SELECT * FROM memory_episodic WHERE content = 'x' OR 1=1; DELETE FROM memory_episodic")
         
-        # Test 3: Valid SELECT statements should work (with mocked connection)
+        # Test 3: SQL comment bypass attempts should be blocked
+        with pytest.raises(ValueError, match="Forbidden SQL keyword"):
+            memory.query("SELECT * FROM memory_episodic/**/DROP/**/TABLE users")
+        
+        with pytest.raises(ValueError, match="Forbidden SQL keyword"):
+            memory.query("SELECT * FROM memory_episodic -- comment\nDROP TABLE users")
+        
+        with pytest.raises(ValueError, match="Forbidden SQL keyword"):
+            memory.query("SELECT * FROM memory_episodic\nDROP\nTABLE users")
+        
+        # Test 4: Valid SELECT statements should work (with mocked connection)
         with patch("memory._get_conn") as mock_conn:
             mock_cursor = MagicMock()
             mock_cursor.fetchall.return_value = [{"id": 1, "content": "test"}]
@@ -207,11 +219,15 @@ def test_trace_viewer_uses_parameterized_queries():
     with open(trace_viewer_path, "r") as f:
         content = f.read()
     
-    # Verify it uses %s placeholders instead of f-strings
-    assert "actor = %s" in content or "actor = '{actor_filter}'" not in content
-    assert "action_type = %s" in content or "action_type = '{action_filter}'" not in content
-    assert "LIMIT %s" in content
-    assert "params.append" in content
+    # Verify it uses %s placeholders for parameterized queries
+    assert "actor = %s" in content, "Missing parameterized query for actor filter"
+    assert "action_type = %s" in content, "Missing parameterized query for action_type filter"
+    assert "LIMIT %s" in content, "Missing parameterized query for limit"
+    assert "params.append" in content, "Missing params.append() calls for parameterized queries"
+    
+    # Verify it does NOT use f-string interpolation for SQL (security risk)
+    assert "actor = '{actor_filter}'" not in content, "Found SQL injection vulnerability: f-string in SQL query"
+    assert "action_type = '{action_filter}'" not in content, "Found SQL injection vulnerability: f-string in SQL query"
 
 
 # ---------------------------------------------------------------------------

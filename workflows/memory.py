@@ -101,10 +101,20 @@ def query(sql: str) -> list:
     if not normalized.startswith("SELECT"):
         raise ValueError("Only SELECT queries are permitted")
     
+    # Remove SQL comments before checking for forbidden keywords
+    # Remove single-line comments (--) and multi-line comments (/* */)
+    import re
+    # Remove /* */ style comments
+    normalized = re.sub(r'/\*.*?\*/', ' ', normalized, flags=re.DOTALL)
+    # Remove -- style comments
+    normalized = re.sub(r'--[^\n]*', ' ', normalized)
+    
     forbidden = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "TRUNCATE", "GRANT", "REVOKE"]
     for keyword in forbidden:
         # Check for keyword as a standalone word (not part of column names)
-        if f" {keyword} " in f" {normalized} ":
+        # Use word boundaries and handle various whitespace characters
+        pattern = r'\b' + keyword + r'\b'
+        if re.search(pattern, normalized):
             raise ValueError(f"Forbidden SQL keyword: {keyword}")
     
     conn = _get_conn()
