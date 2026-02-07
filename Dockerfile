@@ -1,10 +1,10 @@
 FROM python:3.11-slim
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates bzip2 && rm -rf /var/lib/apt/lists/*
 
-# Goose binary
+# Goose binary (release is a tar.bz2 archive)
 ARG GOOSE_VERSION=1.20.1
-RUN curl -fsSL "https://github.com/block/goose/releases/download/v${GOOSE_VERSION}/goose-x86_64-unknown-linux-gnu" \
-    -o /usr/local/bin/goose && chmod +x /usr/local/bin/goose
+RUN curl -fsSL "https://github.com/block/goose/releases/download/v${GOOSE_VERSION}/goose-x86_64-unknown-linux-gnu.tar.bz2" \
+    | tar xj -C /tmp/ && mv /tmp/goose /usr/local/bin/goose && chmod +x /usr/local/bin/goose
 
 RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser
 WORKDIR /app
