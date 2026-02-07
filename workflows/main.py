@@ -10,7 +10,6 @@ import sys
 import os
 import glob
 import threading
-import time
 
 # Ensure /app is on Python path so `from workflows.X import Y` works
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,9 +26,6 @@ logger = logging.getLogger("antigravity")
 
 # --- Configuration ---
 MAX_ITERATIONS = int(os.environ.get("GOD_MODE_ITERATIONS", "50"))
-MAX_RETRIES = 20
-BASE_DELAY = 2
-MAX_DELAY = 60
 
 
 # --- God Mode Loop (background) ---

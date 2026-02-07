@@ -42,10 +42,13 @@ try:
 
     # Build query
     where_clauses = []
+    params = []
     if actor_filter != "All":
-        where_clauses.append(f"actor = '{actor_filter}'")
+        where_clauses.append("actor = %s")
+        params.append(actor_filter)
     if action_filter != "All":
-        where_clauses.append(f"action_type = '{action_filter}'")
+        where_clauses.append("action_type = %s")
+        params.append(action_filter)
 
     where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
@@ -54,10 +57,11 @@ try:
         FROM memory_episodic
         {where_sql}
         ORDER BY timestamp DESC
-        LIMIT {limit}
+        LIMIT %s
     """
+    params.append(limit)
 
-    df = pd.read_sql(query, conn)
+    df = pd.read_sql(query, conn, params=params)
 
     if df.empty:
         st.info("No thought trace records found. The agent hasn't started processing yet.")

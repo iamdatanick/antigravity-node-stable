@@ -29,16 +29,6 @@ async def submit_workflow(name: str, params: dict) -> str:
                     {"name": k, "value": str(v)} for k, v in params.items()
                 ]
             },
-            "templates": [
-                {
-                    "name": name,
-                    "container": {
-                        "image": "python:3.11-slim",
-                        "command": ["python", "-c"],
-                        "args": [f"print('Workflow {name} executed with params: {params}')"],
-                    },
-                }
-            ],
             # Exit handler for closed-loop feedback (Gap #6)
             "onExit": "notify-agent",
             "templates": [
@@ -47,7 +37,7 @@ async def submit_workflow(name: str, params: dict) -> str:
                     "container": {
                         "image": "python:3.11-slim",
                         "command": ["python", "-c"],
-                        "args": [f"print('Workflow {name} executed')"],
+                        "args": [f"print('Workflow {name} executed with params: {params}')"],
                     },
                 },
                 {
