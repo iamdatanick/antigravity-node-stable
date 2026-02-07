@@ -1,0 +1,8 @@
+.env
+*.env
+data/
+config/
+.git
+docker-compose.yml
+brain_logs.txt
+docker_status*.txt

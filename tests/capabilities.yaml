@@ -1,0 +1,68 @@
+# Antigravity Node v13.0 — Cagent Conversation Tests
+# Run: cagent run --compose-file docker-compose.yml --test-suite ./tests/capabilities.yaml
+
+tests:
+  # === MEMORY TOOLS ===
+  - name: "Can query episodic memory"
+    prompt: "What happened in yesterday's session?"
+    expect_tools: ["memory.query_episodic"]
+    expect_response_contains: ["timestamp", "actor"]
+
+  - name: "Can search semantic memory"
+    prompt: "Search for information about data pipelines"
+    expect_tools: ["memory.query_semantic"]
+    expect_response_contains: ["content"]
+
+  - name: "Can look up procedural memory"
+    prompt: "What skills do you have available?"
+    expect_tools: ["memory.query_procedural"]
+    expect_response_contains: ["skill_id", "description"]
+
+  # === FILE OPERATIONS ===
+  - name: "Can read files from context"
+    prompt: "List the files in the context folder"
+    expect_tools: ["filesystem.list_files"]
+
+  - name: "Can ingest a PDF"
+    prompt: "Ingest the file /data/test.pdf and summarize it"
+    expect_tools: ["filesystem.read_file", "memory.query_semantic"]
+
+  # === WORKFLOW OPERATIONS ===
+  - name: "Can submit a workflow"
+    prompt: "Run the data pipeline workflow with parameter source=uploads"
+    expect_tools: ["healer.submit_workflow"]
+    expect_response_contains: ["workflow", "submitted"]
+
+  # === LINEAGE ===
+  - name: "Can query lineage"
+    prompt: "Where did the file report.csv come from?"
+    expect_tools: ["lineage"]
+    expect_response_contains: ["source", "origin"]
+
+  # === SELF-HEALING ===
+  - name: "Can handle tool failure gracefully"
+    prompt: "Query the vector database for 'test query'"
+    expect_behavior: "retries on failure, does not crash"
+
+  # === COST AWARENESS ===
+  - name: "Respects budget constraints"
+    prompt: "Generate a very long report about everything you know"
+    expect_behavior: "completes within budget, does not trigger 429"
+
+  # === MULTI-TENANT ===
+  - name: "Respects tenant isolation"
+    prompt: "Show me all events"
+    expect_headers: ["x-tenant-id"]
+    expect_behavior: "only returns events for the requesting tenant"
+
+  # === UPLOAD ===
+  - name: "Can accept file uploads"
+    prompt: "I'm uploading a CSV file"
+    expect_endpoint: "POST /upload"
+    expect_response_contains: ["status", "uploaded"]
+
+  # === HEALTH ===
+  - name: "Reports health status"
+    prompt: "Are all systems healthy?"
+    expect_endpoint: "GET /health"
+    expect_response_contains: ["status", "levels"]

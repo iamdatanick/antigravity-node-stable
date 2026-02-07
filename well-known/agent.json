@@ -1,0 +1,131 @@
+{
+  "name": "Antigravity-Node",
+  "version": "13.0.0",
+  "codename": "The God Node",
+  "protocols": ["A2A", "MCP", "OpenLineage"],
+  "governance": "CNCF/LF/ASF only — Apache-2.0/MIT/BSD-3/MPL-2.0 (NO GPL/AGPL/SSPL/BSL). Exceptions: OpenBao MPL-2.0 (accepted), Loki/Grafana AGPL-3.0 (unmodified containers only).",
+  "architecture": {
+    "brain": "Goose v1.20.1 (Block Inc)",
+    "router": "Docker MCP Gateway (SSE)",
+    "memory": "Milvus (Vector) + StarRocks (SQL, 3-layer: episodic/semantic/procedural)",
+    "lineage": "Marquez v0.48.0 (OpenLineage Standard)",
+    "reflex": "Argo Events (Self-Healing via Tenacity retry + Argo Workflows)",
+    "visibility": "Grafana v10.4.0 + Loki v3.0.0 (LGTM)",
+    "orchestration": "Argo Workflows v3.5.5 via K3D (K3s in Docker)",
+    "storage": "SeaweedFS v3.59 (S3-compatible)",
+    "cost_control": "LiteLLM ($10/day hard budget cap)"
+  },
+  "capabilities": [
+    "argo-workflows", "k3d", "seaweedfs", "goose", "mcp-gateway",
+    "marquez", "grafana", "loki", "litellm", "etcd",
+    "starrocks", "spire", "nats", "falco", "wasm",
+    "valkey", "milvus", "keycloak", "openbao", "ovms",
+    "open-webui", "streamlit-trace-viewer", "master-ui"
+  ],
+  "ports": {
+    "master-ui": 1055,
+    "argo-ui": 2755,
+    "grafana": 3055,
+    "loki": 3155,
+    "open-webui": 3355,
+    "litellm": 4055,
+    "nats": 4255,
+    "marquez-api": 5055,
+    "marquez-admin": 5155,
+    "postgres": 5455,
+    "valkey": 6355,
+    "k3d-api": 6755,
+    "mcp-gateway-sse": 7755,
+    "starrocks-http": 8055,
+    "spire": 8155,
+    "openbao": 8255,
+    "keycloak-http": 8355,
+    "seaweedfs-s3": 8455,
+    "ovms-rest": 8555,
+    "trace-viewer": 8655,
+    "starrocks-fe": 9055,
+    "milvus-metrics": 9155,
+    "ovms-grpc": 9255,
+    "seaweedfs-master": 9355,
+    "milvus-grpc": 19555
+  },
+  "a2a": {
+    "base_url": "http://localhost:8080",
+    "endpoints": {
+      "health": "GET /health",
+      "task": "POST /task",
+      "handoff": "POST /handoff",
+      "upload": "POST /upload",
+      "webhook": "POST /webhook",
+      "chat": "POST /v1/chat/completions",
+      "agent_descriptor": "GET /.well-known/agent.json"
+    },
+    "headers": {
+      "x-tenant-id": "required — tenant isolation for multi-tenant memory"
+    }
+  },
+  "mcp": {
+    "gateway": "http://localhost:7755/sse",
+    "catalog": "config/mcp-catalog.yaml",
+    "tools": [
+      {"name": "memory", "type": "sse", "url": "http://mcp-starrocks:8000/sse", "description": "Long-term memory via StarRocks (episodic/semantic/procedural)"},
+      {"name": "filesystem", "type": "sse", "url": "http://mcp-filesystem:8000/sse", "description": "Read files from Downloads context folder"},
+      {"name": "lineage", "type": "http", "url": "http://marquez:5000", "description": "Track data origins via OpenLineage"},
+      {"name": "healer", "type": "http", "url": "http://argo-server:2746", "description": "Self-healing reflex — trigger remediation workflows"}
+    ]
+  },
+  "grpc": {
+    "port": 8081,
+    "services": [
+      {"name": "SuperBuilder", "proto": "workflows/protos/superbuilder.proto", "description": "Intel SuperBuilder middleware — maps GUI requests to Goose agents"},
+      {"name": "AgentService", "proto": "workflows/protos/a2a.proto", "description": "A2A protocol over gRPC"}
+    ]
+  },
+  "memory_schema": {
+    "episodic": "memory_episodic — event_id, tenant_id, timestamp, session_id, actor, action_type, content, embedding",
+    "semantic": "memory_semantic — doc_id, tenant_id, chunk_id, content, source_uri, embedding",
+    "procedural": "memory_procedural — skill_id, description, argo_template_yaml, success_rate, embedding"
+  },
+  "boot_order": [
+    "Layer -1: volume-fixer (init, exits)",
+    "Layer 0: postgres, seaweedfs, nats, etcd",
+    "Layer 1: k3d, keycloak, marquez, loki",
+    "Layer 1.5: argo-bootstrap (init, exits — installs Argo + Events + CoreDNS patch)",
+    "Layer 2: starrocks, valkey, milvus, spire, openbao, ovms",
+    "Layer 3: wasm-worker, falco",
+    "Layer 4: grafana, litellm",
+    "Layer 5: mcp-gateway, mcp-starrocks, mcp-filesystem",
+    "Layer 6: orchestrator, goose",
+    "Layer 7: open-webui, trace-viewer",
+    "Layer 8: master-ui"
+  ],
+  "deployment": {
+    "method": "Docker Build Cloud via docker buildx bake",
+    "bake_file": "docker-bake.hcl",
+    "targets": ["orchestrator", "mcp-starrocks", "trace-viewer", "master-ui"],
+    "runtime": "Docker Desktop / Rancher Desktop (local), Docker Build Cloud (production)"
+  },
+  "security": {
+    "orchestrator_docker_socket": false,
+    "falco_socket_readonly": true,
+    "container_user": "appuser",
+    "env_whitelist": ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOSE_PROVIDER", "GOOSE_MODEL"],
+    "iam": "keycloak",
+    "secrets": "openbao",
+    "mtls": "spire",
+    "budget_cap": "$10/day via LiteLLM",
+    "destructive_sql_blocked": true,
+    "file_upload_limit_mb": 100
+  },
+  "delta_from_v11": {
+    "removed": ["flyte", "ceph"],
+    "added": [
+      "argo-workflows", "k3d", "seaweedfs", "goose", "mcp-gateway",
+      "marquez", "grafana", "loki", "litellm", "etcd", "open-webui",
+      "trace-viewer", "master-ui", "mcp-starrocks", "mcp-filesystem",
+      "argo-bootstrap", "volume-fixer", "argo-events"
+    ],
+    "modified": ["postgres (flyte→argo DB)", "milvus (embedded→external etcd)", "orchestrator (flytekit→hera+fastapi+grpc)"]
+  },
+  "total_containers": "~30 (including 2 init containers that exit after boot)"
+}

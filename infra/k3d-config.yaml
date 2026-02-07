@@ -1,0 +1,32 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: antigravity
+servers: 1
+agents: 0
+network: antigravity_mesh
+ports:
+  - port: 2746:2746
+    nodeFilters: [loadbalancer]
+options:
+  k3s:
+    extraArgs:
+      - arg: "--disable=traefik"
+        nodeFilters: [server:0]
+hostAliases:
+  - ip: "host.k3d.internal"
+    hostnames:
+      - "seaweedfs"
+      - "starrocks"
+      - "milvus"
+      - "postgres"
+      - "mcp-gateway"
+      - "marquez"
+      - "nats"
+      - "valkey"
+      - "keycloak"
+      - "openbao"
+      - "ovms"
+      - "loki"
+      - "grafana"
+      - "litellm"

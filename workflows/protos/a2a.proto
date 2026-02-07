@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package antigravity.a2a;
+
+option go_package = "antigravity/a2a";
+
+// A2A Protocol Buffer Definitions
+// Agent-to-Agent communication protocol
+
+service AgentService {
+  rpc SubmitTask (TaskRequest) returns (TaskResponse);
+  rpc GetHealth (HealthRequest) returns (HealthResponse);
+  rpc Handoff (HandoffRequest) returns (HandoffResponse);
+}
+
+message TaskRequest {
+  string goal = 1;
+  string context = 2;
+  string tenant_id = 3;
+  string session_id = 4;
+}
+
+message TaskResponse {
+  string status = 1;
+  string session_id = 2;
+  string result = 3;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  repeated LevelCheck levels = 2;
+}
+
+message LevelCheck {
+  string level = 1;
+  string name = 2;
+  bool healthy = 3;
+}
+
+message HandoffRequest {
+  string target_agent = 1;
+  string payload = 2;
+  string tenant_id = 3;
+}
+
+message HandoffResponse {
+  string status = 1;
+  string target = 2;
+}

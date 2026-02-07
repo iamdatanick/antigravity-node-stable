@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: file-watcher
+  namespace: argo-events
+spec:
+  file:
+    context-files:
+      watchPathConfig:
+        directory: /app/context
+        eventType: "IN_CLOSE_WRITE"
+        pathRegexp: ".*\\.(pdf|csv|json|md|xlsx)$"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: ingest-sensor
+  namespace: argo-events
+spec:
+  dependencies:
+    - name: file-ready
+      eventSourceName: file-watcher
+      eventName: context-files
+  triggers:
+    - template:
+        name: trigger-ingestion
+        http:
+          url: "http://antigravity_brain:8080/task"
+          method: POST
+          payload:
+            - src:
+                dependencyName: file-ready
+                dataKey: body.name
+              dest: filename
+          headers:
+            Content-Type: "application/json"
+            x-tenant-id: "system"

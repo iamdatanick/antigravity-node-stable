@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: restart-milvus-
+  namespace: argo
+spec:
+  entrypoint: restart
+  templates:
+    - name: restart
+      container:
+        image: bitnami/kubectl:1.29
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "=== Self-Healing: Restarting Milvus ==="
+            kubectl rollout restart deployment/milvus 2>/dev/null || \
+              echo "Milvus is a Docker Compose service — restart via API"
+            echo "=== Restart triggered ==="

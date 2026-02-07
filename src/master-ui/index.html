@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antigravity Node v13.0</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0a0a1a; }
+    nav {
+      background: #1a1a2e;
+      color: white;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      border-bottom: 1px solid #2a2a4e;
+    }
+    nav strong { font-size: 1.1em; }
+    nav a {
+      color: #00d4ff;
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    nav a:hover { background: rgba(0, 212, 255, 0.1); }
+    nav a.active { background: rgba(0, 212, 255, 0.2); border: 1px solid #00d4ff; }
+    iframe {
+      width: 100%;
+      height: calc(100vh - 48px);
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <strong>Antigravity v13.0</strong>
+    <a href="/chat/" class="active">Chat</a>
+    <a href="/argo/">Workflows</a>
+    <a href="/lineage/">Lineage</a>
+    <a href="/grafana/">Dashboards</a>
+    <a href="/trace/">Thought Trace</a>
+  </nav>
+  <iframe id="main" src="/chat/"></iframe>
+  <script>
+    document.querySelectorAll('nav a').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        document.querySelectorAll('nav a').forEach(l => l.classList.remove('active'));
+        a.classList.add('active');
+        document.getElementById('main').src = a.href;
+      });
+    });
+  </script>
+</body>
+</html>

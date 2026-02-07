@@ -1,0 +1,34 @@
+# Workflow Orchestration
+hera>=5.16
+argo-workflows>=6.5
+
+# Messaging & Data
+nats-py>=2.7
+boto3>=1.35
+psycopg2-binary>=2.9
+pandas>=2.2
+aiohttp>=3.9
+pymysql>=1.1
+
+# Vector + Cache
+pymilvus>=2.4
+valkey-py>=6.0
+
+# Web Framework (A2A HTTP endpoints)
+fastapi>=0.109
+uvicorn[standard]>=0.27
+httpx>=0.27
+
+# gRPC (Intel SuperBuilder middleware)
+grpcio>=1.62
+grpcio-tools>=1.62
+
+# MCP (Model Context Protocol)
+mcp>=1.0.0
+fastmcp>=2.0.0
+
+# Resilience (self-correction reflex loop)
+tenacity>=8.2
+
+# OpenLineage (Marquez integration)
+openlineage-python>=1.9

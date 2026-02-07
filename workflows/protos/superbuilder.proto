@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package antigravity.superbuilder;
+
+option go_package = "antigravity/superbuilder";
+
+// Intel SuperBuilder gRPC Definitions
+// Maps Intel GUI requests to Goose agent execution
+
+service SuperBuilder {
+  rpc ExecuteWorkflow (WorkflowRequest) returns (WorkflowResponse);
+  rpc GetWorkflowStatus (StatusRequest) returns (StatusResponse);
+}
+
+message WorkflowRequest {
+  string workflow_name = 1;
+  map<string, string> parameters = 2;
+  string tenant_id = 3;
+}
+
+message WorkflowResponse {
+  string status = 1;
+  string agent_id = 2;
+  string run_id = 3;
+}
+
+message StatusRequest {
+  string run_id = 1;
+}
+
+message StatusResponse {
+  string run_id = 1;
+  string phase = 2;
+  string message = 3;
+}

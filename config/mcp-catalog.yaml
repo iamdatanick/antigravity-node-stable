@@ -1,0 +1,25 @@
+apiVersion: mcp/v1
+kind: Catalog
+servers:
+  # MEMORY & KNOWLEDGE
+  memory:
+    type: sse
+    url: http://mcp-starrocks:8000/sse
+    description: "Long-term memory and RAG retrieval via StarRocks (episodic/semantic/procedural)."
+
+  filesystem:
+    type: sse
+    url: http://mcp-filesystem:8000/sse
+    description: "Access to Downloads mount and context files."
+
+  # LINEAGE & OBSERVABILITY
+  lineage:
+    type: http
+    url: http://marquez:5000
+    description: "Track data origins via OpenLineage. Find where any file or artifact came from."
+
+  # SELF-HEALING
+  healer:
+    type: http
+    url: http://argo-server:2746
+    description: "Trigger remediation workflows when a tool fails. Self-healing reflex."
