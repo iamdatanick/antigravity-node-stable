@@ -53,7 +53,7 @@ services:
   # [STORAGE] SeaweedFS - S3-Compatible Object Store (replaces Ceph)
   seaweedfs:
     image: chrislusf/seaweedfs:3.59
-    command: "server -s3 -s3.port=8333 -master.port=9333 -ip=0.0.0.0 -volume.max=5 -dir=/data"
+    command: "server -s3 -s3.port=8333 -master.port=9333 -ip=0.0.0.0 -volume.max=30 -dir=/data"
     ports: ["8455:8333", "9355:9333"]
     volumes: [seaweedfs-data:/data]
     depends_on:

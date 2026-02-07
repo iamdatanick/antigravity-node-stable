@@ -93,4 +93,6 @@ def execute_sql(sql: str) -> str:
 if __name__ == "__main__":
     mcp.settings.host = "0.0.0.0"
     mcp.settings.port = 8000
+    # Disable DNS rebinding protection for Docker network access
+    mcp.settings.transport_security.enable_dns_rebinding_protection = False
     mcp.run(transport="sse")

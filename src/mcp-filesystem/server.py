@@ -95,5 +95,7 @@ async def search_files(query: str, extensions: str = ".csv,.json,.pdf,.xlsx,.md"
 if __name__ == "__main__":
     mcp.settings.host = "0.0.0.0"
     mcp.settings.port = 8000
+    # Disable DNS rebinding protection for Docker network access
+    mcp.settings.transport_security.enable_dns_rebinding_protection = False
     logger.info(f"Starting MCP Filesystem Server on 0.0.0.0:8000 (data_dir={DATA_DIR})")
     mcp.run(transport="sse")
