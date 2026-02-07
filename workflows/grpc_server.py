@@ -30,12 +30,19 @@ class SuperBuilderServicer:
         params = {}
 
         # Run async workflow submission in sync context
-        loop = asyncio.new_event_loop()
+        # Use asyncio.run() which handles event loop creation/cleanup automatically
+        from workflows.workflow_defs import submit_workflow
         try:
-            from workflows.workflow_defs import submit_workflow
-            run_id = loop.run_until_complete(submit_workflow(workflow_name, params))
-        finally:
-            loop.close()
+            run_id = asyncio.run(submit_workflow(workflow_name, params))
+        except RuntimeError as e:
+            # If there's already a running event loop (shouldn't happen in ThreadPoolExecutor)
+            # fall back to creating a new loop
+            logger.warning(f"asyncio.run() failed, using new event loop: {e}")
+            loop = asyncio.new_event_loop()
+            try:
+                run_id = loop.run_until_complete(submit_workflow(workflow_name, params))
+            finally:
+                loop.close()
 
         logger.info(f"gRPC workflow submitted: {run_id}")
         # TODO: Return proto-generated response once stubs are available
@@ -59,8 +66,10 @@ def serve_grpc():
     # superbuilder_pb2_grpc.add_SuperBuilderServicer_to_server(
     #     SuperBuilderServicer(), server
     # )
-    logger.warning("SuperBuilder servicer not registered — proto stubs not yet compiled. "
-                    "gRPC health check is available.")
+    logger.warning(
+        "SuperBuilder servicer not registered — proto stubs not yet compiled. "
+        "gRPC health check is available."
+    )
 
     server.add_insecure_port(f"[::]:{GRPC_PORT}")
     server.start()

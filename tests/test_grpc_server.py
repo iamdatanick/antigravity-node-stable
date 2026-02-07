@@ -4,6 +4,7 @@ import sys
 import os
 from unittest.mock import MagicMock, patch, AsyncMock
 import pytest
+import grpc
 
 # Add workflows to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workflows"))
@@ -30,8 +31,8 @@ def test_servicer_class_exists():
 
 def test_execute_workflow_sync_call():
     """Test that ExecuteWorkflow properly calls async submit_workflow in sync context."""
-    import grpc_server
     from unittest.mock import patch, AsyncMock
+    import grpc_server
     
     servicer = grpc_server.SuperBuilderServicer()
     
@@ -55,7 +56,6 @@ def test_execute_workflow_sync_call():
         result = servicer.ExecuteWorkflow(mock_request, mock_context)
     
     # Verify context was set correctly
-    import grpc
     mock_context.set_code.assert_called_once_with(grpc.StatusCode.OK)
     assert mock_context.set_details.called
     
