@@ -574,6 +574,26 @@ services:
           memory: 128M
           cpus: '0.25'
 
+  # [MCP TOOL] StarRocks Memory Server
+  mcp-starrocks:
+    build: ./src/mcp-starrocks
+    environment:
+      - STARROCKS_HOST=starrocks
+      - STARROCKS_PORT=9030
+      - STARROCKS_USER=root
+    labels:
+      - "mcp.type=server"
+      - "mcp.name=memory"
+    depends_on:
+      starrocks:
+        condition: service_healthy
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
   # [AGENT] Goose - AI Agent with MCP + A2A
   goose:
     image: block/goose:v1.20.1
