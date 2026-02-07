@@ -13,20 +13,3 @@ options:
     extraArgs:
       - arg: "--disable=traefik"
         nodeFilters: [server:0]
-hostAliases:
-  - ip: "host.k3d.internal"
-    hostnames:
-      - "seaweedfs"
-      - "starrocks"
-      - "milvus"
-      - "postgres"
-      - "mcp-gateway"
-      - "marquez"
-      - "nats"
-      - "valkey"
-      - "keycloak"
-      - "openbao"
-      - "ovms"
-      - "loki"
-      - "grafana"
-      - "litellm"

@@ -14,12 +14,10 @@ services:
         echo "=== Fixing volume permissions ==="
         chown -R 1000:1000 /fix/seaweedfs 2>/dev/null || true
         chown -R 1000:1000 /fix/milvus 2>/dev/null || true
-        chown -R 999:999 /fix/postgres 2>/dev/null || true
         echo "=== Permissions fixed ==="
     volumes:
       - seaweedfs-data:/fix/seaweedfs
       - milvus-data:/fix/milvus
-      - postgres-data:/fix/postgres
     restart: "no"
 
   # ═══════════════════════════════════════════════════════════════════
@@ -55,7 +53,7 @@ services:
   # [STORAGE] SeaweedFS - S3-Compatible Object Store (replaces Ceph)
   seaweedfs:
     image: chrislusf/seaweedfs:3.59
-    command: "server -s3 -s3.port=8333 -master.port=9333 -volume.max=5 -dir=/data"
+    command: "server -s3 -s3.port=8333 -master.port=9333 -ip=0.0.0.0 -volume.max=5 -dir=/data"
     ports: ["8455:8333", "9355:9333"]
     volumes: [seaweedfs-data:/data]
     depends_on:
@@ -147,10 +145,12 @@ services:
     environment:
       - MARQUEZ_PORT=5000
       - MARQUEZ_ADMIN_PORT=5001
+      - MARQUEZ_DB=marquez
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=marquez
       - POSTGRES_USER=antigravity
       - POSTGRES_PASSWORD=antigravity
-      - POSTGRES_DB=marquez
-      - POSTGRES_HOST=postgres
     depends_on:
       postgres:
         condition: service_healthy
@@ -203,12 +203,17 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        # Start Docker daemon in background (DinD)
+        dockerd &
+        echo "Starting Docker daemon..."
         while ! docker info >/dev/null 2>&1; do sleep 1; done
+        echo "Docker daemon ready. Creating K3D cluster..."
         k3d cluster list | grep -q antigravity || \
           k3d cluster create antigravity \
             --config /k3d-state/k3d-config.yaml \
             --wait
         k3d kubeconfig get antigravity > /k3d-state/kubeconfig.yaml
+        echo "K3D cluster ready."
         sleep infinity
     ports: ["6755:6443", "2755:2746"]
     volumes:
@@ -528,11 +533,11 @@ services:
           memory: 256M
           cpus: '0.5'
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4000/health || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health/readiness')\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 15s
 
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 5: AGENT CONTROL PLANE
@@ -541,7 +546,7 @@ services:
   # [MCP GATEWAY] Docker Official MCP Router
   mcp-gateway:
     image: docker/mcp-gateway:latest
-    command: ["run", "--transport", "sse", "--port", "8080", "--catalog", "/etc/mcp/catalog.yaml"]
+    command: ["--transport", "sse", "--port", "8080", "--catalog", "/etc/mcp/catalog.yaml"]
     volumes:
       - ./config/mcp-catalog.yaml:/etc/mcp/catalog.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
@@ -553,15 +558,19 @@ services:
           memory: 256M
           cpus: '0.5'
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
 
-  # [MCP TOOL] Filesystem Server
+  # [MCP TOOL] Filesystem Server (npx @modelcontextprotocol/server-filesystem)
   mcp-filesystem:
-    image: docker/mcp-filesystem-server:latest
+    image: node:20-alpine
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        npx -y @modelcontextprotocol/server-filesystem /data
     volumes:
       - C:\Users\NickV\Downloads:/data:ro
     labels:
@@ -652,8 +661,9 @@ services:
       - ./well-known:/app/well-known
       - C:\Users\NickV\Downloads:/app/context:ro
     depends_on:
-      argo-bootstrap:
-        condition: service_completed_successfully
+      # NOTE: argo-bootstrap dependency relaxed — K3D DinD has cgroup issues
+      # argo-bootstrap:
+      #   condition: service_completed_successfully
       starrocks:
         condition: service_healthy
       valkey:

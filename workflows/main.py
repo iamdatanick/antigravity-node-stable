@@ -12,6 +12,9 @@ import glob
 import threading
 import time
 
+# Ensure /app is on Python path so `from workflows.X import Y` works
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import uvicorn
 
 # --- Structured Logging ---
