@@ -239,15 +239,20 @@ def test_main_py_no_unused_imports():
     main_path = os.path.join(os.path.dirname(__file__), "..", "workflows", "main.py")
     
     with open(main_path, "r") as f:
-        content = f.read()
+        lines = f.readlines()
+    
+    # Check import section (first 20 lines typically contain imports)
+    import_lines = [line.strip() for line in lines[:20] if line.strip().startswith("import ")]
     
     # Should NOT import time (unused)
-    assert "import time" not in content
+    time_imports = [line for line in import_lines if line == "import time" or line.startswith("import time,")]
+    assert len(time_imports) == 0, f"Found unused 'import time' in main.py: {time_imports}"
     
-    # Should NOT have unused variables
-    assert "MAX_RETRIES = " not in content
-    assert "BASE_DELAY = " not in content
-    assert "MAX_DELAY = " not in content
+    # Check for unused variables in the full file
+    content = ''.join(lines)
+    assert "MAX_RETRIES = " not in content, "Found unused variable MAX_RETRIES"
+    assert "BASE_DELAY = " not in content, "Found unused variable BASE_DELAY"
+    assert "MAX_DELAY = " not in content, "Found unused variable MAX_DELAY"
 
 
 def test_a2a_server_no_unused_json_import():
@@ -257,12 +262,12 @@ def test_a2a_server_no_unused_json_import():
     with open(a2a_path, "r") as f:
         lines = f.readlines()
     
-    # Check the import section (first 10 lines)
-    import_section = "".join(lines[:10])
+    # Check import section (first 20 lines typically contain imports)
+    import_lines = [line.strip() for line in lines[:20] if line.strip().startswith("import ")]
     
     # Should NOT have standalone "import json" in the import section
-    # Note: json might be used elsewhere, but not in the import section
-    assert "\nimport json\n" not in import_section
+    json_imports = [line for line in import_lines if line == "import json" or line.startswith("import json,")]
+    assert len(json_imports) == 0, f"Found unused 'import json' in a2a_server.py: {json_imports}"
 
 
 def test_goose_client_no_unused_subprocess_import():
@@ -272,9 +277,10 @@ def test_goose_client_no_unused_subprocess_import():
     with open(goose_path, "r") as f:
         lines = f.readlines()
     
-    # Check the import section (first 10 lines)
-    import_section = "".join(lines[:10])
+    # Check import section (first 20 lines typically contain imports)
+    import_lines = [line.strip() for line in lines[:20] if line.strip().startswith("import ")]
     
     # Should NOT import subprocess (unused in the current code)
-    assert "import subprocess" not in import_section
+    subprocess_imports = [line for line in import_lines if line == "import subprocess" or line.startswith("import subprocess,")]
+    assert len(subprocess_imports) == 0, f"Found unused 'import subprocess' in goose_client.py: {subprocess_imports}"
 

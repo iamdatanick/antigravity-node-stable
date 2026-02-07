@@ -4,6 +4,7 @@ import os
 import time
 import logging
 import itertools
+import re
 import pymysql
 
 logger = logging.getLogger("antigravity.memory")
@@ -103,7 +104,7 @@ def query(sql: str) -> list:
     
     # Remove SQL comments before checking for forbidden keywords
     # Remove single-line comments (--) and multi-line comments (/* */)
-    import re
+    # Note: This handles simple comment patterns but may not catch all edge cases
     # Remove /* */ style comments
     normalized = re.sub(r'/\*.*?\*/', ' ', normalized, flags=re.DOTALL)
     # Remove -- style comments
