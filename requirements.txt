@@ -12,7 +12,7 @@ pymysql>=1.1
 
 # Vector + Cache
 pymilvus>=2.4
-valkey-py>=6.0
+valkey>=6.0
 
 # Web Framework (A2A HTTP endpoints)
 fastapi>=0.109
