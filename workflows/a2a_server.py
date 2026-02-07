@@ -135,28 +135,268 @@ async def argo_webhook(payload: dict):
     return {"ack": True}
 
 
-# OpenAI-compatible endpoint for Open WebUI
+# --- LiteLLM/OpenAI proxy client ---
+LITELLM_BASE = os.environ.get("LITELLM_BASE_URL", "http://litellm:4000")
+SYSTEM_PROMPT_PATH = os.environ.get("SYSTEM_PROMPT_PATH", "/app/well-known/../config/prompts/system.txt")
+_system_prompt_cache = None
+
+
+def _load_system_prompt() -> str:
+    """Load the Goose system prompt for AI identity."""
+    global _system_prompt_cache
+    if _system_prompt_cache is not None:
+        return _system_prompt_cache
+    for path in ["/etc/goose/system.txt", "/app/config/prompts/system.txt",
+                 SYSTEM_PROMPT_PATH, "config/prompts/system.txt"]:
+        try:
+            with open(path, "r") as f:
+                _system_prompt_cache = f.read().strip()
+                return _system_prompt_cache
+        except FileNotFoundError:
+            continue
+    _system_prompt_cache = "You are the Antigravity Node v13.0, a sovereign AI agent."
+    return _system_prompt_cache
+
+
+# OpenAI-compatible endpoint for Open WebUI — routes through LiteLLM
 @app.post("/v1/chat/completions")
-async def chat_completions(body: dict):
-    """OpenAI-compatible chat completions — proxied by Open WebUI."""
+async def chat_completions(body: dict, x_tenant_id: str = Header(default="system")):
+    """OpenAI-compatible chat completions — routed through LiteLLM proxy."""
+    import httpx
+
     messages = body.get("messages", [])
     if not messages:
         return {"choices": [{"message": {"role": "assistant", "content": "No input provided."}}]}
 
     user_msg = messages[-1].get("content", "")
-    logger.info(f"Chat completion request: {user_msg[:100]}")
+    session_id = str(uuid.uuid4())[:8]
+    logger.info(f"Chat request (tenant={x_tenant_id}): {user_msg[:100]}")
 
-    # Simple echo response — in production, would route to Goose
-    response_text = f"Antigravity Node v13.0 received: {user_msg}"
+    # 1. Record user message in episodic memory
+    try:
+        push_episodic(
+            tenant_id=x_tenant_id,
+            session_id=session_id,
+            actor="User",
+            action_type="TASK_REQUEST",
+            content=user_msg[:1000],
+        )
+    except Exception as e:
+        logger.warning(f"Memory write failed: {e}")
 
-    return {
-        "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
-        "object": "chat.completion",
-        "choices": [
-            {
-                "index": 0,
-                "message": {"role": "assistant", "content": response_text},
-                "finish_reason": "stop",
+    # 2. Recall relevant past context
+    history_context = ""
+    try:
+        history = recall_experience(user_msg, x_tenant_id, limit=5)
+        if history:
+            history_lines = [f"- [{h.get('action_type', '?')}] {h.get('content', '')[:200]}" for h in history]
+            history_context = "\n\nRECENT MEMORY:\n" + "\n".join(history_lines)
+    except Exception as e:
+        logger.warning(f"Memory recall failed: {e}")
+
+    # 3. Build messages with system prompt + memory context
+    system_msg = _load_system_prompt()
+    if history_context:
+        system_msg += history_context
+
+    enriched_messages = [{"role": "system", "content": system_msg}]
+    enriched_messages.extend(messages)
+
+    # 4. Route through LiteLLM proxy
+    model = body.get("model", os.environ.get("GOOSE_MODEL", "gpt-4o"))
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                f"{LITELLM_BASE}/v1/chat/completions",
+                json={
+                    "model": model,
+                    "messages": enriched_messages,
+                    "temperature": body.get("temperature", 0.7),
+                    "max_tokens": body.get("max_tokens", 2048),
+                },
+                headers={"Content-Type": "application/json"},
+            )
+
+        if resp.status_code == 200:
+            result = resp.json()
+            # Record AI response in episodic memory
+            ai_content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            try:
+                push_episodic(
+                    tenant_id=x_tenant_id,
+                    session_id=session_id,
+                    actor="Goose",
+                    action_type="RESPONSE",
+                    content=ai_content[:1000],
+                )
+            except Exception as e:
+                logger.warning(f"Memory write for response failed: {e}")
+            return result
+        elif resp.status_code == 429:
+            logger.warning("LiteLLM budget exhausted — returning budget error")
+            return {
+                "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
+                "object": "chat.completion",
+                "choices": [{
+                    "index": 0,
+                    "message": {"role": "assistant",
+                                "content": "⚠️ Budget limit reached ($10/day). The AI is paused until the budget resets. "
+                                           "You can still use MCP tools, upload files, and check system health."},
+                    "finish_reason": "stop",
+                }],
             }
+        else:
+            error_text = resp.text[:500]
+            logger.error(f"LiteLLM returned {resp.status_code}: {error_text}")
+            return {
+                "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
+                "object": "chat.completion",
+                "choices": [{
+                    "index": 0,
+                    "message": {"role": "assistant",
+                                "content": f"Antigravity Node error: LiteLLM proxy returned {resp.status_code}. "
+                                           f"Check LiteLLM config at http://localhost:4055/health"},
+                    "finish_reason": "stop",
+                }],
+            }
+
+    except httpx.ConnectError:
+        logger.error("Cannot reach LiteLLM proxy")
+        return {
+            "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
+            "object": "chat.completion",
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant",
+                            "content": "🔌 LiteLLM proxy is unreachable. The AI backend is offline. "
+                                       "System status: check /health endpoint."},
+                "finish_reason": "stop",
+            }],
+        }
+    except Exception as e:
+        logger.error(f"Chat completion error: {e}")
+        return {
+            "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
+            "object": "chat.completion",
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant",
+                            "content": f"Antigravity Node v13.0 encountered an error: {str(e)[:200]}"},
+                "finish_reason": "stop",
+            }],
+        }
+
+
+# Also serve models list for Open WebUI compatibility
+@app.get("/v1/models")
+async def list_models():
+    """OpenAI-compatible models list — proxied from LiteLLM."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{LITELLM_BASE}/v1/models")
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception:
+        pass
+    # Fallback: return our default model
+    return {
+        "object": "list",
+        "data": [
+            {"id": "gpt-4o", "object": "model", "owned_by": "antigravity"},
+            {"id": "claude-sonnet-4-20250514", "object": "model", "owned_by": "antigravity"},
         ],
+    }
+
+
+# --- MCP Tool Discovery Endpoint ---
+@app.get("/tools")
+async def list_tools():
+    """List all available MCP tools across all tool servers."""
+    import httpx
+
+    tools = []
+
+    # Orchestrator built-in tools (from mcp_server.py)
+    builtin = [
+        {"name": "search_memory", "server": "orchestrator", "description": "Search StarRocks memory tables for relevant context"},
+        {"name": "query_memory", "server": "orchestrator", "description": "Execute SQL on StarRocks memory tables"},
+        {"name": "trigger_task", "server": "orchestrator", "description": "Trigger an Argo workflow via Hera SDK"},
+        {"name": "reflect_on_failure", "server": "orchestrator", "description": "Analyze logs from a failed workflow"},
+        {"name": "ingest_file", "server": "orchestrator", "description": "Ingest document into semantic memory"},
+    ]
+    tools.extend(builtin)
+
+    # MCP StarRocks tools
+    mcp_servers = {
+        "mcp-starrocks": "http://mcp-starrocks:8000",
+        "mcp-filesystem": "http://mcp-filesystem:8000",
+    }
+
+    for server_name, base_url in mcp_servers.items():
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                # SSE endpoints only support GET, use a quick GET with small read
+                resp = await client.get(f"{base_url}/sse", timeout=httpx.Timeout(2.0, connect=2.0))
+                # HTTP 200 means SSE stream opened successfully
+                tools.append({
+                    "name": f"{server_name}",
+                    "server": server_name,
+                    "status": "connected",
+                    "transport": "sse",
+                    "url": f"{base_url}/sse",
+                })
+        except (httpx.ReadTimeout, httpx.RemoteProtocolError):
+            # ReadTimeout means SSE connection opened but no events yet — that's OK
+            tools.append({
+                "name": f"{server_name}",
+                "server": server_name,
+                "status": "connected",
+                "transport": "sse",
+                "url": f"{base_url}/sse",
+            })
+        except Exception:
+            tools.append({
+                "name": f"{server_name}",
+                "server": server_name,
+                "status": "unreachable",
+            })
+
+    return {"tools": tools, "total": len(tools)}
+
+
+# --- Agent Capabilities Summary ---
+@app.get("/capabilities")
+async def capabilities():
+    """Return full node capabilities for A2A discovery."""
+    return {
+        "node": "Antigravity Node v13.0",
+        "protocols": ["a2a", "mcp", "openai-compatible"],
+        "endpoints": {
+            "health": "/health",
+            "task": "/task",
+            "upload": "/upload",
+            "handoff": "/handoff",
+            "webhook": "/webhook",
+            "chat": "/v1/chat/completions",
+            "models": "/v1/models",
+            "tools": "/tools",
+            "capabilities": "/capabilities",
+            "agent_descriptor": "/.well-known/agent.json",
+        },
+        "mcp_servers": {
+            "mcp-starrocks": {"transport": "sse", "url": "http://mcp-starrocks:8000/sse"},
+            "mcp-filesystem": {"transport": "sse", "url": "http://mcp-filesystem:8000/sse"},
+            "mcp-gateway": {"transport": "sse", "url": "http://mcp-gateway:8080/sse"},
+        },
+        "memory": {
+            "episodic": "StarRocks memory_episodic table",
+            "semantic": "StarRocks memory_semantic table + Milvus vectors",
+            "procedural": "StarRocks memory_procedural table",
+        },
+        "budget": {
+            "proxy": "LiteLLM",
+            "max_daily": "$10.00",
+            "model": os.environ.get("GOOSE_MODEL", "gpt-4o"),
+        },
     }

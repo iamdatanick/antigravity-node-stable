@@ -498,6 +498,8 @@ services:
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       loki:
         condition: service_healthy
@@ -517,11 +519,10 @@ services:
   # [COST CONTROL] LiteLLM - LLM API Budget Proxy
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--detailed_debug"]
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - LITELLM_BUDGET_MAX=10.00
-      - LITELLM_BUDGET_DURATION=24h
       - LITELLM_LOG_LEVEL=INFO
     ports: ["4055:4000"]
     volumes:
@@ -546,7 +547,14 @@ services:
   # [MCP GATEWAY] Docker Official MCP Router
   mcp-gateway:
     image: docker/mcp-gateway:latest
-    command: ["--transport", "sse", "--port", "8080", "--catalog", "/etc/mcp/catalog.yaml"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "antigravity" | /docker-mcp catalog import /etc/mcp/catalog.yaml 2>/dev/null || true
+        /docker-mcp server enable antigravity-memory 2>/dev/null || true
+        /docker-mcp server enable antigravity-filesystem 2>/dev/null || true
+        echo "=== MCP servers enabled ==="
+        exec /docker-mcp gateway run --transport sse --port 8080
     volumes:
       - ./config/mcp-catalog.yaml:/etc/mcp/catalog.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
@@ -564,13 +572,11 @@ services:
       retries: 5
       start_period: 10s
 
-  # [MCP TOOL] Filesystem Server (npx @modelcontextprotocol/server-filesystem)
+  # [MCP TOOL] Filesystem Server (FastMCP SSE — reads /data mount)
   mcp-filesystem:
-    image: node:20-alpine
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        npx -y @modelcontextprotocol/server-filesystem /data
+    build: ./src/mcp-filesystem
+    environment:
+      - DATA_DIR=/data
     volumes:
       - C:\Users\NickV\Downloads:/data:ro
     labels:
@@ -604,27 +610,11 @@ services:
           cpus: '0.25'
 
   # [AGENT] Goose - AI Agent with MCP + A2A
-  goose:
-    image: block/goose:v1.20.1
-    command: ["agent", "--mcp-hub", "http://mcp-gateway:8080/sse", "--system-prompt", "/etc/goose/system.txt"]
-    volumes:
-      - ./config/prompts/system.txt:/etc/goose/system.txt:ro
-    environment:
-      - GOOSE_PROVIDER=openai
-      - OPENAI_API_BASE=http://litellm:4000/v1
-      - GOOSE_MODEL=${GOOSE_MODEL:-gpt-4o}
-      - OPENLINEAGE_URL=http://marquez:5000
-      - OPENLINEAGE_NAMESPACE=antigravity
-    depends_on:
-      - mcp-gateway
-      - marquez
-      - litellm
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
+  # NOTE: Goose agent is integrated INTO the orchestrator container
+  # (binary at /usr/local/bin/goose). The standalone Goose image
+  # (block/goose:v1.20.1) does not exist on Docker Hub.
+  # AI intelligence is provided via LiteLLM proxy → OpenAI/Anthropic.
+  # The orchestrator's /v1/chat/completions routes through LiteLLM.
 
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 6: BRAIN (depends on everything)
