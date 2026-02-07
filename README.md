@@ -1,6 +1,6 @@
 # Antigravity Node
 
-Antigravity Node v13 is a Python-based orchestration service that combines FastAPI A2A endpoints, a gRPC server, and a Docker Compose stack to coordinate workflows, storage, messaging, and UI tooling.
+Antigravity Node v13 is a Python 3.11-based orchestration service that combines FastAPI A2A endpoints, a gRPC server, and a Docker Compose stack to coordinate workflows, storage, messaging, and UI tooling.
 
 ## Repository layout
 
@@ -76,7 +76,7 @@ Key endpoints (after startup):
 
 ## Testing
 
-Automated tests are not currently defined beyond shared fixtures in `tests/`.
+Automated tests are minimal; the `tests/` directory currently provides shared fixtures without full test coverage.
 If you add tests, run them with:
 
 ```bash
