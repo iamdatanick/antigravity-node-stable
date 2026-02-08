@@ -47,9 +47,12 @@ class SuperBuilderServicer:
         logger.info(f"gRPC workflow submitted: {run_id}")
         # TODO: Return proto-generated response once stubs are available
         # return superbuilder_pb2.WorkflowResponse(status="submitted", agent_id=run_id)
-        context.set_code(grpc.StatusCode.OK)
-        context.set_details(f"Workflow submitted: {run_id}")
-        return None  # Placeholder until proto stubs are generated
+        # Until proto stubs exist, abort with UNIMPLEMENTED instead of returning None,
+        # which would cause a serialization error for a unary RPC.
+        context.abort(
+            grpc.StatusCode.UNIMPLEMENTED,
+            f"ExecuteWorkflow response type not yet implemented (workflow submitted with run_id={run_id})",
+        )
 
 
 def serve_grpc():
