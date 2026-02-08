@@ -110,11 +110,11 @@ No linting configuration is defined yet.
 
 Scope:
 - workflows/workflow_defs.py — Merge the duplicate templates key into a single list
-- workflows/memory.py — Replace global _event_counter with itertools.count() or threading.Lock
-- workflows/memory.py — Add SQL sanitization/allow-list to query() function
-- src/trace-viewer/trace_viewer.py — Convert f-string SQL to parameterized queries
-- Remove unused imports: time from main.py, json from a2a_server.py, subprocess from goose_client.py
-- Remove unused variables: MAX_RETRIES, BASE_DELAY, MAX_DELAY from main.py
+- workflows/memory.py — Confirm global _event_counter uses itertools.count() (or equivalent) for thread-safe event IDs
+- workflows/memory.py — Confirm query() enforces SELECT-only semantics via a SQL keyword allow-list
+- src/trace-viewer/trace_viewer.py — Confirm all SQL queries use parameterized execution (no f-string interpolation of user input)
+- Verify unused imports (time from main.py, json from a2a_server.py, subprocess from goose_client.py) remain removed
+- Verify unused variables (MAX_RETRIES, BASE_DELAY, MAX_DELAY in main.py) remain removed; tests/test_critical_fixes.py should continue to enforce this
 
 **PR #2 — Fix gRPC server: async handler, servicer registration, or clean removal**
 
