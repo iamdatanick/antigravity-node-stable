@@ -14,9 +14,7 @@ secrets/
 # Data directories (recreated at runtime)
 data/postgres/
 data/starrocks/
-
-# SPIRE data (runtime state)
-data/spire/*.sqlite3*
+data/spire/
 
 # IDE
 .vscode/
