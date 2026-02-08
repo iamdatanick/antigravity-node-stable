@@ -1,7 +1,8 @@
 """Integration tests for FastAPI endpoints with Pydantic validation."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 
 
@@ -20,13 +21,13 @@ class TestTaskEndpoint:
     def test_task_valid_request(self, mock_recall, mock_push, client):
         """Test /task with valid request."""
         mock_recall.return_value = []
-        
+
         response = client.post(
             "/task",
             json={"goal": "Analyze sales data", "context": "Q4 report"},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "accepted"
@@ -39,13 +40,13 @@ class TestTaskEndpoint:
     def test_task_with_session_id(self, mock_recall, mock_push, client):
         """Test /task with explicit session_id."""
         mock_recall.return_value = []
-        
+
         response = client.post(
             "/task",
             json={"goal": "Test task", "session_id": "my-session-123"},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["session_id"] == "my-session-123"
@@ -57,7 +58,7 @@ class TestTaskEndpoint:
             json={"context": "Some context"},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 422
         assert "goal" in response.json()["detail"][0]["loc"]
 
@@ -68,7 +69,7 @@ class TestTaskEndpoint:
             json={"goal": ""},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 422
 
     def test_task_missing_tenant_header(self, client):
@@ -77,7 +78,7 @@ class TestTaskEndpoint:
             "/task",
             json={"goal": "Test goal"}
         )
-        
+
         assert response.status_code == 400
         assert "x-tenant-id" in response.json()["detail"]
 
@@ -92,7 +93,7 @@ class TestHandoffEndpoint:
             json={"target_agent": "agent-2", "payload": {"key": "value"}},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "handoff_acknowledged"
@@ -105,7 +106,7 @@ class TestHandoffEndpoint:
             json={"payload": {"key": "value"}},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 422
         assert "target_agent" in response.json()["detail"][0]["loc"]
 
@@ -120,7 +121,7 @@ class TestWebhookEndpoint:
             "/webhook",
             json={"task_id": "task-123", "status": "Succeeded"}
         )
-        
+
         assert response.status_code == 200
         assert response.json()["ack"] is True
         mock_reflect.assert_not_called()
@@ -132,7 +133,7 @@ class TestWebhookEndpoint:
             "/webhook",
             json={"task_id": "task-123", "status": "Failed", "message": "OOMKilled"}
         )
-        
+
         assert response.status_code == 200
         assert response.json()["ack"] is True
         mock_reflect.assert_called_once_with("task-123", "OOMKilled")
@@ -143,7 +144,7 @@ class TestWebhookEndpoint:
             "/webhook",
             json={}
         )
-        
+
         assert response.status_code == 200
         assert response.json()["ack"] is True
 
@@ -157,20 +158,20 @@ class TestChatCompletionsEndpoint:
     def test_chat_completions_valid(self, mock_client_cls, mock_recall, mock_push, client):
         """Test /v1/chat/completions with valid request."""
         mock_recall.return_value = []
-        
+
         # Mock LiteLLM response
         mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "choices": [{"message": {"role": "assistant", "content": "Test response"}}]
         }
-        
+
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(return_value=mock_response)
         mock_client_cls.return_value = mock_client
-        
+
         response = client.post(
             "/v1/chat/completions",
             json={
@@ -181,7 +182,7 @@ class TestChatCompletionsEndpoint:
             },
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "choices" in data
@@ -193,7 +194,7 @@ class TestChatCompletionsEndpoint:
             json={"model": "gpt-4"},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 422
         assert "messages" in response.json()["detail"][0]["loc"]
 
@@ -204,7 +205,7 @@ class TestChatCompletionsEndpoint:
             json={"messages": []},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 422
 
     def test_chat_completions_invalid_temperature(self, client):
@@ -217,7 +218,7 @@ class TestChatCompletionsEndpoint:
             },
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 422
 
 
@@ -229,13 +230,13 @@ class TestUploadEndpoint:
     def test_upload_valid_file(self, mock_push, mock_s3, client):
         """Test /upload with valid file."""
         mock_s3.return_value = None
-        
+
         response = client.post(
             "/upload",
             files={"file": ("test.txt", b"test content", "text/plain")},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "uploaded"
@@ -252,15 +253,15 @@ class TestToolsEndpoint:
         # Mock MCP server responses
         mock_response = AsyncMock()
         mock_response.status_code = 200
-        
+
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(side_effect=Exception("unreachable"))
         mock_client_cls.return_value = mock_client
-        
+
         response = client.get("/tools")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "tools" in data
@@ -274,7 +275,7 @@ class TestCapabilitiesEndpoint:
     def test_capabilities(self, client):
         """Test /capabilities returns node capabilities."""
         response = client.get("/capabilities")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["node"] == "Antigravity Node v13.0"
@@ -295,9 +296,9 @@ class TestHealthEndpoint:
             "status": "healthy",
             "levels": []
         }
-        
+
         response = client.get("/health")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
@@ -309,9 +310,9 @@ class TestHealthEndpoint:
             "status": "unhealthy",
             "levels": []
         }
-        
+
         response = client.get("/health")
-        
+
         assert response.status_code == 503
         data = response.json()
         assert data["status"] == "unhealthy"

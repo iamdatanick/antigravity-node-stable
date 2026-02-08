@@ -1,9 +1,10 @@
 """Tests for security features: CORS, webhook authentication, and rate limiting."""
 
-import pytest
-import hmac
 import hashlib
-from unittest.mock import patch, MagicMock
+import hmac
+from unittest.mock import MagicMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -48,11 +49,11 @@ class TestWebhookAuthentication:
         """Test webhook works when WEBHOOK_SECRET is not configured."""
         # Ensure WEBHOOK_SECRET is empty (dev mode)
         monkeypatch.setenv("WEBHOOK_SECRET", "")
-        
+
         # Need to reload the module to pick up the new env var
         import workflows.a2a_server
         workflows.a2a_server.WEBHOOK_SECRET = ""
-        
+
         response = client.post(
             "/webhook",
             json={
@@ -61,7 +62,7 @@ class TestWebhookAuthentication:
                 "message": "Task completed"
             }
         )
-        
+
         assert response.status_code == 200
         assert response.json()["ack"] is True
 
@@ -70,14 +71,14 @@ class TestWebhookAuthentication:
         """Test webhook with valid HMAC signature."""
         secret = "test-secret-key"
         monkeypatch.setenv("WEBHOOK_SECRET", secret)
-        
+
         # Reload module to pick up new env var
         import workflows.a2a_server
         workflows.a2a_server.WEBHOOK_SECRET = secret
-        
+
         payload = b'{"task_id":"test-123","status":"Succeeded","message":"Task completed"}'
         expected_sig = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
-        
+
         response = client.post(
             "/webhook",
             content=payload,
@@ -86,7 +87,7 @@ class TestWebhookAuthentication:
                 "x-webhook-signature": f"sha256={expected_sig}"
             }
         )
-        
+
         assert response.status_code == 200
         assert response.json()["ack"] is True
 
@@ -95,11 +96,11 @@ class TestWebhookAuthentication:
         """Test webhook rejects invalid HMAC signature."""
         secret = "test-secret-key"
         monkeypatch.setenv("WEBHOOK_SECRET", secret)
-        
+
         # Reload module to pick up new env var
         import workflows.a2a_server
         workflows.a2a_server.WEBHOOK_SECRET = secret
-        
+
         response = client.post(
             "/webhook",
             json={
@@ -111,7 +112,7 @@ class TestWebhookAuthentication:
                 "x-webhook-signature": "sha256=invalid-signature-here"
             }
         )
-        
+
         assert response.status_code == 401
         assert "Invalid webhook signature" in response.json()["detail"]
 
@@ -124,14 +125,14 @@ class TestRateLimiting:
     def test_task_rate_limit(self, mock_recall, mock_push, client):
         """Test /task endpoint has rate limiting configured."""
         mock_recall.return_value = []
-        
+
         # Make a single request - should succeed
         response = client.post(
             "/task",
             json={"goal": "Test task", "context": "Testing"},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         # First request should succeed
         assert response.status_code == 200
 
@@ -145,7 +146,7 @@ class TestRateLimiting:
             files={"file": ("test.txt", b"test content", "text/plain")},
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         # First request should succeed
         assert response.status_code == 200
 
@@ -157,7 +158,7 @@ class TestRateLimiting:
         """Test /v1/chat/completions endpoint has rate limiting configured."""
         mock_recall.return_value = []
         mock_prompt.return_value = "You are a helpful assistant."
-        
+
         # Mock the httpx client to avoid making real HTTP requests
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -165,7 +166,7 @@ class TestRateLimiting:
             "choices": [{"message": {"role": "assistant", "content": "Hello"}}]
         }
         mock_httpx_client.return_value.__aenter__.return_value.post.return_value = mock_response
-        
+
         # Make a single request - should succeed
         response = client.post(
             "/v1/chat/completions",
@@ -175,7 +176,7 @@ class TestRateLimiting:
             },
             headers={"x-tenant-id": "tenant-1"}
         )
-        
+
         # First request should succeed
         assert response.status_code == 200
 
@@ -186,9 +187,9 @@ class TestPathTraversalFix:
     def test_system_prompt_path_no_traversal(self):
         """Test that SYSTEM_PROMPT_PATH default doesn't contain path traversal."""
         from workflows.a2a_server import SYSTEM_PROMPT_PATH
-        
+
         # Should not contain ../ in the path
         assert "../" not in SYSTEM_PROMPT_PATH
-        
+
         # Should be a clean absolute path
         assert SYSTEM_PROMPT_PATH.startswith("/app/config/") or SYSTEM_PROMPT_PATH.startswith("/")
