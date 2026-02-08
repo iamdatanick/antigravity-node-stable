@@ -12,6 +12,10 @@ Antigravity Node v13 is a Python 3.11-based orchestration service (despite the n
 - `docker-compose.yml`: full stack runtime and dependencies.
 - `Dockerfile`: orchestrator container build.
 
+## Documentation
+
+- [User Manual](docs/USER_MANUAL.md): full installation, UI walkthroughs, and troubleshooting.
+
 ## Prerequisites
 
 - Docker + Docker Compose for the full stack.
