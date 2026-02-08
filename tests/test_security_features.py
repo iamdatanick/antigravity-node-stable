@@ -152,32 +152,32 @@ class TestRateLimiting:
     @patch("workflows.a2a_server.push_episodic")
     @patch("workflows.a2a_server.recall_experience")
     @patch("workflows.a2a_server._load_system_prompt")
-    def test_chat_completions_rate_limit(self, mock_prompt, mock_recall, mock_push, client):
+    @patch("httpx.AsyncClient")
+    def test_chat_completions_rate_limit(self, mock_httpx_client, mock_prompt, mock_recall, mock_push, client):
         """Test /v1/chat/completions endpoint has rate limiting configured."""
         mock_recall.return_value = []
         mock_prompt.return_value = "You are a helpful assistant."
         
         # Mock the httpx client to avoid making real HTTP requests
-        with patch("workflows.a2a_server.httpx.AsyncClient") as mock_client:
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_response.json.return_value = {
-                "choices": [{"message": {"role": "assistant", "content": "Hello"}}]
-            }
-            mock_client.return_value.__aenter__.return_value.post.return_value = mock_response
-            
-            # Make a single request - should succeed
-            response = client.post(
-                "/v1/chat/completions",
-                json={
-                    "model": "gpt-4o",
-                    "messages": [{"role": "user", "content": "Hello"}]
-                },
-                headers={"x-tenant-id": "tenant-1"}
-            )
-            
-            # First request should succeed
-            assert response.status_code == 200
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"role": "assistant", "content": "Hello"}}]
+        }
+        mock_httpx_client.return_value.__aenter__.return_value.post.return_value = mock_response
+        
+        # Make a single request - should succeed
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Hello"}]
+            },
+            headers={"x-tenant-id": "tenant-1"}
+        )
+        
+        # First request should succeed
+        assert response.status_code == 200
 
 
 class TestPathTraversalFix:
