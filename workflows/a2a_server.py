@@ -16,6 +16,7 @@ from workflows.health import full_health_check
 from workflows.memory import push_episodic, recall_experience
 from workflows.s3_client import upload as s3_upload
 from workflows.goose_client import execute_tool_with_correction, goose_reflect
+from workflows.auth import validate_token
 from workflows.models import (
     TaskRequest, TaskResponse, HandoffRequest, HandoffResponse,
     WebhookPayload, WebhookResponse, ChatCompletionRequest,
@@ -81,6 +82,7 @@ async def task(
     request: Request,
     body: TaskRequest,
     x_tenant_id: str = Header(default=None),
+    user: dict = Depends(validate_token),
 ):
     """POST /task — A2A task endpoint with multi-tenant isolation."""
     if not x_tenant_id:
@@ -122,7 +124,7 @@ async def task(
 
 
 @app.post("/handoff", response_model=HandoffResponse)
-async def handoff(body: HandoffRequest, x_tenant_id: str = Header(default="system")):
+async def handoff(body: HandoffRequest, x_tenant_id: str = Header(default="system"), user: dict = Depends(validate_token)):
     """POST /handoff — A2A agent-to-agent handoff."""
     target = body.target_agent
     payload = body.payload
@@ -136,6 +138,7 @@ async def upload_file(
     request: Request,
     file: UploadFile = File(...),
     x_tenant_id: str = Header(default="system"),
+    user: dict = Depends(validate_token),
 ):
     """POST /upload — HTTP file upload to SeaweedFS (Gap #14 fix)."""
     if not file.filename:
@@ -220,6 +223,7 @@ async def chat_completions(
     request: Request,
     body: ChatCompletionRequest,
     x_tenant_id: str = Header(default="system"),
+    user: dict = Depends(validate_token),
 ):
     """OpenAI-compatible chat completions — routed through LiteLLM proxy."""
     import httpx
