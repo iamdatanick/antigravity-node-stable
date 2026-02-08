@@ -205,6 +205,8 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+    security_opt:
+      - no-new-privileges:true
     networks: [antigravity_mesh]
     restart: unless-stopped
 
@@ -783,6 +785,7 @@ services:
         limits:
           memory: 512M
           cpus: '0.5'
+    read_only: false
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped

@@ -1,7 +1,7 @@
 """Hera SDK workflow definitions — replaces flytekit @task/@workflow."""
 
-import os
 import logging
+import os
 import uuid
 
 logger = logging.getLogger("antigravity.workflows")
@@ -24,11 +24,7 @@ async def submit_workflow(name: str, params: dict) -> str:
         },
         "spec": {
             "entrypoint": name,
-            "arguments": {
-                "parameters": [
-                    {"name": k, "value": str(v)} for k, v in params.items()
-                ]
-            },
+            "arguments": {"parameters": [{"name": k, "value": str(v)} for k, v in params.items()]},
             # Exit handler for closed-loop feedback (Gap #6)
             "onExit": "notify-agent",
             "templates": [
@@ -76,9 +72,7 @@ async def get_workflow_status(run_id: str) -> dict:
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"http://{ARGO_SERVER}/api/v1/workflows/{ARGO_NAMESPACE}/{run_id}"
-            )
+            resp = await client.get(f"http://{ARGO_SERVER}/api/v1/workflows/{ARGO_NAMESPACE}/{run_id}")
             if resp.status_code == 200:
                 data = resp.json()
                 return {

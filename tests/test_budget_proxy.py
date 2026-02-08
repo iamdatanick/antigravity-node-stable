@@ -4,17 +4,16 @@ Covers health endpoint, budget enforcement, routing logic,
 cost estimation, and daily reset.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import date, datetime, timezone
-
+import os
 
 # ---------------------------------------------------------------------------
 # Import helpers — add budget-proxy to path
 # ---------------------------------------------------------------------------
-
 import sys
-import os
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add the budget-proxy source directory so we can import proxy
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "budget-proxy"))
@@ -24,12 +23,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "budget-
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def _reset_proxy_state():
     """Reset in-memory budget state before every test."""
     import proxy
+
     proxy._daily_spend = 0.0
-    proxy._spend_date = datetime.now(timezone.utc).date()
+    proxy._spend_date = datetime.now(UTC).date()
     yield
 
 
@@ -38,6 +39,7 @@ def client():
     """HTTPX AsyncClient backed by the FastAPI app (no network)."""
     import httpx
     from proxy import app
+
     return httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
@@ -47,6 +49,7 @@ def client():
 # ---------------------------------------------------------------------------
 # Tests for /health
 # ---------------------------------------------------------------------------
+
 
 class TestHealthEndpoint:
     """Tests for GET /health."""
@@ -67,6 +70,7 @@ class TestHealthEndpoint:
     async def test_health_shows_remaining_budget(self, client):
         """Remaining budget equals total minus spend."""
         import proxy
+
         proxy._daily_spend = 12.5
         proxy.DAILY_BUDGET_USD = 50.0
 
@@ -81,6 +85,7 @@ class TestHealthEndpoint:
 # Tests for budget enforcement
 # ---------------------------------------------------------------------------
 
+
 class TestBudgetEnforcement:
     """Tests for daily budget limits on /v1/chat/completions."""
 
@@ -88,6 +93,7 @@ class TestBudgetEnforcement:
     async def test_budget_exceeded_returns_429(self, client):
         """When daily spend >= budget, requests are rejected with 429."""
         import proxy
+
         proxy.DAILY_BUDGET_USD = 10.0
         proxy._daily_spend = 10.0  # exactly at limit
 
@@ -102,6 +108,7 @@ class TestBudgetEnforcement:
     async def test_within_budget_succeeds(self, client):
         """When spend is below budget, request is forwarded to upstream."""
         import proxy
+
         proxy.DAILY_BUDGET_USD = 50.0
         proxy._daily_spend = 5.0
 
@@ -132,6 +139,7 @@ class TestBudgetEnforcement:
     async def test_spend_accumulates(self, client):
         """After a successful request, _daily_spend increases."""
         import proxy
+
         proxy.DAILY_BUDGET_USD = 100.0
         proxy._daily_spend = 0.0
 
@@ -162,28 +170,30 @@ class TestBudgetEnforcement:
 # Tests for daily reset
 # ---------------------------------------------------------------------------
 
+
 class TestDailyReset:
     """Tests for _reset_if_new_day budget reset logic."""
 
     def test_reset_on_new_day(self):
         """Spend resets to 0 when the date changes."""
-        import proxy
         from datetime import timedelta
 
+        import proxy
+
         proxy._daily_spend = 42.0
-        proxy._spend_date = datetime.now(timezone.utc).date() - timedelta(days=1)
+        proxy._spend_date = datetime.now(UTC).date() - timedelta(days=1)
 
         proxy._reset_if_new_day()
 
         assert proxy._daily_spend == 0.0
-        assert proxy._spend_date == datetime.now(timezone.utc).date()
+        assert proxy._spend_date == datetime.now(UTC).date()
 
     def test_no_reset_same_day(self):
         """Spend does NOT reset on the same day."""
         import proxy
 
         proxy._daily_spend = 15.0
-        proxy._spend_date = datetime.now(timezone.utc).date()
+        proxy._spend_date = datetime.now(UTC).date()
 
         proxy._reset_if_new_day()
 
@@ -194,12 +204,14 @@ class TestDailyReset:
 # Tests for model routing
 # ---------------------------------------------------------------------------
 
+
 class TestRouteModel:
     """Tests for _route_model provider selection."""
 
     def test_route_openai(self):
         """OpenAI models route to api.openai.com."""
         import proxy
+
         proxy.OPENAI_API_KEY = "sk-test"
 
         base, headers, model = proxy._route_model("gpt-4o")
@@ -222,6 +234,7 @@ class TestRouteModel:
     def test_route_local(self):
         """local/ prefix routes to LOCAL_LLM_URL (OVMS)."""
         import proxy
+
         proxy.LOCAL_LLM_URL = "http://ovms:8000/v1"
 
         base, headers, model = proxy._route_model("local/llama3")
@@ -232,6 +245,7 @@ class TestRouteModel:
     def test_route_local_when_no_openai_key(self):
         """When OPENAI_API_KEY is empty, non-Claude models route local."""
         import proxy
+
         proxy.OPENAI_API_KEY = ""
         proxy.LOCAL_LLM_URL = "http://ovms:8000/v1"
 
@@ -243,6 +257,7 @@ class TestRouteModel:
 # ---------------------------------------------------------------------------
 # Tests for cost estimation
 # ---------------------------------------------------------------------------
+
 
 class TestEstimateCost:
     """Tests for _estimate_cost token pricing."""
@@ -275,6 +290,7 @@ class TestEstimateCost:
 # Tests for upstream error forwarding
 # ---------------------------------------------------------------------------
 
+
 class TestUpstreamErrors:
     """Tests for forwarding upstream non-200 responses."""
 
@@ -282,6 +298,7 @@ class TestUpstreamErrors:
     async def test_upstream_500_forwarded(self, client):
         """Upstream 500 is returned to caller."""
         import proxy
+
         proxy.DAILY_BUDGET_USD = 100.0
         proxy._daily_spend = 0.0
 
@@ -307,6 +324,7 @@ class TestUpstreamErrors:
     async def test_upstream_401_forwarded(self, client):
         """Upstream 401 (invalid API key) is forwarded."""
         import proxy
+
         proxy.DAILY_BUDGET_USD = 100.0
         proxy._daily_spend = 0.0
 

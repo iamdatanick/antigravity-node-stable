@@ -9,9 +9,9 @@ before importing ``workflows.memory``.
 
 import sys
 import threading
-import re
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # Mock dbutils before importing workflows.memory
@@ -28,14 +28,14 @@ sys.modules.setdefault("dbutils.pooled_db", _mock_dbutils.pooled_db)
 from workflows.memory import (  # noqa: E402
     push_episodic,
     push_semantic,
-    recall_experience,
     query,
+    recall_experience,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _mock_conn():
     """Create a mock StarRocks pooled connection with cursor context manager."""
@@ -51,6 +51,7 @@ def _mock_conn():
 # ---------------------------------------------------------------------------
 # Tests for push_episodic
 # ---------------------------------------------------------------------------
+
 
 class TestPushEpisodic:
     """Test push_episodic function."""
@@ -125,6 +126,7 @@ class TestPushEpisodic:
 # Tests for push_semantic
 # ---------------------------------------------------------------------------
 
+
 class TestPushSemantic:
     """Test push_semantic function."""
 
@@ -168,6 +170,7 @@ class TestPushSemantic:
 # Tests for recall_experience
 # ---------------------------------------------------------------------------
 
+
 class TestRecallExperience:
     """Test recall_experience function."""
 
@@ -207,6 +210,7 @@ class TestRecallExperience:
 # ---------------------------------------------------------------------------
 # Tests for query() — SQL validation & injection prevention
 # ---------------------------------------------------------------------------
+
 
 class TestQueryValidation:
     """Test the query() function's SQL allow-list and injection defenses."""
@@ -299,6 +303,7 @@ class TestQueryValidation:
 # Tests for thread-safe counter
 # ---------------------------------------------------------------------------
 
+
 class TestThreadSafeCounter:
     """Test thread-safe event ID generation."""
 
@@ -340,14 +345,25 @@ class TestThreadSafeCounter:
 # Tests for forbidden keywords list completeness
 # ---------------------------------------------------------------------------
 
+
 class TestForbiddenKeywordsList:
     """Verify the forbidden keywords list covers known SQL injection vectors."""
 
     def test_all_expected_keywords_present(self):
         """The forbidden list includes all critical write/admin operations."""
         expected_blocked = [
-            "DROP", "DELETE", "INSERT", "UPDATE", "ALTER",
-            "CREATE", "TRUNCATE", "GRANT", "REVOKE", "LOAD", "SET", "EXEC",
+            "DROP",
+            "DELETE",
+            "INSERT",
+            "UPDATE",
+            "ALTER",
+            "CREATE",
+            "TRUNCATE",
+            "GRANT",
+            "REVOKE",
+            "LOAD",
+            "SET",
+            "EXEC",
         ]
 
         for kw in expected_blocked:

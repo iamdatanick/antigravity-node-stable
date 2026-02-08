@@ -1,7 +1,8 @@
 """Intel OPEA Gateway connector — triggers RAG pipelines."""
 
-import os
 import logging
+import os
+
 import httpx
 
 logger = logging.getLogger("antigravity.opea")

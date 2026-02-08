@@ -1,11 +1,12 @@
 """OpenTelemetry initialization for Antigravity Node v13.0."""
 
-import os
 import logging
+import os
+
 from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.sdk.resources import Resource
 
 logger = logging.getLogger("antigravity.telemetry")
 
@@ -22,6 +23,7 @@ def init_telemetry():
     if OTEL_ENDPOINT:
         try:
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
             otlp_exporter = OTLPSpanExporter(endpoint=OTEL_ENDPOINT, insecure=True)
             provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
             logger.info(f"OTLP exporter configured: {OTEL_ENDPOINT}")

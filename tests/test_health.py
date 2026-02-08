@@ -4,15 +4,15 @@ Covers L0-L4 individual levels, _check_url/_check_tcp helpers,
 and full_health_check aggregate logic.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
-
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helper: mock aiohttp response
 # ---------------------------------------------------------------------------
+
 
 def _make_response(status: int = 200):
     """Create a mock aiohttp response with the given status code."""
@@ -39,9 +39,7 @@ def _make_session(responses: dict[str, int] | None = None, fail_urls: set[str] |
     def _get_side_effect(url, **kwargs):
         for substr in fail_urls:
             if substr in str(url):
-                raise aiohttp.ClientConnectorError(
-                    connection_key=MagicMock(), os_error=OSError("Connection refused")
-                )
+                raise aiohttp.ClientConnectorError(connection_key=MagicMock(), os_error=OSError("Connection refused"))
         for substr, status in responses.items():
             if substr in str(url):
                 return _make_response(status)
@@ -56,6 +54,7 @@ def _make_session(responses: dict[str, int] | None = None, fail_urls: set[str] |
 # ---------------------------------------------------------------------------
 # Tests for _check_url
 # ---------------------------------------------------------------------------
+
 
 class TestCheckUrl:
     """Tests for the _check_url helper."""
@@ -129,6 +128,7 @@ class TestCheckUrl:
 # Tests for _check_tcp
 # ---------------------------------------------------------------------------
 
+
 class TestCheckTcp:
     """Tests for the _check_tcp helper."""
 
@@ -164,11 +164,11 @@ class TestCheckTcp:
     @pytest.mark.asyncio
     async def test_tcp_timeout(self):
         """Timeout marks service unhealthy."""
+
         from workflows.health import _check_tcp
-        import asyncio
 
         with patch("workflows.health.asyncio.wait_for", new_callable=AsyncMock) as mock_wait:
-            mock_wait.side_effect = asyncio.TimeoutError()
+            mock_wait.side_effect = TimeoutError()
             result = await _check_tcp("nats", "localhost", 4222)
 
         assert result["healthy"] is False
@@ -178,6 +178,7 @@ class TestCheckTcp:
 # ---------------------------------------------------------------------------
 # Tests for individual levels (L0-L4)
 # ---------------------------------------------------------------------------
+
 
 class TestCheckLevels:
     """Tests for check_level_0 through check_level_4."""
@@ -192,8 +193,10 @@ class TestCheckLevels:
         mock_writer.close = MagicMock()
         mock_writer.wait_closed = AsyncMock()
 
-        with patch("workflows.health.aiohttp.ClientSession") as mock_cls, \
-             patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp:
+        with (
+            patch("workflows.health.aiohttp.ClientSession") as mock_cls,
+            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
+        ):
             mock_cls.return_value = mock_session
             mock_tcp.return_value = (AsyncMock(), mock_writer)
 
@@ -279,6 +282,7 @@ class TestCheckLevels:
 # Tests for full_health_check
 # ---------------------------------------------------------------------------
 
+
 class TestFullHealthCheck:
     """Tests for the full_health_check aggregate function."""
 
@@ -292,8 +296,10 @@ class TestFullHealthCheck:
         mock_writer.close = MagicMock()
         mock_writer.wait_closed = AsyncMock()
 
-        with patch("workflows.health.aiohttp.ClientSession") as mock_cls, \
-             patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp:
+        with (
+            patch("workflows.health.aiohttp.ClientSession") as mock_cls,
+            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
+        ):
             mock_cls.return_value = mock_session
             mock_tcp.return_value = (AsyncMock(), mock_writer)
 
@@ -314,8 +320,10 @@ class TestFullHealthCheck:
         mock_writer.close = MagicMock()
         mock_writer.wait_closed = AsyncMock()
 
-        with patch("workflows.health.aiohttp.ClientSession") as mock_cls, \
-             patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp:
+        with (
+            patch("workflows.health.aiohttp.ClientSession") as mock_cls,
+            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
+        ):
             mock_cls.return_value = mock_session
             mock_tcp.return_value = (AsyncMock(), mock_writer)
 
@@ -333,8 +341,10 @@ class TestFullHealthCheck:
         mock_writer.close = MagicMock()
         mock_writer.wait_closed = AsyncMock()
 
-        with patch("workflows.health.aiohttp.ClientSession") as mock_cls, \
-             patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp:
+        with (
+            patch("workflows.health.aiohttp.ClientSession") as mock_cls,
+            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
+        ):
             mock_cls.return_value = mock_session
             mock_tcp.return_value = (AsyncMock(), mock_writer)
 
@@ -357,8 +367,10 @@ class TestFullHealthCheck:
         mock_writer.close = MagicMock()
         mock_writer.wait_closed = AsyncMock()
 
-        with patch("workflows.health.aiohttp.ClientSession") as mock_cls, \
-             patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp:
+        with (
+            patch("workflows.health.aiohttp.ClientSession") as mock_cls,
+            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
+        ):
             mock_cls.return_value = mock_session
             mock_tcp.return_value = (AsyncMock(), mock_writer)
 

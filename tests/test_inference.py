@@ -4,8 +4,8 @@ import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 import httpx
+import pytest
 
 # Ensure workflows package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def ovms_env(monkeypatch):
@@ -55,6 +56,7 @@ def _make_async_client(get_response=None, post_response=None, get_side_effect=No
 # Unit tests: inference module functions
 # ---------------------------------------------------------------------------
 
+
 class TestOvmsHealthCheck:
     """Tests for ovms_health_check()."""
 
@@ -67,6 +69,7 @@ class TestOvmsHealthCheck:
             mock_cls.return_value = _make_async_client(get_response=resp)
 
             from workflows.inference import ovms_health_check
+
             result = await ovms_health_check()
 
         assert result["name"] == "ovms"
@@ -77,17 +80,21 @@ class TestOvmsHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_with_models(self):
         """OVMS reachable with models returns healthy + count."""
-        resp = _make_response(200, {
-            "model_config_list": [
-                {"config": {"name": "resnet", "base_path": "/models/resnet"}},
-                {"config": {"name": "bert", "base_path": "/models/bert"}},
-            ]
-        })
+        resp = _make_response(
+            200,
+            {
+                "model_config_list": [
+                    {"config": {"name": "resnet", "base_path": "/models/resnet"}},
+                    {"config": {"name": "bert", "base_path": "/models/bert"}},
+                ]
+            },
+        )
 
         with patch("workflows.inference.httpx.AsyncClient") as mock_cls:
             mock_cls.return_value = _make_async_client(get_response=resp)
 
             from workflows.inference import ovms_health_check
+
             result = await ovms_health_check()
 
         assert result["healthy"] is True
@@ -102,6 +109,7 @@ class TestOvmsHealthCheck:
             )
 
             from workflows.inference import ovms_health_check
+
             result = await ovms_health_check()
 
         assert result["name"] == "ovms"
@@ -121,6 +129,7 @@ class TestListModels:
             mock_cls.return_value = _make_async_client(get_response=resp)
 
             from workflows.inference import list_models
+
             result = await list_models()
 
         assert result == []
@@ -128,16 +137,20 @@ class TestListModels:
     @pytest.mark.asyncio
     async def test_list_models_populated(self):
         """Config with models returns their names."""
-        resp = _make_response(200, {
-            "model_config_list": [
-                {"config": {"name": "resnet", "base_path": "/models/resnet"}},
-            ]
-        })
+        resp = _make_response(
+            200,
+            {
+                "model_config_list": [
+                    {"config": {"name": "resnet", "base_path": "/models/resnet"}},
+                ]
+            },
+        )
 
         with patch("workflows.inference.httpx.AsyncClient") as mock_cls:
             mock_cls.return_value = _make_async_client(get_response=resp)
 
             from workflows.inference import list_models
+
             result = await list_models()
 
         assert result == ["resnet"]
@@ -151,6 +164,7 @@ class TestListModels:
             )
 
             from workflows.inference import list_models
+
             result = await list_models()
 
         assert result == []
@@ -166,6 +180,7 @@ class TestRunInference:
             mock_list.return_value = []
 
             from workflows.inference import run_inference
+
             result = await run_inference("resnet", {"input": [[1.0, 2.0]]})
 
         assert result["status"] == "no_model_loaded"
@@ -178,6 +193,7 @@ class TestRunInference:
             mock_list.return_value = ["bert"]
 
             from workflows.inference import run_inference
+
             result = await run_inference("resnet", {"input": [[1.0, 2.0]]})
 
         assert result["status"] == "model_not_found"
@@ -189,14 +205,16 @@ class TestRunInference:
         """Successful REST inference (gRPC stubs unavailable)."""
         resp = _make_response(200, {"outputs": {"output": [0.9, 0.1]}})
 
-        with patch("workflows.inference.list_models", new_callable=AsyncMock) as mock_list, \
-             patch("workflows.inference._get_predict_service_stub", return_value=(None, None, None)), \
-             patch("workflows.inference.httpx.AsyncClient") as mock_cls:
-
+        with (
+            patch("workflows.inference.list_models", new_callable=AsyncMock) as mock_list,
+            patch("workflows.inference._get_predict_service_stub", return_value=(None, None, None)),
+            patch("workflows.inference.httpx.AsyncClient") as mock_cls,
+        ):
             mock_list.return_value = ["resnet"]
             mock_cls.return_value = _make_async_client(post_response=resp)
 
             from workflows.inference import run_inference
+
             result = await run_inference("resnet", {"input": [[1.0, 2.0, 3.0]]})
 
         assert result["status"] == "ok"
@@ -210,14 +228,16 @@ class TestRunInference:
         """REST returns 404 for model."""
         resp = _make_response(404, text="Model not found")
 
-        with patch("workflows.inference.list_models", new_callable=AsyncMock) as mock_list, \
-             patch("workflows.inference._get_predict_service_stub", return_value=(None, None, None)), \
-             patch("workflows.inference.httpx.AsyncClient") as mock_cls:
-
+        with (
+            patch("workflows.inference.list_models", new_callable=AsyncMock) as mock_list,
+            patch("workflows.inference._get_predict_service_stub", return_value=(None, None, None)),
+            patch("workflows.inference.httpx.AsyncClient") as mock_cls,
+        ):
             mock_list.return_value = ["resnet"]
             mock_cls.return_value = _make_async_client(post_response=resp)
 
             from workflows.inference import run_inference
+
             result = await run_inference("resnet", {"input": [[1.0]]})
 
         assert result["status"] == "model_not_found"
@@ -227,14 +247,16 @@ class TestRunInference:
         """REST returns 500 yields error status."""
         resp = _make_response(500, text="Internal server error")
 
-        with patch("workflows.inference.list_models", new_callable=AsyncMock) as mock_list, \
-             patch("workflows.inference._get_predict_service_stub", return_value=(None, None, None)), \
-             patch("workflows.inference.httpx.AsyncClient") as mock_cls:
-
+        with (
+            patch("workflows.inference.list_models", new_callable=AsyncMock) as mock_list,
+            patch("workflows.inference._get_predict_service_stub", return_value=(None, None, None)),
+            patch("workflows.inference.httpx.AsyncClient") as mock_cls,
+        ):
             mock_list.return_value = ["resnet"]
             mock_cls.return_value = _make_async_client(post_response=resp)
 
             from workflows.inference import run_inference
+
             result = await run_inference("resnet", {"input": [[1.0]]})
 
         assert result["status"] == "error"
@@ -243,16 +265,18 @@ class TestRunInference:
     @pytest.mark.asyncio
     async def test_rest_inference_unreachable(self):
         """REST endpoint unreachable returns error."""
-        with patch("workflows.inference.list_models", new_callable=AsyncMock) as mock_list, \
-             patch("workflows.inference._get_predict_service_stub", return_value=(None, None, None)), \
-             patch("workflows.inference.httpx.AsyncClient") as mock_cls:
-
+        with (
+            patch("workflows.inference.list_models", new_callable=AsyncMock) as mock_list,
+            patch("workflows.inference._get_predict_service_stub", return_value=(None, None, None)),
+            patch("workflows.inference.httpx.AsyncClient") as mock_cls,
+        ):
             mock_list.return_value = ["resnet"]
             mock_cls.return_value = _make_async_client(
                 post_side_effect=httpx.ConnectError("refused"),
             )
 
             from workflows.inference import run_inference
+
             result = await run_inference("resnet", {"input": [[1.0]]})
 
         assert result["status"] == "error"
@@ -265,6 +289,7 @@ class TestRunInference:
 
 try:
     import slowapi  # noqa: F401
+
     _HAS_SLOWAPI = True
 except ImportError:
     _HAS_SLOWAPI = False
@@ -274,7 +299,9 @@ except ImportError:
 def client():
     """FastAPI TestClient with inference routes available."""
     from fastapi.testclient import TestClient
+
     from workflows.a2a_server import app
+
     return TestClient(app)
 
 

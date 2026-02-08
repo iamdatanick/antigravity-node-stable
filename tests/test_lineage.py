@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def lineage_env(monkeypatch):
     """Set OpenLineage env vars for all tests."""
@@ -26,6 +27,7 @@ def lineage_env(monkeypatch):
 def reset_client():
     """Reset the module-level singleton client between tests."""
     import workflows.lineage as mod
+
     mod._client = None
     yield
     mod._client = None
@@ -42,6 +44,7 @@ def _mock_client():
 # Unit tests: emit_run_event
 # ---------------------------------------------------------------------------
 
+
 class TestEmitRunEvent:
     """Tests for emit_run_event()."""
 
@@ -51,8 +54,9 @@ class TestEmitRunEvent:
         mock_client = _mock_client()
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             run_id = await emit_run_event("test.job", RunState.START)
 
@@ -75,8 +79,9 @@ class TestEmitRunEvent:
         run_id = str(uuid.uuid4())
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             result = await emit_run_event(
                 "test.job",
@@ -99,8 +104,9 @@ class TestEmitRunEvent:
         run_id = str(uuid.uuid4())
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             result = await emit_run_event(
                 "test.job",
@@ -122,8 +128,9 @@ class TestEmitRunEvent:
         mock_client = _mock_client()
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             result = await emit_run_event(
                 "test.job",
@@ -149,8 +156,9 @@ class TestEmitRunEvent:
         custom_id = str(uuid.uuid4())
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             result = await emit_run_event("test.job", RunState.START, run_id=custom_id)
 
@@ -166,8 +174,9 @@ class TestEmitRunEvent:
         expected_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, non_uuid_id))
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             result = await emit_run_event("test.job", RunState.START, run_id=non_uuid_id)
 
@@ -181,8 +190,9 @@ class TestEmitRunEvent:
         mock_client = _mock_client()
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             await emit_run_event("test.job", RunState.START)
 
@@ -194,6 +204,7 @@ class TestEmitRunEvent:
 # Unit tests: failure resilience
 # ---------------------------------------------------------------------------
 
+
 class TestLineageFailureResilience:
     """Lineage failures must never propagate to callers."""
 
@@ -204,8 +215,9 @@ class TestLineageFailureResilience:
         mock_client.emit.side_effect = ConnectionError("Marquez is down")
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             result = await emit_run_event("test.job", RunState.START)
 
@@ -215,8 +227,9 @@ class TestLineageFailureResilience:
     async def test_emit_swallows_transport_error(self):
         """If _get_client raises, return None instead of propagating."""
         with patch("workflows.lineage._get_client", side_effect=RuntimeError("bad config")):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             result = await emit_run_event("test.job", RunState.COMPLETE)
 
@@ -257,6 +270,7 @@ class TestLineageFailureResilience:
 # Unit tests: convenience helpers
 # ---------------------------------------------------------------------------
 
+
 class TestHelperFunctions:
     """Tests for start_job, complete_job, fail_job helpers."""
 
@@ -266,8 +280,9 @@ class TestHelperFunctions:
         mock_client = _mock_client()
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import start_job
             from openlineage.client.run import RunState
+
+            from workflows.lineage import start_job
 
             run_id = await start_job("pipeline.ingest")
 
@@ -301,8 +316,9 @@ class TestHelperFunctions:
         run_id = str(uuid.uuid4())
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import complete_job
             from openlineage.client.run import RunState
+
+            from workflows.lineage import complete_job
 
             result = await complete_job(
                 "pipeline.ingest",
@@ -323,8 +339,9 @@ class TestHelperFunctions:
         run_id = str(uuid.uuid4())
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import fail_job
             from openlineage.client.run import RunState
+
+            from workflows.lineage import fail_job
 
             result = await fail_job("pipeline.ingest", run_id, "OOMKilled")
 
@@ -340,6 +357,7 @@ class TestHelperFunctions:
 # Unit tests: RunEvent structure correctness
 # ---------------------------------------------------------------------------
 
+
 class TestRunEventStructure:
     """Verify the emitted RunEvent has correct OpenLineage structure."""
 
@@ -349,8 +367,9 @@ class TestRunEventStructure:
         mock_client = _mock_client()
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             await emit_run_event("test.job", RunState.START)
 
@@ -363,8 +382,9 @@ class TestRunEventStructure:
         mock_client = _mock_client()
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             await emit_run_event("test.job", RunState.START)
 
@@ -380,8 +400,9 @@ class TestRunEventStructure:
         mock_client = _mock_client()
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             await emit_run_event("test.job", RunState.START)
 
@@ -395,8 +416,9 @@ class TestRunEventStructure:
         run_id = str(uuid.uuid4())
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             await emit_run_event("test.job", RunState.COMPLETE, run_id=run_id)
 
@@ -410,8 +432,9 @@ class TestRunEventStructure:
         run_id = str(uuid.uuid4())
 
         with patch("workflows.lineage._get_client", return_value=mock_client):
-            from workflows.lineage import emit_run_event
             from openlineage.client.run import RunState
+
+            from workflows.lineage import emit_run_event
 
             await emit_run_event("test.job", RunState.FAIL, run_id=run_id)
 

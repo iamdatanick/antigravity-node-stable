@@ -1,8 +1,9 @@
 """MCP Tool Server for StarRocks memory operations."""
 
-import os
 import json
+import os
 import re
+
 import pymysql
 from mcp.server.fastmcp import FastMCP
 
@@ -80,20 +81,30 @@ def query_procedural(skill_name: str = "") -> str:
 def _validate_sql(sql: str) -> bool:
     """Validate SQL is safe SELECT-only query."""
     # Strip comments
-    cleaned = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
-    cleaned = re.sub(r'--[^\n]*', '', cleaned)
+    cleaned = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
+    cleaned = re.sub(r"--[^\n]*", "", cleaned)
     normalized = cleaned.strip().upper()
 
     if not normalized.startswith("SELECT"):
         return False
 
-    forbidden = ["DROP", "DELETE", "TRUNCATE", "ALTER", "INSERT",
-                 "UPDATE", "CREATE", "GRANT", "REVOKE", "LOAD",
-                 "INTO OUTFILE", "INTO DUMPFILE", "EXEC", "SET"]
-    for kw in forbidden:
-        if re.search(r'\b' + kw + r'\b', normalized):
-            return False
-    return True
+    forbidden = [
+        "DROP",
+        "DELETE",
+        "TRUNCATE",
+        "ALTER",
+        "INSERT",
+        "UPDATE",
+        "CREATE",
+        "GRANT",
+        "REVOKE",
+        "LOAD",
+        "INTO OUTFILE",
+        "INTO DUMPFILE",
+        "EXEC",
+        "SET",
+    ]
+    return all(not re.search(r"\b" + kw + r"\b", normalized) for kw in forbidden)
 
 
 @mcp.tool()

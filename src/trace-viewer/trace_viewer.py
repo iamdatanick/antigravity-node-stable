@@ -1,9 +1,10 @@
 """Antigravity Node — Thought Trace Viewer (Streamlit UI)."""
 
 import os
-import streamlit as st
-import pymysql
+
 import pandas as pd
+import pymysql
+import streamlit as st
 
 st.set_page_config(
     page_title="Antigravity Thought Trace",
@@ -38,11 +39,11 @@ def get_connection():
 
 try:
     conn = get_connection()
-    
+
     if conn is None:
         st.info("Make sure StarRocks is running and the memory schema has been initialized.")
         st.stop()
-    
+
     # Ensure connection is alive before using it
     try:
         conn.ping(reconnect=True)
@@ -55,7 +56,9 @@ try:
     # Sidebar filters
     st.sidebar.header("Filters")
     actor_filter = st.sidebar.selectbox("Actor", ["All", "Goose", "User"])
-    action_filter = st.sidebar.selectbox("Action Type", ["All", "THOUGHT", "TOOL_USE", "RESPONSE", "TASK_REQUEST", "FILE_UPLOAD"])
+    action_filter = st.sidebar.selectbox(
+        "Action Type", ["All", "THOUGHT", "TOOL_USE", "RESPONSE", "TASK_REQUEST", "FILE_UPLOAD"]
+    )
     limit = st.sidebar.slider("Max Records", 10, 500, 100)
 
     # Build query
@@ -99,6 +102,7 @@ try:
         # Timeline (if plotly available)
         try:
             import plotly.express as px
+
             fig = px.scatter(
                 df,
                 x="timestamp",

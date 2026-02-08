@@ -12,7 +12,7 @@ Environment variables:
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import grpc
 import grpc.aio
@@ -38,7 +38,7 @@ tracer = trace.get_tracer("antigravity.inference")
 # ---------------------------------------------------------------------------
 # gRPC helpers (lazy-loaded to avoid import failure at startup)
 # ---------------------------------------------------------------------------
-_grpc_channel: Optional[grpc.aio.Channel] = None
+_grpc_channel: grpc.aio.Channel | None = None
 
 
 def _get_predict_service_stub():
@@ -57,6 +57,7 @@ def _get_predict_service_stub():
             predict_pb2,
             prediction_service_pb2_grpc,
         )
+
         return prediction_service_pb2_grpc, predict_pb2, make_tensor_proto
     except ImportError:
         pass
@@ -67,6 +68,7 @@ def _get_predict_service_stub():
             predict_pb2,
             prediction_service_pb2_grpc,
         )
+
         return prediction_service_pb2_grpc, predict_pb2, None
     except ImportError:
         pass
@@ -74,7 +76,7 @@ def _get_predict_service_stub():
     return None, None, None
 
 
-async def _ensure_grpc_channel() -> Optional[grpc.aio.Channel]:
+async def _ensure_grpc_channel() -> grpc.aio.Channel | None:
     """Create or reuse an async gRPC channel to OVMS."""
     global _grpc_channel
     if _grpc_channel is None:
@@ -95,7 +97,7 @@ async def _ensure_grpc_channel() -> Optional[grpc.aio.Channel]:
 # ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
-async def ovms_health_check() -> Dict[str, Any]:
+async def ovms_health_check() -> dict[str, Any]:
     """Check whether OVMS is reachable and serving.
 
     Uses the REST /v1/config endpoint (same as docker-compose healthcheck).
@@ -125,7 +127,7 @@ async def ovms_health_check() -> Dict[str, Any]:
             }
 
 
-async def list_models() -> List[str]:
+async def list_models() -> list[str]:
     """Return list of model names currently loaded in OVMS."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -186,10 +188,7 @@ async def run_inference(model_name: str, input_data: dict) -> dict:
             return {"status": "no_model_loaded", "message": msg}
 
         if model_name not in available:
-            msg = (
-                f"Model '{model_name}' not found. "
-                f"Available models: {available}"
-            )
+            msg = f"Model '{model_name}' not found. Available models: {available}"
             logger.info("run_inference(%s): model not found", model_name)
             span.set_attribute("ovms.result", "model_not_found")
             return {"status": "model_not_found", "message": msg}
@@ -215,9 +214,7 @@ async def run_inference(model_name: str, input_data: dict) -> dict:
 # ---------------------------------------------------------------------------
 # gRPC inference (primary)
 # ---------------------------------------------------------------------------
-async def _try_grpc_inference(
-    model_name: str, input_data: dict, span: Any
-) -> Optional[dict]:
+async def _try_grpc_inference(model_name: str, input_data: dict, span: Any) -> dict | None:
     """Attempt gRPC predict call.  Returns None if gRPC is unavailable."""
     svc_grpc, predict_pb2, make_tensor_proto = _get_predict_service_stub()
     if svc_grpc is None:
@@ -271,9 +268,7 @@ async def _try_grpc_inference(
 # ---------------------------------------------------------------------------
 # REST inference (fallback)
 # ---------------------------------------------------------------------------
-async def _try_rest_inference(
-    model_name: str, input_data: dict, span: Any
-) -> dict:
+async def _try_rest_inference(model_name: str, input_data: dict, span: Any) -> dict:
     """REST predict call via OVMS TensorFlow Serving compatible API."""
     # OVMS supports TFS REST API: POST /v1/models/{name}:predict
     url = f"{OVMS_REST_BASE}/v1/models/{model_name}:predict"
@@ -302,7 +297,9 @@ async def _try_rest_inference(
                 span.set_attribute("ovms.result", "error")
                 logger.warning(
                     "OVMS REST returned %d for model %s: %s",
-                    resp.status_code, model_name, error_text,
+                    resp.status_code,
+                    model_name,
+                    error_text,
                 )
                 return {
                     "status": "error",

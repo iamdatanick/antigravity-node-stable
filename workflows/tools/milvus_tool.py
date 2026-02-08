@@ -1,8 +1,7 @@
 """Milvus MCP tool for vector memory search."""
 
-import os
 import logging
-import json
+import os
 
 logger = logging.getLogger("antigravity.tools.milvus")
 
@@ -13,6 +12,7 @@ MILVUS_PORT = int(os.environ.get("MILVUS_PORT", "19530"))
 def connect():
     """Connect to Milvus."""
     from pymilvus import connections
+
     connections.connect(host=MILVUS_HOST, port=str(MILVUS_PORT))
     logger.info(f"Connected to Milvus at {MILVUS_HOST}:{MILVUS_PORT}")
 
@@ -47,19 +47,23 @@ def search_vectors(query_embedding: list, collection_name: str = "semantic_memor
         return []
 
 
-def store_vector(doc_id: str, embedding: list, content: str, source_uri: str = "", collection_name: str = "semantic_memory"):
+def store_vector(
+    doc_id: str, embedding: list, content: str, source_uri: str = "", collection_name: str = "semantic_memory"
+):
     """Store a vector in Milvus."""
     from pymilvus import Collection
 
     try:
         connect()
         collection = Collection(collection_name)
-        collection.insert([
-            [doc_id],
-            [embedding],
-            [content],
-            [source_uri],
-        ])
+        collection.insert(
+            [
+                [doc_id],
+                [embedding],
+                [content],
+                [source_uri],
+            ]
+        )
         collection.flush()
         logger.info(f"Stored vector: {doc_id}")
     except Exception as e:

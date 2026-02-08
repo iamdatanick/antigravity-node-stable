@@ -59,12 +59,7 @@ class TestTaskModels:
 
     def test_task_response_valid(self):
         """Test valid TaskResponse creation."""
-        resp = TaskResponse(
-            status="accepted",
-            session_id="sess-123",
-            tenant_id="tenant-1",
-            history_count=5
-        )
+        resp = TaskResponse(status="accepted", session_id="sess-123", tenant_id="tenant-1", history_count=5)
         assert resp.status == "accepted"
         assert resp.history_count == 5
 
@@ -137,10 +132,7 @@ class TestChatModels:
     def test_chat_completion_request_valid(self):
         """Test valid ChatCompletionRequest creation."""
         req = ChatCompletionRequest(
-            messages=[ChatMessage(role="user", content="Hello")],
-            model="gpt-4",
-            temperature=0.8,
-            max_tokens=1024
+            messages=[ChatMessage(role="user", content="Hello")], model="gpt-4", temperature=0.8, max_tokens=1024
         )
         assert len(req.messages) == 1
         assert req.model == "gpt-4"
@@ -149,9 +141,7 @@ class TestChatModels:
 
     def test_chat_completion_request_defaults(self):
         """Test ChatCompletionRequest with default values."""
-        req = ChatCompletionRequest(
-            messages=[ChatMessage(role="user", content="Hello")]
-        )
+        req = ChatCompletionRequest(messages=[ChatMessage(role="user", content="Hello")])
         assert req.model is None
         assert req.temperature == 0.7
         assert req.max_tokens == 2048
@@ -165,10 +155,7 @@ class TestChatModels:
     def test_chat_completion_request_temperature_range(self):
         """Test ChatCompletionRequest temperature validation."""
         with pytest.raises(ValidationError) as exc_info:
-            ChatCompletionRequest(
-                messages=[ChatMessage(role="user", content="Hello")],
-                temperature=3.0
-            )
+            ChatCompletionRequest(messages=[ChatMessage(role="user", content="Hello")], temperature=3.0)
         assert "less than or equal to 2" in str(exc_info.value)
 
 
@@ -195,11 +182,7 @@ class TestHealthModels:
 
     def test_health_level_valid(self):
         """Test valid HealthLevel creation."""
-        level = HealthLevel(
-            level="L1",
-            name="Core Services",
-            checks=[HealthCheck(name="test", healthy=True)]
-        )
+        level = HealthLevel(level="L1", name="Core Services", checks=[HealthCheck(name="test", healthy=True)])
         assert level.level == "L1"
         assert len(level.checks) == 1
 
@@ -207,13 +190,7 @@ class TestHealthModels:
         """Test valid HealthResponse creation."""
         resp = HealthResponse(
             status="healthy",
-            levels=[
-                HealthLevel(
-                    level="L1",
-                    name="Core",
-                    checks=[HealthCheck(name="test", healthy=True)]
-                )
-            ]
+            levels=[HealthLevel(level="L1", name="Core", checks=[HealthCheck(name="test", healthy=True)])],
         )
         assert resp.status == "healthy"
         assert len(resp.levels) == 1
@@ -224,21 +201,13 @@ class TestToolsModels:
 
     def test_tool_info_valid(self):
         """Test valid ToolInfo creation."""
-        tool = ToolInfo(
-            name="search_memory",
-            server="orchestrator",
-            description="Search memory",
-            status="connected"
-        )
+        tool = ToolInfo(name="search_memory", server="orchestrator", description="Search memory", status="connected")
         assert tool.name == "search_memory"
         assert tool.server == "orchestrator"
 
     def test_tools_response_valid(self):
         """Test valid ToolsResponse creation."""
-        resp = ToolsResponse(
-            tools=[ToolInfo(name="test", server="test-server")],
-            total=1
-        )
+        resp = ToolsResponse(tools=[ToolInfo(name="test", server="test-server")], total=1)
         assert len(resp.tools) == 1
         assert resp.total == 1
 
@@ -249,12 +218,7 @@ class TestCapabilitiesModels:
     def test_capabilities_response_valid(self):
         """Test valid CapabilitiesResponse creation."""
         resp = CapabilitiesResponse(
-            node="Antigravity Node v13.0",
-            protocols=["a2a", "mcp"],
-            endpoints={},
-            mcp_servers={},
-            memory={},
-            budget={}
+            node="Antigravity Node v13.0", protocols=["a2a", "mcp"], endpoints={}, mcp_servers={}, memory={}, budget={}
         )
         assert resp.node == "Antigravity Node v13.0"
         assert "a2a" in resp.protocols

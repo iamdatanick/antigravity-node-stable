@@ -9,8 +9,9 @@ before importing ``workflows.memory`` (used transitively by query_starrocks).
 
 import json
 import sys
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # Mock dbutils before any transitive import of workflows.memory
@@ -23,16 +24,16 @@ sys.modules.setdefault("dbutils.pooled_db", _mock_dbutils.pooled_db)
 
 from workflows.goose_client import (  # noqa: E402
     TOOLS,
-    list_tools,
     execute_tool,
     execute_tool_with_correction,
     goose_reflect,
+    list_tools,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tests for tool registry
 # ---------------------------------------------------------------------------
+
 
 class TestToolRegistry:
     """Tests for the TOOLS list and list_tools()."""
@@ -48,7 +49,7 @@ class TestToolRegistry:
             assert "description" in tool, f"Tool missing 'description': {tool}"
             assert "params" in tool, f"Tool missing 'params': {tool}"
 
-    def test_list_tools_returns_same_as_TOOLS(self):
+    def test_list_tools_returns_same_as_tools_constant(self):
         """list_tools() returns the TOOLS constant."""
         assert list_tools() is TOOLS
 
@@ -67,6 +68,7 @@ class TestToolRegistry:
 # ---------------------------------------------------------------------------
 # Tests for execute_tool — query_starrocks
 # ---------------------------------------------------------------------------
+
 
 class TestExecuteToolQueryStarrocks:
     """Tests for execute_tool('query_starrocks', ...)."""
@@ -93,6 +95,7 @@ class TestExecuteToolQueryStarrocks:
 # Tests for execute_tool — read_context (path traversal prevention)
 # ---------------------------------------------------------------------------
 
+
 class TestReadContextPathTraversal:
     """Tests for path traversal prevention in read_context tool."""
 
@@ -115,8 +118,10 @@ class TestReadContextPathTraversal:
     @pytest.mark.asyncio
     async def test_valid_pattern_succeeds(self):
         """A simple glob pattern within /app/context/ succeeds."""
-        with patch("glob.glob", return_value=["/app/context/data.csv"]), \
-             patch("os.path.realpath", side_effect=lambda p: p if "/app/context" in p else p):
+        with (
+            patch("glob.glob", return_value=["/app/context/data.csv"]),
+            patch("os.path.realpath", side_effect=lambda p: p if "/app/context" in p else p),
+        ):
             result = await execute_tool("read_context", {"pattern": "*.csv"})
 
         parsed = json.loads(result)
@@ -141,8 +146,7 @@ class TestReadContextPathTraversal:
             # The target file resolves outside the base
             return "/etc/shadow"
 
-        with patch("os.path.realpath", side_effect=_fake_realpath), \
-             patch("glob.glob", return_value=[]):
+        with patch("os.path.realpath", side_effect=_fake_realpath), patch("glob.glob", return_value=[]):
             result = await execute_tool("read_context", {"pattern": "evil_link"})
 
         parsed = json.loads(result)
@@ -152,8 +156,7 @@ class TestReadContextPathTraversal:
     @pytest.mark.asyncio
     async def test_default_pattern(self):
         """When no pattern provided, defaults to '*'."""
-        with patch("glob.glob", return_value=[]), \
-             patch("os.path.realpath", side_effect=lambda p: p):
+        with patch("glob.glob", return_value=[]), patch("os.path.realpath", side_effect=lambda p: p):
             result = await execute_tool("read_context", {})
 
         parsed = json.loads(result)
@@ -164,6 +167,7 @@ class TestReadContextPathTraversal:
 # ---------------------------------------------------------------------------
 # Tests for execute_tool — unknown tool
 # ---------------------------------------------------------------------------
+
 
 class TestExecuteToolUnknown:
     """Tests for unknown tool name handling."""
@@ -180,6 +184,7 @@ class TestExecuteToolUnknown:
 # ---------------------------------------------------------------------------
 # Tests for goose_reflect
 # ---------------------------------------------------------------------------
+
 
 class TestGooseReflect:
     """Tests for the goose_reflect self-correction function."""
@@ -205,6 +210,7 @@ class TestGooseReflect:
 # ---------------------------------------------------------------------------
 # Tests for execute_tool_with_correction (retry logic)
 # ---------------------------------------------------------------------------
+
 
 class TestExecuteToolWithCorrection:
     """Tests for the retry wrapper."""
@@ -246,14 +252,14 @@ class TestExecuteToolWithCorrection:
         async def _always_fail(*args, **kwargs):
             raise RuntimeError("Permanent failure")
 
-        with patch("workflows.goose_client.execute_tool", side_effect=_always_fail):
-            with pytest.raises(RetryError):
-                await execute_tool_with_correction("query_starrocks", {"sql": "SELECT 1"})
+        with patch("workflows.goose_client.execute_tool", side_effect=_always_fail), pytest.raises(RetryError):
+            await execute_tool_with_correction("query_starrocks", {"sql": "SELECT 1"})
 
 
 # ---------------------------------------------------------------------------
 # Tests for execute_tool — store_artifact
 # ---------------------------------------------------------------------------
+
 
 class TestExecuteToolStoreArtifact:
     """Tests for execute_tool('store_artifact', ...)."""

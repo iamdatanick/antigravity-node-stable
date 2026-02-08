@@ -12,8 +12,7 @@ Environment variables:
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from datetime import UTC, datetime
 
 from openlineage.client import OpenLineageClient
 from openlineage.client.facet import ErrorMessageRunFacet
@@ -45,7 +44,7 @@ tracer = trace.get_tracer("antigravity.lineage")
 # ---------------------------------------------------------------------------
 # Client (lazy singleton)
 # ---------------------------------------------------------------------------
-_client: Optional[OpenLineageClient] = None
+_client: OpenLineageClient | None = None
 
 
 def _get_client() -> OpenLineageClient:
@@ -64,7 +63,7 @@ def _get_client() -> OpenLineageClient:
 
 def _now_iso() -> str:
     """Return current UTC time in ISO-8601 format."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -73,11 +72,11 @@ def _now_iso() -> str:
 async def emit_run_event(
     job_name: str,
     event_type: RunState,
-    run_id: Optional[str] = None,
-    inputs: Optional[List[Dict[str, str]]] = None,
-    outputs: Optional[List[Dict[str, str]]] = None,
-    error_message: Optional[str] = None,
-) -> Optional[str]:
+    run_id: str | None = None,
+    inputs: list[dict[str, str]] | None = None,
+    outputs: list[dict[str, str]] | None = None,
+    error_message: str | None = None,
+) -> str | None:
     """Emit a RunEvent to Marquez.
 
     Parameters
@@ -117,7 +116,7 @@ async def emit_run_event(
             span.set_attribute("lineage.run_id", rid)
 
             # Build run facets
-            run_facets: Dict = {}
+            run_facets: dict = {}
             if event_type == RunState.FAIL and error_message:
                 run_facets["errorMessage"] = ErrorMessageRunFacet(
                     message=error_message,
@@ -158,7 +157,9 @@ async def emit_run_event(
 
             logger.debug(
                 "Lineage event emitted: job=%s type=%s run_id=%s",
-                job_name, event_type.value, rid,
+                job_name,
+                event_type.value,
+                rid,
             )
             span.set_attribute("lineage.success", True)
             return rid
@@ -176,8 +177,8 @@ async def emit_run_event(
 # ---------------------------------------------------------------------------
 async def start_job(
     job_name: str,
-    inputs: Optional[List[Dict[str, str]]] = None,
-) -> Optional[str]:
+    inputs: list[dict[str, str]] | None = None,
+) -> str | None:
     """Emit a START event and return the generated run_id."""
     return await emit_run_event(
         job_name=job_name,
@@ -189,8 +190,8 @@ async def start_job(
 async def complete_job(
     job_name: str,
     run_id: str,
-    outputs: Optional[List[Dict[str, str]]] = None,
-) -> Optional[str]:
+    outputs: list[dict[str, str]] | None = None,
+) -> str | None:
     """Emit a COMPLETE event for an existing run."""
     return await emit_run_event(
         job_name=job_name,
@@ -204,7 +205,7 @@ async def fail_job(
     job_name: str,
     run_id: str,
     error_message: str,
-) -> Optional[str]:
+) -> str | None:
     """Emit a FAIL event for an existing run."""
     return await emit_run_event(
         job_name=job_name,

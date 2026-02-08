@@ -1,17 +1,16 @@
 """Tests for Docker Compose security hardening."""
 
 import os
-import yaml
+
 import pytest
+import yaml
 
 
 @pytest.fixture
 def docker_compose_config():
     """Load docker-compose.yml configuration."""
-    compose_path = os.path.join(
-        os.path.dirname(__file__), "..", "docker-compose.yml"
-    )
-    with open(compose_path, "r") as f:
+    compose_path = os.path.join(os.path.dirname(__file__), "..", "docker-compose.yml")
+    with open(compose_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -22,17 +21,17 @@ class TestCredentialEnvironmentVariables:
         """Test that Postgres uses environment variables for credentials."""
         postgres = docker_compose_config["services"]["postgres"]
         env_vars = {e.split("=")[0]: e for e in postgres["environment"]}
-        
+
         # Check POSTGRES_USER uses ${VAR:-default} syntax
         assert "POSTGRES_USER" in env_vars
         user_value = env_vars["POSTGRES_USER"]
         assert "${POSTGRES_USER" in user_value
-        
+
         # Check POSTGRES_PASSWORD uses ${VAR} syntax (no hardcoded value)
         assert "POSTGRES_PASSWORD" in env_vars
         password_value = env_vars["POSTGRES_PASSWORD"]
         assert "${POSTGRES_PASSWORD}" in password_value
-        
+
         # Check POSTGRES_DB uses ${VAR:-default} syntax
         assert "POSTGRES_DB" in env_vars
         db_value = env_vars["POSTGRES_DB"]
@@ -42,12 +41,12 @@ class TestCredentialEnvironmentVariables:
         """Test that Keycloak uses environment variables for credentials."""
         keycloak = docker_compose_config["services"]["keycloak"]
         env_vars = {e.split("=")[0]: e for e in keycloak["environment"]}
-        
+
         # Check KEYCLOAK_ADMIN_PASSWORD uses ${VAR} syntax
         assert "KEYCLOAK_ADMIN_PASSWORD" in env_vars
         admin_pass = env_vars["KEYCLOAK_ADMIN_PASSWORD"]
         assert "${KEYCLOAK_ADMIN_PASSWORD" in admin_pass
-        
+
         # Check KC_DB_PASSWORD uses ${VAR} syntax
         assert "KC_DB_PASSWORD" in env_vars
         db_pass = env_vars["KC_DB_PASSWORD"]
@@ -57,7 +56,7 @@ class TestCredentialEnvironmentVariables:
         """Test that Marquez uses environment variables for credentials."""
         marquez = docker_compose_config["services"]["marquez"]
         env_vars = {e.split("=")[0]: e for e in marquez["environment"]}
-        
+
         # Check POSTGRES_PASSWORD uses ${VAR} syntax
         assert "POSTGRES_PASSWORD" in env_vars
         password = env_vars["POSTGRES_PASSWORD"]
@@ -66,11 +65,11 @@ class TestCredentialEnvironmentVariables:
     def test_openbao_uses_env_vars(self, docker_compose_config):
         """Test that OpenBao uses environment variables for token."""
         openbao = docker_compose_config["services"]["openbao"]
-        
+
         # Check command line uses ${VAR} syntax
         command = openbao["command"]
         assert "${OPENBAO_DEV_TOKEN" in command
-        
+
         # Check environment variable uses ${VAR} syntax
         env_vars = {e.split("=")[0]: e for e in openbao["environment"]}
         assert "BAO_DEV_ROOT_TOKEN_ID" in env_vars
@@ -81,7 +80,7 @@ class TestCredentialEnvironmentVariables:
         """Test that Argo bootstrap uses environment variables for S3 credentials."""
         argo_bootstrap = docker_compose_config["services"]["argo-bootstrap"]
         command = argo_bootstrap["command"][0]
-        
+
         # Check that S3 credentials use ${VAR} syntax
         assert "${S3_ACCESS_KEY" in command
         assert "${S3_SECRET_KEY" in command
@@ -93,27 +92,49 @@ class TestSecurityHardening:
     def test_application_containers_have_security_opt(self, docker_compose_config):
         """Test that application containers have no-new-privileges."""
         app_containers = [
-            "nats", "marquez", "opensearch", "spire-server", "ovms",
-            "wasm-worker", "perses", "fluent-bit", "budget-proxy", "mcp-gateway",
-            "mcp-filesystem", "mcp-starrocks", "trace-viewer", 
-            "master-ui", "orchestrator", "keycloak"
+            "nats",
+            "marquez",
+            "opensearch",
+            "spire-server",
+            "ovms",
+            "wasm-worker",
+            "perses",
+            "fluent-bit",
+            "budget-proxy",
+            "mcp-gateway",
+            "mcp-filesystem",
+            "mcp-starrocks",
+            "trace-viewer",
+            "master-ui",
+            "orchestrator",
+            "keycloak",
         ]
-        
+
         for container_name in app_containers:
             if container_name in docker_compose_config["services"]:
                 container = docker_compose_config["services"][container_name]
                 assert "security_opt" in container, f"{container_name} missing security_opt"
-                assert "no-new-privileges:true" in container["security_opt"], \
+                assert "no-new-privileges:true" in container["security_opt"], (
                     f"{container_name} missing no-new-privileges"
+                )
 
     def test_readonly_containers_have_tmpfs(self, docker_compose_config):
         """Test that read-only containers have tmpfs for /tmp."""
         readonly_containers = [
-            "nats", "marquez", "ovms", "wasm-worker",
-            "perses", "fluent-bit", "budget-proxy", "mcp-gateway", "mcp-filesystem",
-            "mcp-starrocks", "trace-viewer", "master-ui"
+            "nats",
+            "marquez",
+            "ovms",
+            "wasm-worker",
+            "perses",
+            "fluent-bit",
+            "budget-proxy",
+            "mcp-gateway",
+            "mcp-filesystem",
+            "mcp-starrocks",
+            "trace-viewer",
+            "master-ui",
         ]
-        
+
         for container_name in readonly_containers:
             if container_name in docker_compose_config["services"]:
                 container = docker_compose_config["services"][container_name]
@@ -124,17 +145,13 @@ class TestSecurityHardening:
 
     def test_database_containers_not_readonly(self, docker_compose_config):
         """Test that database containers are explicitly not read-only."""
-        db_containers = [
-            "postgres", "etcd", "starrocks", "valkey", 
-            "milvus", "openbao", "seaweedfs", "librechat"
-        ]
-        
+        db_containers = ["postgres", "etcd", "starrocks", "valkey", "milvus", "openbao", "seaweedfs", "librechat"]
+
         for container_name in db_containers:
             if container_name in docker_compose_config["services"]:
                 container = docker_compose_config["services"][container_name]
                 assert "read_only" in container, f"{container_name} missing read_only flag"
-                assert container["read_only"] is False, \
-                    f"{container_name} should have read_only: false"
+                assert container["read_only"] is False, f"{container_name} should have read_only: false"
 
 
 class TestHealthCheckStartPeriod:
@@ -174,15 +191,12 @@ class TestGitignore:
 
     def test_env_in_gitignore(self):
         """Test that .env is listed in .gitignore."""
-        gitignore_path = os.path.join(
-            os.path.dirname(__file__), "..", ".gitignore"
-        )
-        with open(gitignore_path, "r") as f:
+        gitignore_path = os.path.join(os.path.dirname(__file__), "..", ".gitignore")
+        with open(gitignore_path, encoding="utf-8") as f:
             gitignore_content = f.read()
-        
+
         # Check that .env is in gitignore (exact match)
-        assert "\n.env\n" in gitignore_content or gitignore_content.startswith(".env\n"), \
-            ".env not found in .gitignore"
+        assert "\n.env\n" in gitignore_content or gitignore_content.startswith(".env\n"), ".env not found in .gitignore"
 
 
 class TestEnvExample:
@@ -190,36 +204,30 @@ class TestEnvExample:
 
     def test_env_example_exists(self):
         """Test that .env.example file exists."""
-        env_example_path = os.path.join(
-            os.path.dirname(__file__), "..", ".env.example"
-        )
+        env_example_path = os.path.join(os.path.dirname(__file__), "..", ".env.example")
         assert os.path.exists(env_example_path), ".env.example file does not exist"
 
     def test_env_example_has_required_secrets(self):
         """Test that .env.example contains all required secret variables."""
-        env_example_path = os.path.join(
-            os.path.dirname(__file__), "..", ".env.example"
-        )
-        with open(env_example_path, "r") as f:
+        env_example_path = os.path.join(os.path.dirname(__file__), "..", ".env.example")
+        with open(env_example_path, encoding="utf-8") as f:
             content = f.read()
-        
+
         required_vars = [
             "POSTGRES_PASSWORD",
             "OPENAI_API_KEY",
             "ANTHROPIC_API_KEY",
         ]
-        
+
         for var in required_vars:
             assert var in content, f"{var} not found in .env.example"
 
     def test_env_example_has_optional_overrides(self):
         """Test that .env.example contains optional override variables."""
-        env_example_path = os.path.join(
-            os.path.dirname(__file__), "..", ".env.example"
-        )
-        with open(env_example_path, "r") as f:
+        env_example_path = os.path.join(os.path.dirname(__file__), "..", ".env.example")
+        with open(env_example_path, encoding="utf-8") as f:
             content = f.read()
-        
+
         optional_vars = [
             "POSTGRES_USER",
             "POSTGRES_DB",
@@ -229,6 +237,6 @@ class TestEnvExample:
             "GOD_MODE_ITERATIONS",
             "CORS_ORIGINS",
         ]
-        
+
         for var in optional_vars:
             assert var in content, f"{var} not found in .env.example"

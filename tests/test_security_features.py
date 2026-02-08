@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 def client():
     """FastAPI TestClient for A2A endpoint tests."""
     from workflows.a2a_server import app
+
     return TestClient(app)
 
 
@@ -20,10 +21,7 @@ class TestCORS:
 
     def test_cors_headers_present(self, client):
         """Test that CORS headers are present in responses."""
-        response = client.options(
-            "/health",
-            headers={"Origin": "http://example.com"}
-        )
+        response = client.options("/health", headers={"Origin": "http://example.com"})
         # Check that CORS middleware is handling the request
         assert "access-control-allow-origin" in response.headers or response.status_code in [200, 405]
 
@@ -35,7 +33,7 @@ class TestCORS:
                 "Origin": "http://example.com",
                 "Access-Control-Request-Method": "POST",
                 "Access-Control-Request-Headers": "content-type",
-            }
+            },
         )
         # Should receive CORS headers or 405 (method not allowed) if OPTIONS not explicitly defined
         assert response.status_code in [200, 405]
@@ -52,15 +50,11 @@ class TestWebhookAuthentication:
 
         # Need to reload the module to pick up the new env var
         import workflows.a2a_server
+
         workflows.a2a_server.WEBHOOK_SECRET = ""
 
         response = client.post(
-            "/webhook",
-            json={
-                "task_id": "test-123",
-                "status": "Succeeded",
-                "message": "Task completed"
-            }
+            "/webhook", json={"task_id": "test-123", "status": "Succeeded", "message": "Task completed"}
         )
 
         assert response.status_code == 200
@@ -74,6 +68,7 @@ class TestWebhookAuthentication:
 
         # Reload module to pick up new env var
         import workflows.a2a_server
+
         workflows.a2a_server.WEBHOOK_SECRET = secret
 
         payload = b'{"task_id":"test-123","status":"Succeeded","message":"Task completed"}'
@@ -82,10 +77,7 @@ class TestWebhookAuthentication:
         response = client.post(
             "/webhook",
             content=payload,
-            headers={
-                "Content-Type": "application/json",
-                "x-webhook-signature": f"sha256={expected_sig}"
-            }
+            headers={"Content-Type": "application/json", "x-webhook-signature": f"sha256={expected_sig}"},
         )
 
         assert response.status_code == 200
@@ -99,18 +91,13 @@ class TestWebhookAuthentication:
 
         # Reload module to pick up new env var
         import workflows.a2a_server
+
         workflows.a2a_server.WEBHOOK_SECRET = secret
 
         response = client.post(
             "/webhook",
-            json={
-                "task_id": "test-123",
-                "status": "Succeeded",
-                "message": "Task completed"
-            },
-            headers={
-                "x-webhook-signature": "sha256=invalid-signature-here"
-            }
+            json={"task_id": "test-123", "status": "Succeeded", "message": "Task completed"},
+            headers={"x-webhook-signature": "sha256=invalid-signature-here"},
         )
 
         assert response.status_code == 401
@@ -128,9 +115,7 @@ class TestRateLimiting:
 
         # Make a single request - should succeed
         response = client.post(
-            "/task",
-            json={"goal": "Test task", "context": "Testing"},
-            headers={"x-tenant-id": "tenant-1"}
+            "/task", json={"goal": "Test task", "context": "Testing"}, headers={"x-tenant-id": "tenant-1"}
         )
 
         # First request should succeed
@@ -142,9 +127,7 @@ class TestRateLimiting:
         """Test /upload endpoint has rate limiting configured."""
         # Make a single request - should succeed
         response = client.post(
-            "/upload",
-            files={"file": ("test.txt", b"test content", "text/plain")},
-            headers={"x-tenant-id": "tenant-1"}
+            "/upload", files={"file": ("test.txt", b"test content", "text/plain")}, headers={"x-tenant-id": "tenant-1"}
         )
 
         # First request should succeed
@@ -162,19 +145,14 @@ class TestRateLimiting:
         # Mock the httpx client to avoid making real HTTP requests
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{"message": {"role": "assistant", "content": "Hello"}}]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"role": "assistant", "content": "Hello"}}]}
         mock_httpx_client.return_value.__aenter__.return_value.post.return_value = mock_response
 
         # Make a single request - should succeed
         response = client.post(
             "/v1/chat/completions",
-            json={
-                "model": "gpt-4o",
-                "messages": [{"role": "user", "content": "Hello"}]
-            },
-            headers={"x-tenant-id": "tenant-1"}
+            json={"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+            headers={"x-tenant-id": "tenant-1"},
         )
 
         # First request should succeed

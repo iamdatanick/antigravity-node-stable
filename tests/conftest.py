@@ -6,9 +6,9 @@ for all test modules. No real service connections required for unit tests.
 
 import os
 import sys
-import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add workflows to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workflows"))
@@ -18,17 +18,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workflows"))
 # FastAPI Test Client
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def test_client():
     """FastAPI TestClient for A2A endpoint tests."""
-    from fastapi.testclient import TestClient
     from a2a_server import app
+    from fastapi.testclient import TestClient
+
     return TestClient(app)
 
 
 # ---------------------------------------------------------------------------
 # Mock StarRocks
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_starrocks():
@@ -65,6 +68,7 @@ def mock_starrocks():
 # Mock SeaweedFS (boto3 S3)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_seaweedfs():
     """Mock SeaweedFS S3 client for storage tests."""
@@ -95,6 +99,7 @@ def mock_seaweedfs():
 # Mock Milvus
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_milvus():
     """Mock Milvus connection for vector search tests."""
@@ -110,8 +115,7 @@ def mock_milvus():
     ]
     mock_collection.insert.return_value = MagicMock(primary_keys=[1])
 
-    with patch("tools.milvus_tool.connections") as mock_conn, \
-         patch("tools.milvus_tool.Collection") as mock_coll_cls:
+    with patch("tools.milvus_tool.connections") as mock_conn, patch("tools.milvus_tool.Collection") as mock_coll_cls:
         mock_coll_cls.return_value = mock_collection
         yield {
             "collection": mock_collection,
@@ -122,6 +126,7 @@ def mock_milvus():
 # ---------------------------------------------------------------------------
 # Mock Argo Client
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_argo():
@@ -151,6 +156,7 @@ def mock_argo():
 # Mock Budget Proxy (formerly LiteLLM)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_litellm():
     """Mock budget-proxy for budget enforcement tests."""
@@ -177,6 +183,7 @@ def mock_litellm():
 # Mock Goose
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_goose():
     """Mock Goose subprocess for agent tests."""
@@ -196,6 +203,7 @@ def mock_goose():
 # ---------------------------------------------------------------------------
 # Test Data Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_task_request():
@@ -237,6 +245,7 @@ def sample_webhook_success():
 # ---------------------------------------------------------------------------
 # Environment Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def set_test_env(monkeypatch):

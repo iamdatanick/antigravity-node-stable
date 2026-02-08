@@ -1,15 +1,26 @@
 """FastAPI A2A endpoints: /health, /task, /handoff, /upload, /webhook, /.well-known/agent.json."""
 
 import asyncio
+import contextlib
 import hashlib
 import hmac
-import json
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -19,7 +30,9 @@ from slowapi.util import get_remote_address
 from workflows.auth import validate_token
 from workflows.goose_client import goose_reflect
 from workflows.health import full_health_check
-from workflows.inference import list_models as ovms_list_models, run_inference
+from workflows.inference import list_models as ovms_list_models
+from workflows.inference import run_inference
+from workflows.lineage import complete_job, fail_job, start_job
 from workflows.memory import push_episodic, recall_experience
 from workflows.models import (
     BudgetHistoryResponse,
@@ -41,10 +54,9 @@ from workflows.models import (
     WebhookResponse,
     WorkflowListResponse,
 )
-from workflows.lineage import complete_job, fail_job, start_job
 from workflows.s3_client import upload as s3_upload
-from workflows.workflow_defs import ARGO_SERVER, ARGO_NAMESPACE
 from workflows.telemetry import get_tracer
+from workflows.workflow_defs import ARGO_NAMESPACE, ARGO_SERVER
 
 logger = logging.getLogger("antigravity.a2a")
 tracer = get_tracer("antigravity.a2a")
@@ -115,7 +127,6 @@ async def task(
         raise HTTPException(status_code=400, detail="x-tenant-id header required")
 
     goal = body.goal
-    context = body.context
     session_id = body.session_id or str(uuid.uuid4())
 
     logger.info(f"Task received: tenant={x_tenant_id}, goal={goal[:100]}")
@@ -163,10 +174,11 @@ async def task(
 
 
 @app.post("/handoff", response_model=HandoffResponse)
-async def handoff(body: HandoffRequest, x_tenant_id: str = Header(default="system"), user: dict = Depends(validate_token)):
+async def handoff(
+    body: HandoffRequest, x_tenant_id: str = Header(default="system"), user: dict = Depends(validate_token)
+):
     """POST /handoff — A2A agent-to-agent handoff."""
     target = body.target_agent
-    payload = body.payload
     logger.info(f"Handoff to {target} from tenant={x_tenant_id}")
     return {"status": "handoff_acknowledged", "target": target}
 
@@ -233,14 +245,10 @@ async def argo_webhook(
         await goose_reflect(task_id, message)
         logger.warning(f"Argo workflow {task_id} failed. Goose self-correction triggered.")
         # Lineage: FAIL event (fire-and-forget)
-        asyncio.create_task(
-            fail_job(f"argo.workflow.{task_id}", task_id, message or "Unknown error")
-        )
+        asyncio.create_task(fail_job(f"argo.workflow.{task_id}", task_id, message or "Unknown error"))
     elif status == "Succeeded":
         # Lineage: COMPLETE event (fire-and-forget)
-        asyncio.create_task(
-            complete_job(f"argo.workflow.{task_id}", task_id)
-        )
+        asyncio.create_task(complete_job(f"argo.workflow.{task_id}", task_id))
 
     return {"ack": True}
 
@@ -254,27 +262,23 @@ _system_prompt_cache = None
 def _validate_path(path: str) -> bool:
     """Validate path against traversal attacks."""
     # Allow known safe paths
-    safe_paths = [
-        "/etc/goose/system.txt",
-        "/app/config/prompts/system.txt",
-        "config/prompts/system.txt"
-    ]
+    safe_paths = ["/etc/goose/system.txt", "/app/config/prompts/system.txt", "config/prompts/system.txt"]
     if path in safe_paths:
         return True
-        
+
     # For custom paths, ensure they are within /app/config or /etc/goose
     try:
         abs_path = os.path.abspath(path)
         base_configs = os.path.abspath("/app/config")
         base_etc = os.path.abspath("/etc/goose")
-        
+
         # Check if path starts with base directories
-        # Note: on Windows dev env this check might fail for linux paths, 
+        # Note: on Windows dev env this check might fail for linux paths,
         # so we skip strict check if on Windows but keep logic for prod
-        if os.name == 'nt': 
+        if os.name == "nt":
             return True
-            
-        return (abs_path.startswith(base_configs) or abs_path.startswith(base_etc))
+
+        return abs_path.startswith(base_configs) or abs_path.startswith(base_etc)
     except Exception:
         return False
 
@@ -284,33 +288,28 @@ def _load_system_prompt() -> str:
     global _system_prompt_cache
     if _system_prompt_cache is not None:
         return _system_prompt_cache
-        
-    candidate_paths = [
-        "/etc/goose/system.txt", 
-        "/app/config/prompts/system.txt",
-        "config/prompts/system.txt"
-    ]
-    
+
+    candidate_paths = ["/etc/goose/system.txt", "/app/config/prompts/system.txt", "config/prompts/system.txt"]
+
     # Only add custom path if it looks reasonable (basic check)
     if SYSTEM_PROMPT_PATH and ".." not in SYSTEM_PROMPT_PATH:
         candidate_paths.insert(2, SYSTEM_PROMPT_PATH)
-        
+
     for path in candidate_paths:
         try:
             # Basic validation
             if ".." in path:
                 continue
-                
+
             if os.path.exists(path):
                 with open(path, encoding="utf-8") as f:
                     _system_prompt_cache = f.read().strip()
                     return _system_prompt_cache
         except (FileNotFoundError, PermissionError):
             continue
-            
+
     _system_prompt_cache = "You are the Antigravity Node v13.0, a sovereign AI agent."
     return _system_prompt_cache
-
 
 
 # OpenAI-compatible endpoint for LibreChat — routes through budget-proxy
@@ -395,13 +394,17 @@ async def chat_completions(
             return {
                 "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
                 "object": "chat.completion",
-                "choices": [{
-                    "index": 0,
-                    "message": {"role": "assistant",
-                                "content": "⚠️ Budget limit reached ($10/day). The AI is paused until the budget resets. "
-                                           "You can still use MCP tools, upload files, and check system health."},
-                    "finish_reason": "stop",
-                }],
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "⚠️ Budget limit reached ($10/day). The AI is paused until the budget resets. "
+                            "You can still use MCP tools, upload files, and check system health.",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
             }
         else:
             error_text = resp.text[:500]
@@ -409,13 +412,17 @@ async def chat_completions(
             return {
                 "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
                 "object": "chat.completion",
-                "choices": [{
-                    "index": 0,
-                    "message": {"role": "assistant",
-                                "content": f"Antigravity Node error: budget-proxy returned {resp.status_code}. "
-                                           f"Check budget-proxy at http://localhost:4055/health"},
-                    "finish_reason": "stop",
-                }],
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": f"Antigravity Node error: budget-proxy returned {resp.status_code}. "
+                            f"Check budget-proxy at http://localhost:4055/health",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
             }
 
     except httpx.ConnectError:
@@ -423,25 +430,33 @@ async def chat_completions(
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
             "object": "chat.completion",
-            "choices": [{
-                "index": 0,
-                "message": {"role": "assistant",
-                            "content": "Budget-proxy is unreachable. The AI backend is offline. "
-                                       "System status: check /health endpoint."},
-                "finish_reason": "stop",
-            }],
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Budget-proxy is unreachable. The AI backend is offline. "
+                        "System status: check /health endpoint.",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
         }
     except Exception as e:
         logger.error(f"Chat completion error: {e}")
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
             "object": "chat.completion",
-            "choices": [{
-                "index": 0,
-                "message": {"role": "assistant",
-                            "content": f"Antigravity Node v13.0 encountered an error: {str(e)[:200]}"},
-                "finish_reason": "stop",
-            }],
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": f"Antigravity Node v13.0 encountered an error: {str(e)[:200]}",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
         }
 
 
@@ -450,6 +465,7 @@ async def chat_completions(
 async def list_models():
     """OpenAI-compatible models list — proxied from budget-proxy."""
     import httpx
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(f"{LITELLM_BASE}/v1/models")
@@ -477,7 +493,11 @@ async def list_tools():
 
     # Orchestrator built-in tools (from mcp_server.py)
     builtin = [
-        {"name": "search_memory", "server": "orchestrator", "description": "Search StarRocks memory tables for relevant context"},
+        {
+            "name": "search_memory",
+            "server": "orchestrator",
+            "description": "Search StarRocks memory tables for relevant context",
+        },
         {"name": "query_memory", "server": "orchestrator", "description": "Execute SQL on StarRocks memory tables"},
         {"name": "trigger_task", "server": "orchestrator", "description": "Trigger an Argo workflow via Hera SDK"},
         {"name": "reflect_on_failure", "server": "orchestrator", "description": "Analyze logs from a failed workflow"},
@@ -495,30 +515,36 @@ async def list_tools():
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
                 # SSE endpoints only support GET, use a quick GET with small read
-                resp = await client.get(f"{base_url}/sse", timeout=httpx.Timeout(2.0, connect=2.0))
+                await client.get(f"{base_url}/sse", timeout=httpx.Timeout(2.0, connect=2.0))
                 # HTTP 200 means SSE stream opened successfully
-                tools.append({
+                tools.append(
+                    {
+                        "name": f"{server_name}",
+                        "server": server_name,
+                        "status": "connected",
+                        "transport": "sse",
+                        "url": f"{base_url}/sse",
+                    }
+                )
+        except (httpx.ReadTimeout, httpx.RemoteProtocolError):
+            # ReadTimeout means SSE connection opened but no events yet — that's OK
+            tools.append(
+                {
                     "name": f"{server_name}",
                     "server": server_name,
                     "status": "connected",
                     "transport": "sse",
                     "url": f"{base_url}/sse",
-                })
-        except (httpx.ReadTimeout, httpx.RemoteProtocolError):
-            # ReadTimeout means SSE connection opened but no events yet — that's OK
-            tools.append({
-                "name": f"{server_name}",
-                "server": server_name,
-                "status": "connected",
-                "transport": "sse",
-                "url": f"{base_url}/sse",
-            })
+                }
+            )
         except Exception:
-            tools.append({
-                "name": f"{server_name}",
-                "server": server_name,
-                "status": "unreachable",
-            })
+            tools.append(
+                {
+                    "name": f"{server_name}",
+                    "server": server_name,
+                    "status": "unreachable",
+                }
+            )
 
     return {"tools": tools, "total": len(tools)}
 
@@ -539,7 +565,8 @@ async def inference_endpoint(
     """
     logger.info(
         "Inference request: model=%s, tenant=%s",
-        body.model_name, x_tenant_id,
+        body.model_name,
+        x_tenant_id,
     )
     result = await run_inference(body.model_name, body.input_data)
     status_code = 200 if result["status"] == "ok" else 200  # always 200; status in body
@@ -625,7 +652,7 @@ async def budget_history(
 
     # Build 24-point hourly array (0=midnight UTC, 23=11pm UTC)
     hourly_spend = [0.0] * 24
-    current_hour = datetime.now(timezone.utc).hour
+    current_hour = datetime.now(UTC).hour
     hourly_spend[current_hour] = current_spend
 
     return {
@@ -684,15 +711,13 @@ async def ws_logs(websocket: WebSocket):
             except Exception as e:
                 logger.warning(f"OpenSearch initial fetch failed: {e}")
                 await websocket.send_text(
-                    "\x1b[33m[WARN]\x1b[0m OpenSearch unavailable - "
-                    "connect manually at /dashboards/\r\n"
+                    "\x1b[33m[WARN]\x1b[0m OpenSearch unavailable - connect manually at /dashboards/\r\n"
                 )
                 # Keep connection alive with periodic status messages
                 while True:
                     await asyncio.sleep(5)
                     await websocket.send_text(
-                        f"\x1b[90m[{datetime.now(timezone.utc).strftime('%H:%M:%S')}]\x1b[0m "
-                        "Waiting for OpenSearch...\r\n"
+                        f"\x1b[90m[{datetime.now(UTC).strftime('%H:%M:%S')}]\x1b[0m Waiting for OpenSearch...\r\n"
                     )
 
             # Polling loop: fetch new entries every 2 seconds
@@ -704,11 +729,7 @@ async def ws_logs(websocket: WebSocket):
                     "query": {"match_all": {}},
                 }
                 if last_timestamp:
-                    poll_query["query"] = {
-                        "range": {
-                            "@timestamp": {"gt": last_timestamp}
-                        }
-                    }
+                    poll_query["query"] = {"range": {"@timestamp": {"gt": last_timestamp}}}
                 try:
                     resp = await client.post(
                         f"{OPENSEARCH_URL}/fluent-bit-*/_search",
@@ -732,10 +753,8 @@ async def ws_logs(websocket: WebSocket):
         logger.info("Log WebSocket client disconnected")
     except Exception as e:
         logger.error(f"Log WebSocket error: {e}")
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close()
-        except Exception:
-            pass
 
 
 def _format_log_line(src: dict) -> str:
@@ -756,7 +775,7 @@ def _format_log_line(src: dict) -> str:
     elif "DEBUG" in level:
         color = "\x1b[90m"  # Gray
     else:
-        color = "\x1b[0m"   # Default
+        color = "\x1b[0m"  # Default
 
     prefix = f"\x1b[90m{timestamp}\x1b[0m"
     if container:
@@ -789,8 +808,9 @@ async def query_sql(
         "a2a.query",
         attributes={"tenant_id": x_tenant_id, "sql_length": len(body.sql)},
     ):
-        from workflows.memory import _get_conn
         import re
+
+        from workflows.memory import _get_conn
 
         sql = body.sql.strip()
         logger.info(f"SQL query request: tenant={x_tenant_id}, length={len(sql)}")
@@ -801,16 +821,27 @@ async def query_sql(
             raise HTTPException(status_code=400, detail="Only SELECT queries are permitted")
 
         # Strip comments before keyword check
-        normalized = re.sub(r'/\*.*?\*/', ' ', normalized, flags=re.DOTALL)
-        normalized = re.sub(r'--[^\n]*', ' ', normalized)
+        normalized = re.sub(r"/\*.*?\*/", " ", normalized, flags=re.DOTALL)
+        normalized = re.sub(r"--[^\n]*", " ", normalized)
 
         forbidden = [
-            "DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE",
-            "TRUNCATE", "GRANT", "REVOKE", "INTO OUTFILE", "INTO DUMPFILE",
-            "LOAD", "SET", "EXEC",
+            "DROP",
+            "DELETE",
+            "INSERT",
+            "UPDATE",
+            "ALTER",
+            "CREATE",
+            "TRUNCATE",
+            "GRANT",
+            "REVOKE",
+            "INTO OUTFILE",
+            "INTO DUMPFILE",
+            "LOAD",
+            "SET",
+            "EXEC",
         ]
         for keyword in forbidden:
-            pattern = r'\b' + keyword + r'\b'
+            pattern = r"\b" + keyword + r"\b"
             if re.search(pattern, normalized):
                 raise HTTPException(
                     status_code=400,
@@ -877,9 +908,7 @@ async def list_workflows(
                     params={"listOptions.limit": "20"},
                 )
                 if resp.status_code != 200:
-                    logger.warning(
-                        f"Argo API returned {resp.status_code}: {resp.text[:200]}"
-                    )
+                    logger.warning(f"Argo API returned {resp.status_code}: {resp.text[:200]}")
                     return {"workflows": []}
 
                 data = resp.json()
@@ -905,21 +934,25 @@ async def list_workflows(
                     dependency_map.setdefault(child_id, []).append(node_id)
 
             for node_id, node_data in raw_nodes.items():
-                nodes.append({
-                    "id": node_id,
-                    "name": node_data.get("displayName", node_data.get("name", node_id)),
-                    "type": node_data.get("type", "Pod"),
-                    "phase": node_data.get("phase", "Pending"),
-                    "dependencies": dependency_map.get(node_id, []),
-                })
+                nodes.append(
+                    {
+                        "id": node_id,
+                        "name": node_data.get("displayName", node_data.get("name", node_id)),
+                        "type": node_data.get("type", "Pod"),
+                        "phase": node_data.get("phase", "Pending"),
+                        "dependencies": dependency_map.get(node_id, []),
+                    }
+                )
 
-            workflows.append({
-                "name": metadata.get("name", "unknown"),
-                "phase": status.get("phase", "Unknown"),
-                "started_at": status.get("startedAt", ""),
-                "finished_at": status.get("finishedAt"),
-                "nodes": nodes,
-            })
+            workflows.append(
+                {
+                    "name": metadata.get("name", "unknown"),
+                    "phase": status.get("phase", "Unknown"),
+                    "started_at": status.get("startedAt", ""),
+                    "finished_at": status.get("finishedAt"),
+                    "nodes": nodes,
+                }
+            )
 
         return {"workflows": workflows}
 
@@ -956,14 +989,12 @@ async def memory_browser(
                 # Count total matching rows
                 if search:
                     cur.execute(
-                        "SELECT COUNT(*) AS cnt FROM memory_episodic "
-                        "WHERE tenant_id = %s AND content LIKE %s",
+                        "SELECT COUNT(*) AS cnt FROM memory_episodic WHERE tenant_id = %s AND content LIKE %s",
                         (effective_tenant, f"%{search}%"),
                     )
                 else:
                     cur.execute(
-                        "SELECT COUNT(*) AS cnt FROM memory_episodic "
-                        "WHERE tenant_id = %s",
+                        "SELECT COUNT(*) AS cnt FROM memory_episodic WHERE tenant_id = %s",
                         (effective_tenant,),
                     )
                 count_row = cur.fetchone()
@@ -990,15 +1021,17 @@ async def memory_browser(
                     )
                 rows = cur.fetchall()
                 for row in rows:
-                    entries.append({
-                        "event_id": row.get("event_id"),
-                        "tenant_id": row.get("tenant_id", effective_tenant),
-                        "timestamp": str(row["timestamp"]) if row.get("timestamp") else None,
-                        "session_id": row.get("session_id"),
-                        "actor": row.get("actor"),
-                        "action_type": row.get("action_type"),
-                        "content": row.get("content"),
-                    })
+                    entries.append(
+                        {
+                            "event_id": row.get("event_id"),
+                            "tenant_id": row.get("tenant_id", effective_tenant),
+                            "timestamp": str(row["timestamp"]) if row.get("timestamp") else None,
+                            "session_id": row.get("session_id"),
+                            "actor": row.get("actor"),
+                            "action_type": row.get("action_type"),
+                            "content": row.get("content"),
+                        }
+                    )
         finally:
             conn.close()
     except Exception as e:

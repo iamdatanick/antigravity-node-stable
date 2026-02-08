@@ -6,15 +6,14 @@ Apache-2.0 licensed, sovereign replacement for LiteLLM.
 """
 
 import asyncio
-import os
-import json
-import time
 import logging
-from datetime import datetime, timezone
+import os
+import time
+from datetime import UTC, datetime
 
 import httpx
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("budget-proxy")
@@ -29,7 +28,7 @@ DAILY_BUDGET_USD = float(os.environ.get("DAILY_BUDGET_USD", "50"))
 
 # In-memory cost tracking (resets daily)
 _daily_spend = 0.0
-_spend_date = datetime.now(timezone.utc).date()
+_spend_date = datetime.now(UTC).date()
 _spend_lock = asyncio.Lock()
 
 # Approximate cost per 1K tokens (input/output)
@@ -44,7 +43,7 @@ COST_TABLE = {
 
 def _reset_if_new_day():
     global _daily_spend, _spend_date
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     if today != _spend_date:
         logger.info(f"New day: resetting spend from ${_daily_spend:.4f}")
         _daily_spend = 0.0
@@ -132,4 +131,5 @@ async def chat_completions(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=4000)
