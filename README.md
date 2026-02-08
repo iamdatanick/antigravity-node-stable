@@ -129,10 +129,10 @@ Scope:
 **PR #3 — Add Pydantic request/response models to all FastAPI endpoints**
 
 Scope:
-- Create workflows/models.py with Pydantic models: TaskRequest, TaskResponse, HandoffRequest, WebhookPayload, ChatCompletionRequest, etc.
-- Replace all body: dict parameters with typed Pydantic models
-- Add response models to endpoint decorators for OpenAPI documentation
-- Add input validation (e.g., goal max length, model enum, temperature bounds)
+- Audit and extend workflows/models.py so all FastAPI request/response bodies use concrete Pydantic models (e.g., TaskRequest, TaskResponse, HandoffRequest, WebhookPayload, ChatCompletionRequest, etc.)
+- Replace any remaining body: dict parameters in a2a_server.py (and related modules) with typed Pydantic models
+- Ensure all FastAPI endpoint decorators specify appropriate response_model entries for accurate OpenAPI documentation
+- Tighten input validation (e.g., goal max length, allowed model enum values, temperature bounds) across all relevant models and endpoints
 
 **PR #4 — Add CORS middleware + webhook authentication + path cleanup**
 
