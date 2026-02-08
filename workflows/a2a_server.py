@@ -1,7 +1,6 @@
 """FastAPI A2A endpoints: /health, /task, /handoff, /upload, /webhook, /.well-known/agent.json."""
 
 import os
-import json
 import logging
 import uuid
 from fastapi import FastAPI, Header, UploadFile, File, HTTPException

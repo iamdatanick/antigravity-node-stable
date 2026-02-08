@@ -2,7 +2,6 @@
 
 import os
 import logging
-import subprocess
 import json
 from tenacity import retry, stop_after_attempt, retry_if_exception_type
 

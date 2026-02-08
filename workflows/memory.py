@@ -3,6 +3,8 @@
 import os
 import time
 import logging
+import itertools
+import re
 import pymysql
 
 logger = logging.getLogger("antigravity.memory")
@@ -12,7 +14,7 @@ STARROCKS_PORT = int(os.environ.get("STARROCKS_PORT", "9030"))
 STARROCKS_USER = os.environ.get("STARROCKS_USER", "root")
 STARROCKS_DB = os.environ.get("STARROCKS_DB", "antigravity")
 
-_event_counter = 0
+_event_counter = itertools.count(1)
 
 
 def _get_conn():
@@ -34,9 +36,8 @@ def push_episodic(
     content: str,
 ):
     """Write an event to episodic memory."""
-    global _event_counter
-    _event_counter += 1
-    event_id = int(time.time() * 1000) * 1000 + _event_counter
+    count = next(_event_counter)
+    event_id = int(time.time() * 1000) * 1000 + count
 
     conn = _get_conn()
     try:
@@ -95,7 +96,28 @@ def recall_experience(goal: str, tenant_id: str, limit: int = 10) -> list:
 
 
 def query(sql: str) -> list:
-    """Execute arbitrary SQL on StarRocks memory tables."""
+    """Execute read-only SQL on StarRocks memory tables."""
+    # Allow-list: only SELECT queries permitted
+    normalized = sql.strip().upper()
+    if not normalized.startswith("SELECT"):
+        raise ValueError("Only SELECT queries are permitted")
+    
+    # Remove SQL comments before checking for forbidden keywords
+    # Remove single-line comments (--) and multi-line comments (/* */)
+    # Note: This handles simple comment patterns but may not catch all edge cases
+    # Remove /* */ style comments
+    normalized = re.sub(r'/\*.*?\*/', ' ', normalized, flags=re.DOTALL)
+    # Remove -- style comments
+    normalized = re.sub(r'--[^\n]*', ' ', normalized)
+    
+    forbidden = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "TRUNCATE", "GRANT", "REVOKE"]
+    for keyword in forbidden:
+        # Check for keyword as a standalone word (not part of column names)
+        # Use word boundaries and handle various whitespace characters
+        pattern = r'\b' + keyword + r'\b'
+        if re.search(pattern, normalized):
+            raise ValueError(f"Forbidden SQL keyword: {keyword}")
+    
     conn = _get_conn()
     try:
         with conn.cursor() as cur:
