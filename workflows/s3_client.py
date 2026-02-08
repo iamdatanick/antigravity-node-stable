@@ -4,6 +4,7 @@ import os
 import logging
 import boto3
 from botocore.config import Config as BotoConfig
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger("antigravity.s3")
 
@@ -12,27 +13,40 @@ S3_ACCESS_KEY = os.environ.get("S3_ACCESS_KEY", "admin")
 S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY", "admin")
 S3_BUCKET = os.environ.get("S3_BUCKET", "antigravity")
 
+_s3_client = None
+_bucket_ensured = set()
+
 
 def get_client():
-    """Create a boto3 S3 client pointing to SeaweedFS."""
-    return boto3.client(
-        "s3",
-        endpoint_url=S3_ENDPOINT,
-        aws_access_key_id=S3_ACCESS_KEY,
-        aws_secret_access_key=S3_SECRET_KEY,
-        config=BotoConfig(signature_version="s3v4"),
-        region_name="us-east-1",
-    )
+    """Get or create a singleton boto3 S3 client pointing to SeaweedFS."""
+    global _s3_client
+    if _s3_client is None:
+        _s3_client = boto3.client(
+            "s3",
+            endpoint_url=S3_ENDPOINT,
+            aws_access_key_id=S3_ACCESS_KEY,
+            aws_secret_access_key=S3_SECRET_KEY,
+            config=BotoConfig(signature_version="s3v4"),
+            region_name="us-east-1",
+        )
+    return _s3_client
 
 
 def ensure_bucket(bucket: str = S3_BUCKET):
-    """Create a bucket if it does not exist."""
+    """Create a bucket if it does not exist (cached after first check)."""
+    if bucket in _bucket_ensured:
+        return
     client = get_client()
     try:
         client.head_bucket(Bucket=bucket)
-    except Exception:
-        client.create_bucket(Bucket=bucket)
-        logger.info(f"Created S3 bucket: {bucket}")
+    except ClientError as e:
+        error_code = int(e.response['Error']['Code'])
+        if error_code == 404:
+            client.create_bucket(Bucket=bucket)
+            logger.info(f"Created S3 bucket: {bucket}")
+        else:
+            raise
+    _bucket_ensured.add(bucket)
 
 
 def upload(key: str, data: bytes, bucket: str = S3_BUCKET):

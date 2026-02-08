@@ -6,6 +6,7 @@ import logging
 import itertools
 import re
 import pymysql
+from dbutils.pooled_db import PooledDB
 
 logger = logging.getLogger("antigravity.memory")
 
@@ -15,17 +16,31 @@ STARROCKS_USER = os.environ.get("STARROCKS_USER", "root")
 STARROCKS_DB = os.environ.get("STARROCKS_DB", "antigravity")
 
 _event_counter = itertools.count(1)
+_pool = None
+
+
+def _get_pool():
+    """Get or create connection pool for StarRocks FE."""
+    global _pool
+    if _pool is None:
+        _pool = PooledDB(
+            creator=pymysql,
+            maxconnections=10,
+            mincached=2,
+            maxcached=5,
+            blocking=True,
+            host=STARROCKS_HOST,
+            port=STARROCKS_PORT,
+            user=STARROCKS_USER,
+            database=STARROCKS_DB,
+            cursorclass=pymysql.cursors.DictCursor,
+        )
+    return _pool
 
 
 def _get_conn():
-    """Get a connection to StarRocks FE."""
-    return pymysql.connect(
-        host=STARROCKS_HOST,
-        port=STARROCKS_PORT,
-        user=STARROCKS_USER,
-        database=STARROCKS_DB,
-        cursorclass=pymysql.cursors.DictCursor,
-    )
+    """Get a pooled connection to StarRocks FE."""
+    return _get_pool().connection()
 
 
 def push_episodic(
