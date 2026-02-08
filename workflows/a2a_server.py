@@ -10,13 +10,18 @@ from workflows.health import full_health_check
 from workflows.memory import push_episodic, recall_experience
 from workflows.s3_client import upload as s3_upload
 from workflows.goose_client import execute_tool_with_correction, goose_reflect
+from workflows.models import (
+    TaskRequest, TaskResponse, HandoffRequest, HandoffResponse,
+    WebhookPayload, WebhookResponse, ChatCompletionRequest,
+    UploadResponse, HealthResponse, ToolsResponse, CapabilitiesResponse
+)
 
 logger = logging.getLogger("antigravity.a2a")
 
 app = FastAPI(title="Antigravity Node v13.0", version="13.0.0")
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 async def health():
     """GET /health — 5-level health check hierarchy."""
     result = await full_health_check()
@@ -33,18 +38,18 @@ async def well_known_agent():
     return JSONResponse({"error": "agent.json not found"}, status_code=404)
 
 
-@app.post("/task")
+@app.post("/task", response_model=TaskResponse)
 async def task(
-    body: dict,
+    body: TaskRequest,
     x_tenant_id: str = Header(default=None),
 ):
     """POST /task — A2A task endpoint with multi-tenant isolation."""
     if not x_tenant_id:
         raise HTTPException(status_code=400, detail="x-tenant-id header required")
 
-    goal = body.get("goal", "")
-    context = body.get("context", "")
-    session_id = body.get("session_id", str(uuid.uuid4()))
+    goal = body.goal
+    context = body.context
+    session_id = body.session_id or str(uuid.uuid4())
 
     logger.info(f"Task received: tenant={x_tenant_id}, goal={goal[:100]}")
 
@@ -77,16 +82,16 @@ async def task(
     }
 
 
-@app.post("/handoff")
-async def handoff(body: dict, x_tenant_id: str = Header(default="system")):
+@app.post("/handoff", response_model=HandoffResponse)
+async def handoff(body: HandoffRequest, x_tenant_id: str = Header(default="system")):
     """POST /handoff — A2A agent-to-agent handoff."""
-    target = body.get("target_agent", "")
-    payload = body.get("payload", {})
+    target = body.target_agent
+    payload = body.payload
     logger.info(f"Handoff to {target} from tenant={x_tenant_id}")
     return {"status": "handoff_acknowledged", "target": target}
 
 
-@app.post("/upload")
+@app.post("/upload", response_model=UploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
     x_tenant_id: str = Header(default="system"),
@@ -118,12 +123,12 @@ async def upload_file(
     return {"status": "uploaded", "key": key, "size": len(content)}
 
 
-@app.post("/webhook")
-async def argo_webhook(payload: dict):
+@app.post("/webhook", response_model=WebhookResponse)
+async def argo_webhook(payload: WebhookPayload):
     """POST /webhook — Argo exit-handler callback (Gap #6 fix)."""
-    task_id = payload.get("task_id", "unknown")
-    status = payload.get("status", "unknown")
-    message = payload.get("message", "")
+    task_id = payload.task_id
+    status = payload.status
+    message = payload.message
 
     logger.info(f"Argo callback: task={task_id}, status={status}")
 
@@ -159,14 +164,11 @@ def _load_system_prompt() -> str:
 
 # OpenAI-compatible endpoint for Open WebUI — routes through LiteLLM
 @app.post("/v1/chat/completions")
-async def chat_completions(body: dict, x_tenant_id: str = Header(default="system")):
+async def chat_completions(body: ChatCompletionRequest, x_tenant_id: str = Header(default="system")):
     """OpenAI-compatible chat completions — routed through LiteLLM proxy."""
     import httpx
 
-    messages = body.get("messages", [])
-    if not messages:
-        return {"choices": [{"message": {"role": "assistant", "content": "No input provided."}}]}
-
+    messages = [msg.model_dump() for msg in body.messages]
     user_msg = messages[-1].get("content", "")
     session_id = str(uuid.uuid4())[:8]
     logger.info(f"Chat request (tenant={x_tenant_id}): {user_msg[:100]}")
@@ -202,7 +204,7 @@ async def chat_completions(body: dict, x_tenant_id: str = Header(default="system
     enriched_messages.extend(messages)
 
     # 4. Route through LiteLLM proxy
-    model = body.get("model", os.environ.get("GOOSE_MODEL", "gpt-4o"))
+    model = body.model or os.environ.get("GOOSE_MODEL", "gpt-4o")
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
@@ -210,8 +212,8 @@ async def chat_completions(body: dict, x_tenant_id: str = Header(default="system
                 json={
                     "model": model,
                     "messages": enriched_messages,
-                    "temperature": body.get("temperature", 0.7),
-                    "max_tokens": body.get("max_tokens", 2048),
+                    "temperature": body.temperature,
+                    "max_tokens": body.max_tokens,
                 },
                 headers={"Content-Type": "application/json"},
             )
@@ -309,7 +311,7 @@ async def list_models():
 
 
 # --- MCP Tool Discovery Endpoint ---
-@app.get("/tools")
+@app.get("/tools", response_model=ToolsResponse)
 async def list_tools():
     """List all available MCP tools across all tool servers."""
     import httpx
@@ -365,7 +367,7 @@ async def list_tools():
 
 
 # --- Agent Capabilities Summary ---
-@app.get("/capabilities")
+@app.get("/capabilities", response_model=CapabilitiesResponse)
 async def capabilities():
     """Return full node capabilities for A2A discovery."""
     return {
