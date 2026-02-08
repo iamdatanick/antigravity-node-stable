@@ -28,9 +28,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_USER=antigravity
-      - POSTGRES_PASSWORD=antigravity
-      - POSTGRES_DB=antigravity
+      - POSTGRES_USER=${POSTGRES_USER:-antigravity}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-antigravity}
     volumes:
       - ./config/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
       - postgres-data:/var/lib/postgresql/data
@@ -44,6 +44,7 @@ services:
         limits:
           memory: 1G
           cpus: '1.0'
+    read_only: false
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U antigravity -d antigravity"]
       interval: 5s
@@ -72,6 +73,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+    read_only: false
 
   # [NERVOUS SYSTEM] NATS JetStream
   nats:
@@ -84,6 +86,11 @@ services:
         limits:
           memory: 256M
           cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # [ETCD] Standalone etcd for Milvus
   etcd:
@@ -103,6 +110,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    read_only: false
 
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 1: DEPENDS ON LAYER 0
@@ -114,11 +122,11 @@ services:
     command: start-dev
     environment:
       - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
       - KC_DB=postgres
       - KC_DB_URL=jdbc:postgresql://postgres:5432/keycloak
-      - KC_DB_USERNAME=antigravity
-      - KC_DB_PASSWORD=antigravity
+      - KC_DB_USERNAME=${POSTGRES_USER:-antigravity}
+      - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
       - KC_HOSTNAME_STRICT=false
       - KC_HTTP_ENABLED=true
     ports: ["8355:8080"]
@@ -137,6 +145,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 45s
+    security_opt:
+      - no-new-privileges:true
 
   # [LINEAGE] Marquez - OpenLineage Data Lineage
   marquez:
@@ -149,8 +159,8 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=marquez
-      - POSTGRES_USER=antigravity
-      - POSTGRES_PASSWORD=antigravity
+      - POSTGRES_USER=${POSTGRES_USER:-antigravity}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -166,6 +176,11 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # [LOG AGGREGATION] Loki
   loki:
@@ -183,6 +198,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 1.5: K3D + ARGO BOOTSTRAP
@@ -254,7 +274,7 @@ services:
 
         # 3. Configure Artifact Repository -> SeaweedFS
         kubectl --kubeconfig $$KC -n argo create secret generic s3-creds \
-          --from-literal=accessKey=admin --from-literal=secretKey=admin 2>/dev/null || true
+          --from-literal=accessKey=${S3_ACCESS_KEY:-admin} --from-literal=secretKey=${S3_SECRET_KEY:-admin} 2>/dev/null || true
 
         cat <<'EOF' | kubectl --kubeconfig $$KC -n argo apply -f -
         apiVersion: v1
@@ -343,7 +363,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 15s
+      start_period: 30s
+    read_only: false
 
   # [CACHE] Valkey - In-Memory Cache (replaces Redis)
   valkey:
@@ -362,6 +383,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    read_only: false
 
   # [VECTOR DB] Milvus - Semantic Search & Embeddings
   milvus:
@@ -394,6 +416,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    read_only: false
 
   # [IDENTITY] SPIFFE/SPIRE - mTLS Identity
   spire-server:
@@ -409,13 +432,15 @@ services:
         limits:
           memory: 256M
           cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
 
   # [SECRETS] OpenBao - Secrets Management (Vault fork, MPL-2.0)
   openbao:
     image: openbao/openbao:2.0.0
-    command: server -dev -dev-root-token-id=dev-only-token -dev-listen-address=0.0.0.0:8200
+    command: server -dev -dev-root-token-id=${OPENBAO_DEV_TOKEN:-dev-only-token} -dev-listen-address=0.0.0.0:8200
     environment:
-      - BAO_DEV_ROOT_TOKEN_ID=dev-only-token
+      - BAO_DEV_ROOT_TOKEN_ID=${OPENBAO_DEV_TOKEN:-dev-only-token}
       - BAO_LOG_LEVEL=info
     cap_add:
       - IPC_LOCK
@@ -433,6 +458,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+    read_only: false
 
   # [INFERENCE] OpenVINO Model Server - ML Runtime
   ovms:
@@ -455,6 +481,11 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 3: SIDECARS
@@ -470,6 +501,11 @@ services:
         limits:
           memory: 256M
           cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # [OBSERVABILITY] Falco Runtime Security
   falco:
@@ -497,7 +533,7 @@ services:
     ports: ["3055:3000"]
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
     volumes:
       - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
@@ -515,6 +551,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # [COST CONTROL] LiteLLM - LLM API Budget Proxy
   litellm:
@@ -539,6 +580,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 5: AGENT CONTROL PLANE
@@ -571,6 +617,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # [MCP TOOL] Filesystem Server (FastMCP SSE — reads /data mount)
   mcp-filesystem:
@@ -588,6 +639,11 @@ services:
         limits:
           memory: 128M
           cpus: '0.25'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # [MCP TOOL] StarRocks Memory Server
   mcp-starrocks:
@@ -608,6 +664,11 @@ services:
         limits:
           memory: 256M
           cpus: '0.25'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # [AGENT] Goose - AI Agent with MCP + A2A
   # NOTE: Goose agent is integrated INTO the orchestrator container
@@ -635,7 +696,7 @@ services:
       - MILVUS_PORT=19530
       - KEYCLOAK_URL=http://keycloak:8080
       - OPENBAO_ADDR=http://openbao:8200
-      - OPENBAO_TOKEN=dev-only-token
+      - OPENBAO_TOKEN=${OPENBAO_DEV_TOKEN:-dev-only-token}
       - OVMS_GRPC=ovms:9000
       - OVMS_REST=http://ovms:8000
       - SPIRE_ADDR=spire-server:8081
@@ -673,6 +734,8 @@ services:
         limits:
           memory: 1G
           cpus: '1.0'
+    security_opt:
+      - no-new-privileges:true
 
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 7: HUMAN INTERFACES
@@ -697,6 +760,7 @@ services:
         limits:
           memory: 512M
           cpus: '0.5'
+    read_only: false
 
   # [TRACE] Streamlit Thought Trace Viewer
   trace-viewer:
@@ -715,6 +779,11 @@ services:
         limits:
           memory: 512M
           cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 8: MASTER PORTAL
@@ -734,6 +803,11 @@ services:
         limits:
           memory: 128M
           cpus: '0.25'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
 volumes:
   seaweedfs-data:
