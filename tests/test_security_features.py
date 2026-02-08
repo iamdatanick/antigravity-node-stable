@@ -25,7 +25,7 @@ class TestCORS:
         )
         # Check that CORS middleware is handling the request
         assert "access-control-allow-origin" in response.headers or response.status_code in [200, 405]
-    
+
     def test_cors_preflight(self, client):
         """Test CORS preflight request."""
         response = client.options(

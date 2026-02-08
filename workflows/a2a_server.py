@@ -170,7 +170,7 @@ async def argo_webhook(
         payload_body = await request.body()
         if not verify_webhook_signature(payload_body, x_webhook_signature):
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
-    
+
     task_id = payload.task_id
     status = payload.status
     message = payload.message
