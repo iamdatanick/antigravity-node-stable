@@ -149,7 +149,7 @@ Scope:
 Scope:
 - workflows/memory.py — Replace per-call pymysql.connect() with a connection pool (SQLAlchemy pool or DBUtils.PooledDB)
 - workflows/s3_client.py — Create a singleton boto3 client instead of per-call instantiation
-- s3_client.py — Fix ensure_bucket to catch botocore.exceptions.ClientError specifically instead of bare Exception
+- workflows/s3_client.py — Fix ensure_bucket to catch botocore.exceptions.ClientError specifically instead of bare Exception
 - src/trace-viewer/trace_viewer.py — Add connection retry/reconnect logic to handle StarRocks restarts (replace stale @st.cache_resource)
 
 **PR #6 — Docker Compose security hardening**
