@@ -14,6 +14,7 @@ secrets/
 # Data directories (recreated at runtime)
 data/postgres/
 data/starrocks/
+data/spire/
 
 # SPIRE data (runtime state)
 data/spire/*.sqlite3*
