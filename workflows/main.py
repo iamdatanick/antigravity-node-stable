@@ -115,6 +115,11 @@ def main():
     logger.info("=== ANTIGRAVITY NODE v13.0 STARTING ===")
     logger.info(f"God Mode iterations: {MAX_ITERATIONS}")
 
+    # 0. Initialize OpenTelemetry tracing
+    from workflows.telemetry import init_telemetry
+    init_telemetry()
+    logger.info("OpenTelemetry tracing initialized")
+
     # 1. Start gRPC server in background thread (port 8081)
     try:
         from workflows.grpc_server import serve_grpc
@@ -127,8 +132,13 @@ def main():
     # 2. Start God Mode loop in background
     start_god_mode_background()
 
-    # 3. Start FastAPI server (port 8080) — blocks
+    # 3. Instrument FastAPI app with OpenTelemetry
     from workflows.a2a_server import app
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    FastAPIInstrumentor.instrument_app(app)
+    logger.info("FastAPI instrumented with OpenTelemetry")
+
+    # 4. Start FastAPI server (port 8080) — blocks
     logger.info("Starting FastAPI A2A server on port 8080...")
     uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
 

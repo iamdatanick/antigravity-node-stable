@@ -4,8 +4,10 @@ import os
 import logging
 import json
 from tenacity import retry, stop_after_attempt, retry_if_exception_type
+from workflows.telemetry import get_tracer
 
 logger = logging.getLogger("antigravity.goose")
+tracer = get_tracer("antigravity.goose")
 
 GOOSE_BIN = os.environ.get("GOOSE_BIN", "/usr/local/bin/goose")
 
@@ -56,51 +58,52 @@ def list_tools() -> list:
 
 async def execute_tool(name: str, params: dict) -> str:
     """Dispatch tool execution to actual service clients."""
-    if name == "query_starrocks":
-        from workflows.memory import query
-        results = query(params["sql"])
-        return json.dumps(results, default=str)
+    with tracer.start_as_current_span("goose.execute_tool", attributes={"tool_name": name}):
+        if name == "query_starrocks":
+            from workflows.memory import query
+            results = query(params["sql"])
+            return json.dumps(results, default=str)
 
-    elif name == "search_vectors":
-        from pymilvus import Collection
-        # Simplified — real impl would use collection search
-        return json.dumps({"status": "search_complete", "results": []})
+        elif name == "search_vectors":
+            from pymilvus import Collection
+            # Simplified — real impl would use collection search
+            return json.dumps({"status": "search_complete", "results": []})
 
-    elif name == "read_context":
-        import glob
-        files = glob.glob(f"/app/context/{params.get('pattern', '*')}")
-        return json.dumps({"files": files})
+        elif name == "read_context":
+            import glob
+            files = glob.glob(f"/app/context/{params.get('pattern', '*')}")
+            return json.dumps({"files": files})
 
-    elif name == "store_artifact":
-        from workflows.s3_client import upload
-        upload(params["key"], params.get("data", b"").encode() if isinstance(params.get("data"), str) else params.get("data", b""))
-        return json.dumps({"status": "uploaded", "key": params["key"]})
+        elif name == "store_artifact":
+            from workflows.s3_client import upload
+            upload(params["key"], params.get("data", b"").encode() if isinstance(params.get("data"), str) else params.get("data", b""))
+            return json.dumps({"status": "uploaded", "key": params["key"]})
 
-    elif name == "get_secret":
-        import httpx
-        addr = os.environ.get("OPENBAO_ADDR", "http://openbao:8200")
-        token = os.environ.get("OPENBAO_TOKEN", "dev-only-token")
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{addr}/v1/{params['path']}",
-                headers={"X-Vault-Token": token},
-            )
-            return resp.text
+        elif name == "get_secret":
+            import httpx
+            addr = os.environ.get("OPENBAO_ADDR", "http://openbao:8200")
+            token = os.environ.get("OPENBAO_TOKEN", "dev-only-token")
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{addr}/v1/{params['path']}",
+                    headers={"X-Vault-Token": token},
+                )
+                return resp.text
 
-    elif name == "publish_event":
-        import nats
-        nc = await nats.connect(os.environ.get("NATS_URL", "nats://nats:4222"))
-        await nc.publish(params["subject"], params["payload"].encode())
-        await nc.close()
-        return json.dumps({"status": "published", "subject": params["subject"]})
+        elif name == "publish_event":
+            import nats
+            nc = await nats.connect(os.environ.get("NATS_URL", "nats://nats:4222"))
+            await nc.publish(params["subject"], params["payload"].encode())
+            await nc.close()
+            return json.dumps({"status": "published", "subject": params["subject"]})
 
-    elif name == "submit_workflow":
-        from workflows.workflow_defs import submit_workflow
-        run_id = await submit_workflow(params["name"], params.get("params", {}))
-        return json.dumps({"status": "submitted", "run_id": run_id})
+        elif name == "submit_workflow":
+            from workflows.workflow_defs import submit_workflow
+            run_id = await submit_workflow(params["name"], params.get("params", {}))
+            return json.dumps({"status": "submitted", "run_id": run_id})
 
-    else:
-        return json.dumps({"error": f"Unknown tool: {name}"})
+        else:
+            return json.dumps({"error": f"Unknown tool: {name}"})
 
 
 @retry(stop=stop_after_attempt(3), retry=retry_if_exception_type(Exception))
