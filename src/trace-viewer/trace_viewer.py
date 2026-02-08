@@ -46,7 +46,7 @@ try:
     # Ensure connection is alive before using it
     try:
         conn.ping(reconnect=True)
-    except (pymysql.Error, AttributeError) as e:
+    except pymysql.Error as e:
         st.error(f"Connection lost: {e}")
         conn = get_connection()
         if conn is None:
