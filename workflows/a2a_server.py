@@ -27,9 +27,15 @@ logger = logging.getLogger("antigravity.a2a")
 app = FastAPI(title="Antigravity Node v13.0", version="13.0.0")
 
 # CORS middleware
+raw_cors_origins = os.environ.get("CORS_ORIGINS", "*")
+if not raw_cors_origins or raw_cors_origins.strip() == "*":
+    allow_origins = ["*"]
+else:
+    allow_origins = [origin.strip() for origin in raw_cors_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
