@@ -31,7 +31,7 @@ def get_connection():
             connect_timeout=5,
         )
         return conn
-    except Exception as e:
+    except pymysql.Error as e:
         st.error(f"Cannot connect to StarRocks: {e}")
         return None
 
@@ -46,7 +46,7 @@ try:
     # Ensure connection is alive before using it
     try:
         conn.ping(reconnect=True)
-    except Exception as e:
+    except (pymysql.Error, AttributeError) as e:
         st.error(f"Connection lost: {e}")
         conn = get_connection()
         if conn is None:
