@@ -71,7 +71,15 @@ async def execute_tool(name: str, params: dict) -> str:
 
         elif name == "read_context":
             import glob
-            files = glob.glob(f"/app/context/{params.get('pattern', '*')}")
+            pattern = params.get('pattern', '*')
+            if '..' in pattern or pattern.startswith('/'):
+                return json.dumps({"error": "Invalid pattern"})
+            base = "/app/context/"
+            full_pattern = os.path.join(base, pattern)
+            resolved = os.path.realpath(full_pattern)
+            if not resolved.startswith(os.path.realpath(base)):
+                return json.dumps({"error": "Path traversal blocked"})
+            files = glob.glob(full_pattern)
             return json.dumps({"files": files})
 
         elif name == "store_artifact":

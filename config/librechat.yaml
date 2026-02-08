@@ -1,0 +1,17 @@
+# LibreChat configuration for Antigravity Node v13
+# Routes through budget-proxy for cost control
+
+version: 1.1.5
+cache: true
+registration:
+  socialLogins: []
+
+endpoints:
+  openAI:
+    titleModel: "gpt-4o-mini"
+    models:
+      default: ["gpt-4o", "gpt-4o-mini"]
+    baseURL: "http://budget-proxy:4000/v1"
+  anthropic:
+    models:
+      default: ["claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"]

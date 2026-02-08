@@ -38,7 +38,7 @@ Key endpoints (after startup):
 - Orchestrator HTTP: `http://localhost:8080/health`
 - Orchestrator gRPC: `localhost:8081`
 - Open WebUI: `http://localhost:3355`
-- Grafana: `http://localhost:3055`
+- Perses (Dashboards): `http://localhost:3055`
 - Trace Viewer: `http://localhost:8655`
 - Master UI: `http://localhost:1055`
 
@@ -174,7 +174,7 @@ Scope:
 - Initialize OTel tracer provider in main.py
 - Instrument FastAPI app with FastAPIInstrumentor
 - Add span creation in memory.py, s3_client.py, goose_client.py for cross-service tracing
-- Add OTLP exporter config pointing to Grafana Tempo or Jaeger (add to Docker Compose if needed)
+- Add OTLP exporter config pointing to Jaeger (add to Docker Compose if needed)
 
 **PR #8 — Integrate OpenLineage with Marquez for data lineage**
 

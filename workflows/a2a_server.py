@@ -3,11 +3,13 @@
 import asyncio
 import hashlib
 import hmac
+import json
 import logging
 import os
 import uuid
+from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -20,6 +22,7 @@ from workflows.health import full_health_check
 from workflows.inference import list_models as ovms_list_models, run_inference
 from workflows.memory import push_episodic, recall_experience
 from workflows.models import (
+    BudgetHistoryResponse,
     CapabilitiesResponse,
     ChatCompletionRequest,
     HandoffRequest,
@@ -27,17 +30,24 @@ from workflows.models import (
     HealthResponse,
     InferenceRequest,
     InferenceResponse,
+    MemoryListResponse,
+    QueryRequest,
+    QueryResponse,
     TaskRequest,
     TaskResponse,
     ToolsResponse,
     UploadResponse,
     WebhookPayload,
     WebhookResponse,
+    WorkflowListResponse,
 )
 from workflows.lineage import complete_job, fail_job, start_job
 from workflows.s3_client import upload as s3_upload
+from workflows.workflow_defs import ARGO_SERVER, ARGO_NAMESPACE
+from workflows.telemetry import get_tracer
 
 logger = logging.getLogger("antigravity.a2a")
+tracer = get_tracer("antigravity.a2a")
 
 app = FastAPI(title="Antigravity Node v13.0", version="13.0.0")
 
@@ -560,6 +570,8 @@ async def capabilities():
             "models": "/v1/models",
             "inference": "/v1/inference",
             "ovms_models": "/v1/models/ovms",
+            "query": "/query",
+            "workflows": "/workflows",
             "tools": "/tools",
             "capabilities": "/capabilities",
             "agent_descriptor": "/.well-known/agent.json",
@@ -579,4 +591,424 @@ async def capabilities():
             "max_daily": "$10.00",
             "model": os.environ.get("GOOSE_MODEL", "gpt-4o"),
         },
+    }
+
+
+# --- Budget History Endpoint (Phase 8: Chart.js dashboard) ---
+@app.get("/budget/history", response_model=BudgetHistoryResponse)
+@limiter.limit("30/minute")
+async def budget_history(
+    request: Request,
+    x_tenant_id: str = Header(default="system"),
+    user: dict = Depends(validate_token),
+):
+    """GET /budget/history -- Return budget spend data for Chart.js visualization.
+
+    Proxies to budget-proxy /health to get current spend, then builds a 24-point
+    hourly spend array with the current hour's spend filled in.
+    """
+    import httpx
+
+    current_spend = 0.0
+    max_daily = 10.0
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{LITELLM_BASE}/health")
+            if resp.status_code == 200:
+                data = resp.json()
+                # budget-proxy /health may return spend info in different formats
+                current_spend = float(data.get("spend", data.get("current_spend", 0.0)))
+                max_daily = float(data.get("max_budget", data.get("max_daily", 10.0)))
+    except Exception as e:
+        logger.warning(f"Budget proxy unreachable for history: {e}")
+
+    # Build 24-point hourly array (0=midnight UTC, 23=11pm UTC)
+    hourly_spend = [0.0] * 24
+    current_hour = datetime.now(timezone.utc).hour
+    hourly_spend[current_hour] = current_spend
+
+    return {
+        "current_spend": current_spend,
+        "max_daily": max_daily,
+        "currency": "USD",
+        "hourly_spend": hourly_spend,
+    }
+
+
+# --- WebSocket Log Streaming Endpoint (Phase 8: Xterm.js terminal) ---
+OPENSEARCH_URL = os.environ.get("OPENSEARCH_URL", "http://opensearch:9200")
+
+
+@app.websocket("/ws/logs")
+async def ws_logs(websocket: WebSocket):
+    """WebSocket /ws/logs -- Stream container logs from OpenSearch for Xterm.js terminal.
+
+    Connects to OpenSearch fluent-bit indices, fetches last 50 entries, then polls
+    every 2 seconds for new entries. Falls back to a message if OpenSearch is unreachable.
+    """
+    await websocket.accept()
+    import httpx
+
+    last_timestamp = None
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            # Initial fetch: last 50 log entries
+            query_body = {
+                "size": 50,
+                "sort": [{"@timestamp": {"order": "asc"}}],
+                "query": {"match_all": {}},
+            }
+            try:
+                resp = await client.post(
+                    f"{OPENSEARCH_URL}/fluent-bit-*/_search",
+                    json=query_body,
+                    headers={"Content-Type": "application/json"},
+                )
+                if resp.status_code == 200:
+                    result = resp.json()
+                    hits = result.get("hits", {}).get("hits", [])
+                    for hit in hits:
+                        src = hit.get("_source", {})
+                        line = _format_log_line(src)
+                        await websocket.send_text(line)
+                        ts = src.get("@timestamp")
+                        if ts:
+                            last_timestamp = ts
+                else:
+                    await websocket.send_text(
+                        "\x1b[33m[WARN]\x1b[0m OpenSearch returned status "
+                        f"{resp.status_code} - connect manually at /dashboards/\r\n"
+                    )
+            except Exception as e:
+                logger.warning(f"OpenSearch initial fetch failed: {e}")
+                await websocket.send_text(
+                    "\x1b[33m[WARN]\x1b[0m OpenSearch unavailable - "
+                    "connect manually at /dashboards/\r\n"
+                )
+                # Keep connection alive with periodic status messages
+                while True:
+                    await asyncio.sleep(5)
+                    await websocket.send_text(
+                        f"\x1b[90m[{datetime.now(timezone.utc).strftime('%H:%M:%S')}]\x1b[0m "
+                        "Waiting for OpenSearch...\r\n"
+                    )
+
+            # Polling loop: fetch new entries every 2 seconds
+            while True:
+                await asyncio.sleep(2)
+                poll_query: dict = {
+                    "size": 100,
+                    "sort": [{"@timestamp": {"order": "asc"}}],
+                    "query": {"match_all": {}},
+                }
+                if last_timestamp:
+                    poll_query["query"] = {
+                        "range": {
+                            "@timestamp": {"gt": last_timestamp}
+                        }
+                    }
+                try:
+                    resp = await client.post(
+                        f"{OPENSEARCH_URL}/fluent-bit-*/_search",
+                        json=poll_query,
+                        headers={"Content-Type": "application/json"},
+                    )
+                    if resp.status_code == 200:
+                        result = resp.json()
+                        hits = result.get("hits", {}).get("hits", [])
+                        for hit in hits:
+                            src = hit.get("_source", {})
+                            line = _format_log_line(src)
+                            await websocket.send_text(line)
+                            ts = src.get("@timestamp")
+                            if ts:
+                                last_timestamp = ts
+                except Exception:
+                    pass  # Silently continue polling on transient errors
+
+    except WebSocketDisconnect:
+        logger.info("Log WebSocket client disconnected")
+    except Exception as e:
+        logger.error(f"Log WebSocket error: {e}")
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
+def _format_log_line(src: dict) -> str:
+    """Format an OpenSearch log document as an ANSI-colored terminal line."""
+    timestamp = src.get("@timestamp", "")
+    # Shorten timestamp to HH:MM:SS if possible
+    if len(timestamp) >= 19:
+        timestamp = timestamp[11:19]
+    level = src.get("level", src.get("log_level", "INFO")).upper()
+    message = src.get("log", src.get("message", str(src)))
+    container = src.get("kubernetes", {}).get("container_name", src.get("container_name", ""))
+
+    # ANSI color codes by level
+    if "ERROR" in level or "FATAL" in level:
+        color = "\x1b[31m"  # Red
+    elif "WARN" in level:
+        color = "\x1b[33m"  # Yellow
+    elif "DEBUG" in level:
+        color = "\x1b[90m"  # Gray
+    else:
+        color = "\x1b[0m"   # Default
+
+    prefix = f"\x1b[90m{timestamp}\x1b[0m"
+    if container:
+        prefix += f" \x1b[36m[{container}]\x1b[0m"
+
+    return f"{prefix} {color}{message}\x1b[0m\r\n"
+
+
+# --- SQL Query Executor Endpoint (Phase 9: Monaco Editor) ---
+MAX_QUERY_ROWS = 200
+
+
+@app.post("/query", response_model=QueryResponse)
+@limiter.limit("30/minute")
+async def query_sql(
+    request: Request,
+    body: QueryRequest,
+    x_tenant_id: str = Header(default=None),
+    user: dict = Depends(validate_token),
+):
+    """POST /query -- Execute a read-only SQL query against StarRocks.
+
+    Uses the memory module's SQL injection prevention (forbidden keyword checks)
+    to reject any non-SELECT queries. Results are limited to 200 rows.
+    """
+    if not x_tenant_id:
+        raise HTTPException(status_code=400, detail="x-tenant-id header required")
+
+    with tracer.start_as_current_span(
+        "a2a.query",
+        attributes={"tenant_id": x_tenant_id, "sql_length": len(body.sql)},
+    ):
+        from workflows.memory import _get_conn
+        import re
+
+        sql = body.sql.strip()
+        logger.info(f"SQL query request: tenant={x_tenant_id}, length={len(sql)}")
+
+        # --- SQL validation (mirrors memory.query logic) ---
+        normalized = sql.upper()
+        if not normalized.startswith("SELECT"):
+            raise HTTPException(status_code=400, detail="Only SELECT queries are permitted")
+
+        # Strip comments before keyword check
+        normalized = re.sub(r'/\*.*?\*/', ' ', normalized, flags=re.DOTALL)
+        normalized = re.sub(r'--[^\n]*', ' ', normalized)
+
+        forbidden = [
+            "DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE",
+            "TRUNCATE", "GRANT", "REVOKE", "INTO OUTFILE", "INTO DUMPFILE",
+            "LOAD", "SET", "EXEC",
+        ]
+        for keyword in forbidden:
+            pattern = r'\b' + keyword + r'\b'
+            if re.search(pattern, normalized):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Forbidden SQL keyword: {keyword}",
+                )
+
+        # --- Execute query ---
+        try:
+            conn = _get_conn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(sql)
+                    # Fetch up to MAX_QUERY_ROWS + 1 to detect truncation
+                    all_rows = cur.fetchmany(MAX_QUERY_ROWS + 1)
+                    truncated = len(all_rows) > MAX_QUERY_ROWS
+                    result_rows = all_rows[:MAX_QUERY_ROWS]
+
+                    # Extract column names from cursor description
+                    columns = [desc[0] for desc in cur.description] if cur.description else []
+
+                    # Convert dict rows to list-of-lists for the response
+                    rows_as_lists = []
+                    for row in result_rows:
+                        rows_as_lists.append([row[col] for col in columns])
+
+                    return {
+                        "columns": columns,
+                        "rows": rows_as_lists,
+                        "row_count": len(rows_as_lists),
+                        "truncated": truncated,
+                    }
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"SQL query execution failed: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Query execution failed. Check SQL syntax and table names.",
+            )
+
+
+# --- Argo Workflow List Endpoint (Phase 9: Cytoscape DAG visualizer) ---
+@app.get("/workflows", response_model=WorkflowListResponse)
+@limiter.limit("30/minute")
+async def list_workflows(
+    request: Request,
+    user: dict = Depends(validate_token),
+):
+    """GET /workflows -- List recent Argo workflows for DAG visualization.
+
+    Proxies to the Argo REST API and parses workflow nodes for Cytoscape rendering.
+    Returns an empty list with a warning log if Argo is unreachable.
+    """
+    import httpx
+
+    with tracer.start_as_current_span(
+        "a2a.list_workflows",
+        attributes={"argo_server": ARGO_SERVER, "argo_namespace": ARGO_NAMESPACE},
+    ):
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    f"http://{ARGO_SERVER}/api/v1/workflows/{ARGO_NAMESPACE}",
+                    params={"listOptions.limit": "20"},
+                )
+                if resp.status_code != 200:
+                    logger.warning(
+                        f"Argo API returned {resp.status_code}: {resp.text[:200]}"
+                    )
+                    return {"workflows": []}
+
+                data = resp.json()
+
+        except Exception as e:
+            logger.warning(f"Argo server unreachable ({ARGO_SERVER}): {e}")
+            return {"workflows": []}
+
+        workflows = []
+        for item in data.get("items") or []:
+            metadata = item.get("metadata", {})
+            status = item.get("status", {})
+
+            # Parse nodes for DAG visualization
+            nodes = []
+            raw_nodes = status.get("nodes", {})
+
+            # Build dependency map: child -> list of parent node IDs
+            # Argo stores children on each node; we reverse this for DAG viz
+            dependency_map: dict = {}
+            for node_id, node_data in raw_nodes.items():
+                for child_id in node_data.get("children", []):
+                    dependency_map.setdefault(child_id, []).append(node_id)
+
+            for node_id, node_data in raw_nodes.items():
+                nodes.append({
+                    "id": node_id,
+                    "name": node_data.get("displayName", node_data.get("name", node_id)),
+                    "type": node_data.get("type", "Pod"),
+                    "phase": node_data.get("phase", "Pending"),
+                    "dependencies": dependency_map.get(node_id, []),
+                })
+
+            workflows.append({
+                "name": metadata.get("name", "unknown"),
+                "phase": status.get("phase", "Unknown"),
+                "started_at": status.get("startedAt", ""),
+                "finished_at": status.get("finishedAt"),
+                "nodes": nodes,
+            })
+
+        return {"workflows": workflows}
+
+
+# --- Memory Browser Endpoint (Phase 8: TanStack/Alpine.js table) ---
+@app.get("/memory", response_model=MemoryListResponse)
+@limiter.limit("60/minute")
+async def memory_browser(
+    request: Request,
+    tenant_id: str = Query(default="system", max_length=128, description="Tenant ID to query"),
+    limit: int = Query(default=25, ge=1, le=200, description="Number of rows to return"),
+    offset: int = Query(default=0, ge=0, description="Offset for pagination"),
+    search: str = Query(default="", max_length=500, description="Search term for content filter"),
+    x_tenant_id: str = Header(default="system"),
+    user: dict = Depends(validate_token),
+):
+    """GET /memory -- Query episodic memory for the Memory Browser table.
+
+    Returns paginated, searchable episodic memory entries from StarRocks.
+    Uses parameterized queries only (no string interpolation) to prevent SQL injection.
+    """
+    from workflows.memory import _get_conn
+
+    # Use the header tenant_id if the query param is default
+    effective_tenant = tenant_id if tenant_id != "system" else x_tenant_id
+
+    entries = []
+    total = 0
+
+    try:
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                # Count total matching rows
+                if search:
+                    cur.execute(
+                        "SELECT COUNT(*) AS cnt FROM memory_episodic "
+                        "WHERE tenant_id = %s AND content LIKE %s",
+                        (effective_tenant, f"%{search}%"),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT COUNT(*) AS cnt FROM memory_episodic "
+                        "WHERE tenant_id = %s",
+                        (effective_tenant,),
+                    )
+                count_row = cur.fetchone()
+                total = count_row["cnt"] if count_row else 0
+
+                # Fetch paginated entries
+                if search:
+                    cur.execute(
+                        "SELECT event_id, tenant_id, timestamp, session_id, "
+                        "actor, action_type, content "
+                        "FROM memory_episodic "
+                        "WHERE tenant_id = %s AND content LIKE %s "
+                        "ORDER BY timestamp DESC LIMIT %s OFFSET %s",
+                        (effective_tenant, f"%{search}%", limit, offset),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT event_id, tenant_id, timestamp, session_id, "
+                        "actor, action_type, content "
+                        "FROM memory_episodic "
+                        "WHERE tenant_id = %s "
+                        "ORDER BY timestamp DESC LIMIT %s OFFSET %s",
+                        (effective_tenant, limit, offset),
+                    )
+                rows = cur.fetchall()
+                for row in rows:
+                    entries.append({
+                        "event_id": row.get("event_id"),
+                        "tenant_id": row.get("tenant_id", effective_tenant),
+                        "timestamp": str(row["timestamp"]) if row.get("timestamp") else None,
+                        "session_id": row.get("session_id"),
+                        "actor": row.get("actor"),
+                        "action_type": row.get("action_type"),
+                        "content": row.get("content"),
+                    })
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning(f"Memory browser query failed: {e}")
+        # Return empty result on database errors rather than 500
+        return {"entries": [], "total": 0, "limit": limit, "offset": offset}
+
+    return {
+        "entries": entries,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }

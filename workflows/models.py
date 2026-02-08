@@ -107,3 +107,76 @@ class CapabilitiesResponse(BaseModel):
     mcp_servers: Dict[str, Any]
     memory: Dict[str, str]
     budget: Dict[str, Any]
+
+
+# --- /v1/inference endpoint ---
+class InferenceRequest(BaseModel):
+    model_name: str = Field(..., min_length=1, max_length=256, description="Name of the model deployed in OVMS")
+    input_data: Dict[str, Any] = Field(..., description="Mapping of input tensor names to values (e.g. {\"input\": [[1.0, 2.0]]})")
+
+
+class InferenceResponse(BaseModel):
+    status: str
+    model: Optional[str] = None
+    outputs: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None
+    latency_ms: Optional[float] = None
+
+
+# --- /api/budget/history endpoint ---
+class BudgetHistoryResponse(BaseModel):
+    current_spend: float = Field(default=0.0, description="Current total spend in dollars")
+    max_daily: float = Field(default=10.0, description="Daily budget limit in dollars")
+    currency: str = Field(default="USD", description="Currency code")
+    hourly_spend: List[float] = Field(default_factory=lambda: [0.0] * 24, description="24-point hourly spend array (0=midnight)")
+
+
+# --- /api/memory endpoint ---
+class MemoryEntry(BaseModel):
+    event_id: Optional[int] = None
+    tenant_id: str
+    timestamp: Optional[str] = None
+    session_id: Optional[str] = None
+    actor: Optional[str] = None
+    action_type: Optional[str] = None
+    content: Optional[str] = None
+
+
+class MemoryListResponse(BaseModel):
+    entries: List[MemoryEntry]
+    total: int
+    limit: int
+    offset: int
+
+
+# --- /query endpoint (Phase 9: Monaco Editor SQL executor) ---
+class QueryRequest(BaseModel):
+    sql: str = Field(..., min_length=1, max_length=2000, description="Read-only SQL query to execute against StarRocks")
+
+
+class QueryResponse(BaseModel):
+    columns: List[str] = Field(default_factory=list, description="Column names from the result set")
+    rows: List[List[Any]] = Field(default_factory=list, description="Result rows as lists of values")
+    row_count: int = Field(default=0, description="Number of rows returned")
+    truncated: bool = Field(default=False, description="Whether results were truncated at the 200-row limit")
+
+
+# --- /workflows endpoint (Phase 9: Cytoscape DAG visualizer) ---
+class WorkflowNode(BaseModel):
+    id: str = Field(..., description="Unique node ID within the workflow")
+    name: str = Field(..., description="Node display name")
+    type: str = Field(default="Pod", description="Node type (e.g. Pod, DAG, Steps)")
+    phase: str = Field(default="Pending", description="Node execution phase")
+    dependencies: List[str] = Field(default_factory=list, description="List of node IDs this node depends on")
+
+
+class WorkflowInfo(BaseModel):
+    name: str = Field(..., description="Workflow name")
+    phase: str = Field(default="Unknown", description="Workflow phase (e.g. Running, Succeeded, Failed)")
+    started_at: str = Field(default="", description="Workflow start timestamp (ISO 8601)")
+    finished_at: Optional[str] = Field(default=None, description="Workflow finish timestamp (ISO 8601) or null if still running")
+    nodes: List[WorkflowNode] = Field(default_factory=list, description="DAG nodes for Cytoscape visualization")
+
+
+class WorkflowListResponse(BaseModel):
+    workflows: List[WorkflowInfo] = Field(default_factory=list, description="List of recent Argo workflows")

@@ -148,12 +148,12 @@ def mock_argo():
 
 
 # ---------------------------------------------------------------------------
-# Mock LiteLLM
+# Mock Budget Proxy (formerly LiteLLM)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
 def mock_litellm():
-    """Mock LiteLLM proxy for budget enforcement tests."""
+    """Mock budget-proxy for budget enforcement tests."""
     normal_response = AsyncMock()
     normal_response.status_code = 200
     normal_response.json.return_value = {
@@ -257,3 +257,5 @@ def set_test_env(monkeypatch):
     monkeypatch.setenv("GOD_MODE_ITERATIONS", "3")
     monkeypatch.setenv("GOOSE_PROVIDER", "openai")
     monkeypatch.setenv("GOOSE_MODEL", "gpt-4o")
+    monkeypatch.setenv("OVMS_GRPC", "localhost:9000")
+    monkeypatch.setenv("OVMS_REST", "http://localhost:8000")

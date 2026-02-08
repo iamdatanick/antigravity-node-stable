@@ -143,7 +143,7 @@ def query(sql: str) -> list:
         # Remove -- style comments
         normalized = re.sub(r'--[^\n]*', ' ', normalized)
         
-        forbidden = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "TRUNCATE", "GRANT", "REVOKE"]
+        forbidden = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "TRUNCATE", "GRANT", "REVOKE", "INTO OUTFILE", "INTO DUMPFILE", "LOAD", "SET", "EXEC"]
         for keyword in forbidden:
             # Check for keyword as a standalone word (not part of column names)
             # Use word boundaries and handle various whitespace characters
@@ -154,7 +154,7 @@ def query(sql: str) -> list:
         conn = _get_conn()
         try:
             with conn.cursor() as cur:
-                cur.execute(sql)
+                cur.execute(normalized)
                 return cur.fetchall()
         finally:
             conn.close()

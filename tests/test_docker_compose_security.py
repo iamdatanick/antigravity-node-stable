@@ -77,16 +77,6 @@ class TestCredentialEnvironmentVariables:
         token_id = env_vars["BAO_DEV_ROOT_TOKEN_ID"]
         assert "${OPENBAO_DEV_TOKEN" in token_id
 
-    def test_grafana_uses_env_vars(self, docker_compose_config):
-        """Test that Grafana uses environment variables for admin password."""
-        grafana = docker_compose_config["services"]["grafana"]
-        env_vars = {e.split("=")[0]: e for e in grafana["environment"]}
-        
-        # Check GF_SECURITY_ADMIN_PASSWORD uses ${VAR} syntax
-        assert "GF_SECURITY_ADMIN_PASSWORD" in env_vars
-        admin_pass = env_vars["GF_SECURITY_ADMIN_PASSWORD"]
-        assert "${GRAFANA_ADMIN_PASSWORD" in admin_pass
-
     def test_argo_bootstrap_uses_env_vars(self, docker_compose_config):
         """Test that Argo bootstrap uses environment variables for S3 credentials."""
         argo_bootstrap = docker_compose_config["services"]["argo-bootstrap"]
@@ -103,8 +93,8 @@ class TestSecurityHardening:
     def test_application_containers_have_security_opt(self, docker_compose_config):
         """Test that application containers have no-new-privileges."""
         app_containers = [
-            "nats", "marquez", "loki", "spire-server", "ovms",
-            "wasm-worker", "grafana", "litellm", "mcp-gateway",
+            "nats", "marquez", "opensearch", "spire-server", "ovms",
+            "wasm-worker", "perses", "fluent-bit", "budget-proxy", "mcp-gateway",
             "mcp-filesystem", "mcp-starrocks", "trace-viewer", 
             "master-ui", "orchestrator", "keycloak"
         ]
@@ -119,8 +109,8 @@ class TestSecurityHardening:
     def test_readonly_containers_have_tmpfs(self, docker_compose_config):
         """Test that read-only containers have tmpfs for /tmp."""
         readonly_containers = [
-            "nats", "marquez", "loki", "ovms", "wasm-worker",
-            "grafana", "litellm", "mcp-gateway", "mcp-filesystem",
+            "nats", "marquez", "ovms", "wasm-worker",
+            "perses", "fluent-bit", "budget-proxy", "mcp-gateway", "mcp-filesystem",
             "mcp-starrocks", "trace-viewer", "master-ui"
         ]
         
@@ -136,7 +126,7 @@ class TestSecurityHardening:
         """Test that database containers are explicitly not read-only."""
         db_containers = [
             "postgres", "etcd", "starrocks", "valkey", 
-            "milvus", "openbao", "seaweedfs", "open-webui"
+            "milvus", "openbao", "seaweedfs", "librechat"
         ]
         
         for container_name in db_containers:

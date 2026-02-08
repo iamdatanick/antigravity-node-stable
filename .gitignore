@@ -11,10 +11,16 @@ build/
 .env
 secrets/
 
-# Data directories (recreated at runtime)
+# Data directories (recreated at runtime, .gitkeep preserved)
 data/postgres/
-data/starrocks/
-data/spire/
+data/starrocks/*
+!data/starrocks/.gitkeep
+data/spire/*
+!data/spire/.gitkeep
+
+# OVMS models (binary files excluded, directory preserved)
+models/*
+!models/.gitkeep
 
 # IDE
 .vscode/

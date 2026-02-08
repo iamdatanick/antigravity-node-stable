@@ -91,7 +91,7 @@ Antigravity Node is a Python 3.11-based orchestration service that combines Fast
 - Orchestrator HTTP: http://localhost:8080/health
 - Orchestrator gRPC: localhost:8081
 - Open WebUI: http://localhost:3355
-- Grafana: http://localhost:3055
+- Perses (Dashboards): http://localhost:3055
 - Trace Viewer: http://localhost:8655
 - Master UI: http://localhost:1055
 
