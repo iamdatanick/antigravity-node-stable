@@ -3,8 +3,14 @@
 import os
 import logging
 import uuid
-from fastapi import FastAPI, Header, UploadFile, File, HTTPException
+import hmac
+import hashlib
+from fastapi import FastAPI, Header, UploadFile, File, HTTPException, Request
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from workflows.health import full_health_check
 from workflows.memory import push_episodic, recall_experience
@@ -19,6 +25,31 @@ from workflows.models import (
 logger = logging.getLogger("antigravity.a2a")
 
 app = FastAPI(title="Antigravity Node v13.0", version="13.0.0")
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Webhook authentication
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
+
+
+def verify_webhook_signature(payload_body: bytes, signature: str) -> bool:
+    """Verify HMAC-SHA256 signature for webhook payloads."""
+    if not WEBHOOK_SECRET:
+        return True  # No secret configured, skip verification (dev mode)
+    expected = hmac.new(WEBHOOK_SECRET.encode(), payload_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(f"sha256={expected}", signature)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -39,7 +70,9 @@ async def well_known_agent():
 
 
 @app.post("/task", response_model=TaskResponse)
+@limiter.limit("60/minute")
 async def task(
+    request: Request,
     body: TaskRequest,
     x_tenant_id: str = Header(default=None),
 ):
@@ -92,7 +125,9 @@ async def handoff(body: HandoffRequest, x_tenant_id: str = Header(default="syste
 
 
 @app.post("/upload", response_model=UploadResponse)
+@limiter.limit("10/minute")
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     x_tenant_id: str = Header(default="system"),
 ):
@@ -124,8 +159,18 @@ async def upload_file(
 
 
 @app.post("/webhook", response_model=WebhookResponse)
-async def argo_webhook(payload: WebhookPayload):
+async def argo_webhook(
+    request: Request,
+    payload: WebhookPayload,
+    x_webhook_signature: str = Header(default=""),
+):
     """POST /webhook — Argo exit-handler callback (Gap #6 fix)."""
+    # Verify webhook signature if WEBHOOK_SECRET is set
+    if WEBHOOK_SECRET:
+        payload_body = await request.body()
+        if not verify_webhook_signature(payload_body, x_webhook_signature):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    
     task_id = payload.task_id
     status = payload.status
     message = payload.message
@@ -141,7 +186,7 @@ async def argo_webhook(payload: WebhookPayload):
 
 # --- LiteLLM/OpenAI proxy client ---
 LITELLM_BASE = os.environ.get("LITELLM_BASE_URL", "http://litellm:4000")
-SYSTEM_PROMPT_PATH = os.environ.get("SYSTEM_PROMPT_PATH", "/app/well-known/../config/prompts/system.txt")
+SYSTEM_PROMPT_PATH = os.environ.get("SYSTEM_PROMPT_PATH", "/app/config/prompts/system.txt")
 _system_prompt_cache = None
 
 
@@ -164,7 +209,12 @@ def _load_system_prompt() -> str:
 
 # OpenAI-compatible endpoint for Open WebUI — routes through LiteLLM
 @app.post("/v1/chat/completions")
-async def chat_completions(body: ChatCompletionRequest, x_tenant_id: str = Header(default="system")):
+@limiter.limit("30/minute")
+async def chat_completions(
+    request: Request,
+    body: ChatCompletionRequest,
+    x_tenant_id: str = Header(default="system"),
+):
     """OpenAI-compatible chat completions — routed through LiteLLM proxy."""
     import httpx
 
