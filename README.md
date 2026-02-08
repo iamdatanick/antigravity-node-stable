@@ -116,13 +116,13 @@ Scope:
 - Verify unused imports (time from main.py, json from a2a_server.py, subprocess from goose_client.py) remain removed
 - Verify unused variables (MAX_RETRIES, BASE_DELAY, MAX_DELAY in main.py) remain removed; tests/test_critical_fixes.py should continue to enforce this
 
-**PR #2 — Fix gRPC server: async handler, servicer registration, or clean removal**
+**PR #2 — Fix gRPC server: handler wiring, servicer registration, and proto responses**
 
 Scope:
-- workflows/grpc_server.py — Switch to grpc.aio.server() for async handler support, OR convert ExecuteWorkflow to synchronous
-- Uncomment the servicer registration block (or add a placeholder servicer that returns proper proto responses)
-- Add a health/reflection service so gRPC clients can discover available RPCs
-- If proto files aren’t ready, add a clear TODO and make serve_grpc() no-op gracefully rather than running an empty server
+- workflows/grpc_server.py — Keep the synchronous grpc.server(...) with asyncio.run(...) bridge and ensure ExecuteWorkflow correctly invokes async workflow logic and handles errors
+- Generate/import gRPC proto stubs (from workflows/protos/*.proto) and register the workflow servicer implementation with the server so ExecuteWorkflow returns real proto responses instead of placeholders
+- Confirm grpc_health.v1 health checking is wired correctly and, optionally, add server reflection so gRPC clients can discover available RPCs
+- If proto files aren’t ready, add a clear TODO and make serve_grpc() return immediately without starting a listener so the orchestrator can run without gRPC
 
 ##### Phase 2: API Hardening & Validation (P1)
 
