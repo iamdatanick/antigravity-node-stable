@@ -208,21 +208,66 @@ SYSTEM_PROMPT_PATH = os.environ.get("SYSTEM_PROMPT_PATH", "/app/config/prompts/s
 _system_prompt_cache = None
 
 
+def _validate_path(path: str) -> bool:
+    """Validate path against traversal attacks."""
+    # Allow known safe paths
+    safe_paths = [
+        "/etc/goose/system.txt",
+        "/app/config/prompts/system.txt",
+        "config/prompts/system.txt"
+    ]
+    if path in safe_paths:
+        return True
+        
+    # For custom paths, ensure they are within /app/config or /etc/goose
+    try:
+        abs_path = os.path.abspath(path)
+        base_configs = os.path.abspath("/app/config")
+        base_etc = os.path.abspath("/etc/goose")
+        
+        # Check if path starts with base directories
+        # Note: on Windows dev env this check might fail for linux paths, 
+        # so we skip strict check if on Windows but keep logic for prod
+        if os.name == 'nt': 
+            return True
+            
+        return (abs_path.startswith(base_configs) or abs_path.startswith(base_etc))
+    except Exception:
+        return False
+
+
 def _load_system_prompt() -> str:
     """Load the Goose system prompt for AI identity."""
     global _system_prompt_cache
     if _system_prompt_cache is not None:
         return _system_prompt_cache
-    for path in ["/etc/goose/system.txt", "/app/config/prompts/system.txt",
-                 SYSTEM_PROMPT_PATH, "config/prompts/system.txt"]:
+        
+    candidate_paths = [
+        "/etc/goose/system.txt", 
+        "/app/config/prompts/system.txt",
+        "config/prompts/system.txt"
+    ]
+    
+    # Only add custom path if it looks reasonable (basic check)
+    if SYSTEM_PROMPT_PATH and ".." not in SYSTEM_PROMPT_PATH:
+        candidate_paths.insert(2, SYSTEM_PROMPT_PATH)
+        
+    for path in candidate_paths:
         try:
-            with open(path, encoding="utf-8") as f:
-                _system_prompt_cache = f.read().strip()
-                return _system_prompt_cache
-        except FileNotFoundError:
+            # Basic validation
+            if ".." in path:
+                continue
+                
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    _system_prompt_cache = f.read().strip()
+                    return _system_prompt_cache
+        except (FileNotFoundError, PermissionError):
             continue
+            
     _system_prompt_cache = "You are the Antigravity Node v13.0, a sovereign AI agent."
     return _system_prompt_cache
+
 
 
 # OpenAI-compatible endpoint for Open WebUI — routes through LiteLLM

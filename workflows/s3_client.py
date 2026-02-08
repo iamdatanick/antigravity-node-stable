@@ -74,7 +74,24 @@ def download(key: str, bucket: str = S3_BUCKET) -> bytes:
     with tracer.start_as_current_span("s3.download", attributes={"key": key, "bucket": bucket}) as span:
         client = get_client()
         resp = client.get_object(Bucket=bucket, Key=key)
-        data = resp["Body"].read()
+        # Protect against memory explosion (limit 100MB for direct read)
+        body = resp["Body"]
+        # Note: ContentLength might be missing if chunked, but usually present for S3
+        content_len = resp.get("ContentLength", 0)
+        
+        # 100MB Limit
+        MAX_SIZE = 100 * 1024 * 1024 
+        
+        if content_len > MAX_SIZE:
+            logger.warning(f"Large file download ({content_len} bytes) - truncating to 100MB")
+            data = body.read(MAX_SIZE)
+        else:
+            # Read all, but check size during read if possible (boto3 doesn't easily support limit on read())
+            # So we rely on ContentLength check mainly.
+            data = body.read()
+            if len(data) > MAX_SIZE:
+                 data = data[:MAX_SIZE]
+                 logger.warning(f"Large file download (actual {len(data)} bytes) - truncated to 100MB")
         span.set_attribute("size_bytes", len(data))
         logger.info(f"Downloaded s3://{bucket}/{key} ({len(data)} bytes)")
         return data
