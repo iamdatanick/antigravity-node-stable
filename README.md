@@ -140,7 +140,7 @@ Scope:
 - Add CORSMiddleware to FastAPI app in a2a_server.py
 - Add HMAC signature or bearer token validation to /webhook endpoint
 - Fix SYSTEM_PROMPT_PATH default to remove .. path traversal
-- Add rate limiting middleware (e.g., slowapi) to /v1/chat/completions and /upload
+- Add rate limiting middleware (e.g., slowapi) to /v1/chat/completions, /upload, and /task
 
 ##### Phase 3: Infrastructure Reliability (P1-P2)
 
