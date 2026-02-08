@@ -4,8 +4,10 @@ import os
 import logging
 import boto3
 from botocore.config import Config as BotoConfig
+from workflows.telemetry import get_tracer
 
 logger = logging.getLogger("antigravity.s3")
+tracer = get_tracer("antigravity.s3")
 
 S3_ENDPOINT = os.environ.get("S3_ENDPOINT", "http://seaweedfs:8333")
 S3_ACCESS_KEY = os.environ.get("S3_ACCESS_KEY", "admin")
@@ -37,17 +39,21 @@ def ensure_bucket(bucket: str = S3_BUCKET):
 
 def upload(key: str, data: bytes, bucket: str = S3_BUCKET):
     """Upload bytes to SeaweedFS S3."""
-    ensure_bucket(bucket)
-    client = get_client()
-    client.put_object(Bucket=bucket, Key=key, Body=data)
-    logger.info(f"Uploaded s3://{bucket}/{key} ({len(data)} bytes)")
+    with tracer.start_as_current_span("s3.upload", attributes={"key": key, "bucket": bucket, "size_bytes": len(data)}):
+        ensure_bucket(bucket)
+        client = get_client()
+        client.put_object(Bucket=bucket, Key=key, Body=data)
+        logger.info(f"Uploaded s3://{bucket}/{key} ({len(data)} bytes)")
 
 
 def download(key: str, bucket: str = S3_BUCKET) -> bytes:
     """Download bytes from SeaweedFS S3."""
-    client = get_client()
-    resp = client.get_object(Bucket=bucket, Key=key)
-    return resp["Body"].read()
+    with tracer.start_as_current_span("s3.download", attributes={"key": key, "bucket": bucket}):
+        client = get_client()
+        resp = client.get_object(Bucket=bucket, Key=key)
+        data = resp["Body"].read()
+        logger.info(f"Downloaded s3://{bucket}/{key} ({len(data)} bytes)")
+        return data
 
 
 def list_objects(prefix: str = "", bucket: str = S3_BUCKET) -> list:

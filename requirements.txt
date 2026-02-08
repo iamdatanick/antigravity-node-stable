@@ -34,3 +34,11 @@ tenacity>=8.2
 
 # OpenLineage (Marquez integration)
 openlineage-python>=1.9
+
+# Observability (OpenTelemetry)
+opentelemetry-api>=1.22
+opentelemetry-sdk>=1.22
+opentelemetry-instrumentation-fastapi>=0.43b0
+opentelemetry-instrumentation-grpc>=0.43b0
+opentelemetry-instrumentation-aiohttp-client>=0.43b0
+opentelemetry-exporter-otlp>=1.22
