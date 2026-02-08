@@ -11,11 +11,12 @@ logger = logging.getLogger("antigravity.telemetry")
 
 OTEL_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 SERVICE_NAME = os.environ.get("OTEL_SERVICE_NAME", "antigravity-node")
+SERVICE_VERSION = os.environ.get("SERVICE_VERSION", "13.0.0")
 
 
 def init_telemetry():
     """Initialize OpenTelemetry tracing."""
-    resource = Resource.create({"service.name": SERVICE_NAME, "service.version": "13.0.0"})
+    resource = Resource.create({"service.name": SERVICE_NAME, "service.version": SERVICE_VERSION})
     provider = TracerProvider(resource=resource)
 
     if OTEL_ENDPOINT:
