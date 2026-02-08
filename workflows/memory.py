@@ -5,6 +5,7 @@ import time
 import logging
 import itertools
 import re
+import hashlib
 import pymysql
 from workflows.telemetry import get_tracer
 
@@ -101,7 +102,9 @@ def recall_experience(goal: str, tenant_id: str, limit: int = 10) -> list:
 
 def query(sql: str) -> list:
     """Execute read-only SQL on StarRocks memory tables."""
-    with tracer.start_as_current_span("memory.query", attributes={"sql": sql[:100]}):  # Truncate SQL for span
+    # Create a hash of the SQL for tracing (to avoid PII exposure)
+    sql_hash = hashlib.sha256(sql.encode()).hexdigest()[:16]
+    with tracer.start_as_current_span("memory.query", attributes={"sql_hash": sql_hash, "sql_length": len(sql)}):
         # Allow-list: only SELECT queries permitted
         normalized = sql.strip().upper()
         if not normalized.startswith("SELECT"):

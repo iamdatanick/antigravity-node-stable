@@ -48,10 +48,11 @@ def upload(key: str, data: bytes, bucket: str = S3_BUCKET):
 
 def download(key: str, bucket: str = S3_BUCKET) -> bytes:
     """Download bytes from SeaweedFS S3."""
-    with tracer.start_as_current_span("s3.download", attributes={"key": key, "bucket": bucket}):
+    with tracer.start_as_current_span("s3.download", attributes={"key": key, "bucket": bucket}) as span:
         client = get_client()
         resp = client.get_object(Bucket=bucket, Key=key)
         data = resp["Body"].read()
+        span.set_attribute("size_bytes", len(data))
         logger.info(f"Downloaded s3://{bucket}/{key} ({len(data)} bytes)")
         return data
 
