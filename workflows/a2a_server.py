@@ -1,27 +1,36 @@
 """FastAPI A2A endpoints: /health, /task, /handoff, /upload, /webhook, /.well-known/agent.json."""
 
-import os
-import logging
-import uuid
-import hmac
 import hashlib
-from fastapi import FastAPI, Header, UploadFile, File, HTTPException, Request, Depends
-from fastapi.responses import JSONResponse, FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+import hmac
+import logging
+import os
+import uuid
 
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+
+from workflows.auth import validate_token
+from workflows.goose_client import goose_reflect
 from workflows.health import full_health_check
 from workflows.memory import push_episodic, recall_experience
-from workflows.s3_client import upload as s3_upload
-from workflows.goose_client import execute_tool_with_correction, goose_reflect
-from workflows.auth import validate_token
 from workflows.models import (
-    TaskRequest, TaskResponse, HandoffRequest, HandoffResponse,
-    WebhookPayload, WebhookResponse, ChatCompletionRequest,
-    UploadResponse, HealthResponse, ToolsResponse, CapabilitiesResponse
+    CapabilitiesResponse,
+    ChatCompletionRequest,
+    HandoffRequest,
+    HandoffResponse,
+    HealthResponse,
+    TaskRequest,
+    TaskResponse,
+    ToolsResponse,
+    UploadResponse,
+    WebhookPayload,
+    WebhookResponse,
 )
+from workflows.s3_client import upload as s3_upload
 
 logger = logging.getLogger("antigravity.a2a")
 
@@ -207,7 +216,7 @@ def _load_system_prompt() -> str:
     for path in ["/etc/goose/system.txt", "/app/config/prompts/system.txt",
                  SYSTEM_PROMPT_PATH, "config/prompts/system.txt"]:
         try:
-            with open(path, "r") as f:
+            with open(path, encoding="utf-8") as f:
                 _system_prompt_cache = f.read().strip()
                 return _system_prompt_cache
         except FileNotFoundError:

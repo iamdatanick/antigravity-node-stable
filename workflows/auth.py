@@ -2,6 +2,7 @@
 
 import logging
 import os
+import threading
 
 import httpx
 from fastapi import Depends, HTTPException
@@ -15,20 +16,25 @@ KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "antigravity")
 AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "false").lower() == "true"
 
 _jwks_cache = None
+_jwks_lock = threading.Lock()
 security = HTTPBearer(auto_error=False)
 
 
 async def get_jwks():
     global _jwks_cache
     if _jwks_cache is None:
-        jwks_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(jwks_url)
-                _jwks_cache = resp.json()
-        except Exception as e:
-            logger.warning(f"Failed to fetch JWKS: {e}")
-            return None
+        with _jwks_lock:
+            # Double-check locking pattern
+            if _jwks_cache is None:
+                jwks_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
+                try:
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        resp = await client.get(jwks_url)
+                        resp.raise_for_status()
+                        _jwks_cache = resp.json()
+                except Exception as e:
+                    logger.warning(f"Failed to fetch JWKS: {e}")
+                    return None
     return _jwks_cache
 
 
@@ -55,7 +61,8 @@ async def validate_token(credentials: HTTPAuthorizationCredentials | None = Depe
                 break
 
         if key is None:
-            _jwks_cache = None  # Force refresh
+            with _jwks_lock:
+                _jwks_cache = None  # Force refresh on next request
             raise HTTPException(status_code=401, detail="Invalid token key ID")
 
         payload = jwt.decode(
