@@ -1,8 +1,9 @@
 """5-level health check hierarchy for Antigravity Node v13.0."""
 
-import os
-import logging
 import asyncio
+import logging
+import os
+
 import aiohttp
 
 logger = logging.getLogger("antigravity.health")
@@ -25,9 +26,7 @@ async def _check_url(session: aiohttp.ClientSession, name: str, url: str, accept
 async def _check_tcp(name: str, host: str, port: int) -> dict:
     """Check TCP connectivity to a service."""
     try:
-        _, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, port), timeout=3.0
-        )
+        _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=3.0)
         writer.close()
         await writer.wait_closed()
         return {"name": name, "healthy": True, "error": None}
@@ -40,7 +39,7 @@ async def check_level_0() -> dict:
     http_checks = {
         "seaweedfs": f"http://{os.environ.get('SEAWEEDFS_HOST', 'seaweedfs')}:9333/cluster/status",
     }
-    nats_host = os.environ.get('NATS_HOST', 'nats')
+    nats_host = os.environ.get("NATS_HOST", "nats")
     async with aiohttp.ClientSession() as session:
         results = await asyncio.gather(
             *[_check_url(session, name, url) for name, url in http_checks.items()],
@@ -55,14 +54,13 @@ async def check_level_1() -> dict:
         "argo": f"http://{os.environ.get('ARGO_SERVER', 'k3d:2746')}/api/v1/info",
     }
     async with aiohttp.ClientSession() as session:
-        results = await asyncio.gather(
-            *[_check_url(session, name, url) for name, url in checks.items()]
-        )
+        results = await asyncio.gather(*[_check_url(session, name, url) for name, url in checks.items()])
     return {"level": "L1", "name": "orchestration", "checks": results}
 
 
 async def check_level_2() -> dict:
-    """L2 Services: starrocks, valkey, milvus, keycloak, openbao."""
+    """L2 Services: starrocks, valkey, milvus, keycloak, openbao, ovms."""
+    ovms_rest = os.environ.get("OVMS_REST", "http://ovms:8000")
     standard_checks = {
         "starrocks": f"http://{os.environ.get('STARROCKS_HOST', 'starrocks')}:{os.environ.get('STARROCKS_HTTP_PORT', '8030')}/api/health",
         "milvus": f"http://{os.environ.get('MILVUS_HOST', 'milvus')}:9091/healthz",
@@ -71,11 +69,14 @@ async def check_level_2() -> dict:
     # Keycloak 26.x dev mode doesn't expose /health/ready on main HTTP port;
     # accept any response as "service is reachable"
     keycloak_url = f"{os.environ.get('KEYCLOAK_URL', 'http://keycloak:8080')}/"
+    # OVMS /v1/config returns 200 even with empty model list; accept_any for reachability
+    ovms_url = f"{ovms_rest}/v1/config"
 
     async with aiohttp.ClientSession() as session:
         results = await asyncio.gather(
             *[_check_url(session, name, url) for name, url in standard_checks.items()],
             _check_url(session, "keycloak", keycloak_url, accept_any=True),
+            _check_url(session, "ovms", ovms_url, accept_any=True),
         )
     return {"level": "L2", "name": "services", "checks": results}
 
@@ -86,22 +87,20 @@ async def check_level_3() -> dict:
         "mcp_gateway": "http://mcp-gateway:8080/health",
     }
     async with aiohttp.ClientSession() as session:
-        results = await asyncio.gather(
-            *[_check_url(session, name, url) for name, url in checks.items()]
-        )
+        results = await asyncio.gather(*[_check_url(session, name, url) for name, url in checks.items()])
     return {"level": "L3", "name": "agent", "checks": results}
 
 
 async def check_level_4() -> dict:
-    """L4 Budget: LiteLLM remaining budget."""
+    """L4 Observability: budget-proxy, perses, opensearch, marquez."""
     checks = {
-        "litellm": f"http://{os.environ.get('LITELLM_HOST', 'litellm')}:4000/health/readiness",
+        "budget_proxy": "http://budget-proxy:4000/health",
+        "perses": "http://perses:8080/api/v1/health",
+        "opensearch": "http://opensearch:9200/_cluster/health",
         "marquez": f"http://{os.environ.get('MARQUEZ_HOST', 'marquez')}:5000/api/v1/namespaces",
     }
     async with aiohttp.ClientSession() as session:
-        results = await asyncio.gather(
-            *[_check_url(session, name, url) for name, url in checks.items()]
-        )
+        results = await asyncio.gather(*[_check_url(session, name, url) for name, url in checks.items()])
     return {"level": "L4", "name": "observability", "checks": results}
 
 
@@ -115,11 +114,7 @@ async def full_health_check() -> dict:
         check_level_4(),
     )
 
-    all_healthy = all(
-        check["healthy"]
-        for level in levels
-        for check in level["checks"]
-    )
+    all_healthy = all(check["healthy"] for level in levels for check in level["checks"])
 
     status = "healthy" if all_healthy else "degraded"
     return {"status": status, "levels": levels}

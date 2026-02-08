@@ -1,11 +1,11 @@
 # Workflow Orchestration
-hera>=5.16
-argo-workflows>=6.5
+# hera>=5.16  # Removed: code uses httpx REST, not Hera SDK
+# argo-workflows>=6.5  # Removed: code uses httpx REST, not the Python SDK
 
 # Messaging & Data
 nats-py>=2.7
 boto3>=1.35
-psycopg2-binary>=2.9
+asyncpg>=0.29.0  # Replaced psycopg2-binary (LGPL) with asyncpg (Apache-2.0)
 pandas>=2.2
 aiohttp>=3.9
 pymysql>=1.1
@@ -13,7 +13,7 @@ dbutils>=3.1
 
 # Vector + Cache
 pymilvus>=2.4
-valkey>=6.0
+# valkey>=6.0  # Removed: no Valkey client code exists yet
 
 # Web Framework (A2A HTTP endpoints)
 fastapi>=0.109

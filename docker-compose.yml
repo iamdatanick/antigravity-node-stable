@@ -182,27 +182,55 @@ services:
     tmpfs:
       - /tmp
 
-  # [LOG AGGREGATION] Loki
-  loki:
-    image: grafana/loki:3.0.0
-    ports: ["3155:3100"]
-    networks: [antigravity_mesh]
+  # [LOG AGGREGATION] OpenSearch (Apache-2.0, replaces Loki AGPL-3.0)
+  opensearch:
+    image: opensearchproject/opensearch:2.17.1
+    container_name: ag-opensearch
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: '0.5'
+          memory: 1G
+          cpus: '1.0'
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
       retries: 5
-      start_period: 15s
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    networks: [antigravity_mesh]
+    restart: unless-stopped
+
+  # [LOG SHIPPING] Fluent Bit (Apache-2.0, replaces Promtail)
+  fluent-bit:
+    image: fluent/fluent-bit:3.1
+    container_name: ag-fluent-bit
+    volumes:
+      - ./config/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
     security_opt:
       - no-new-privileges:true
     read_only: true
     tmpfs:
       - /tmp
+    networks: [antigravity_mesh]
+    restart: unless-stopped
 
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 1.5: K3D + ARGO BOOTSTRAP
@@ -462,7 +490,7 @@ services:
 
   # [INFERENCE] OpenVINO Model Server - ML Runtime
   ovms:
-    image: openvino/model_server:latest
+    image: openvino/model_server:2024.5
     entrypoint: ["/bin/sh", "-c", "echo '{\"model_config_list\":[]}' > /tmp/empty_config.json && /ovms/bin/ovms --config_path /tmp/empty_config.json --rest_port 8000 --port 9000 --log_level INFO --file_system_poll_wait_seconds 5"]
     ports:
       - "9255:9000"
@@ -527,64 +555,56 @@ services:
   # LAYER 4: OBSERVABILITY + COST CONTROL
   # ═══════════════════════════════════════════════════════════════════
 
-  # [DASHBOARDS] Grafana
-  grafana:
-    image: grafana/grafana:10.4.0
-    ports: ["3055:3000"]
-    environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+  # [DASHBOARDS] Perses (Apache-2.0, replaces Grafana AGPL-3.0)
+  perses:
+    image: persesdev/perses:v0.47.1
+    container_name: ag-perses
+    ports:
+      - "3055:8080"
     volumes:
-      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      loki:
-        condition: service_healthy
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # [COST CONTROL] LiteLLM - LLM API Budget Proxy
-  litellm:
-    image: ghcr.io/berriai/litellm:main-latest
-    command: ["--config", "/app/config.yaml", "--port", "4000", "--detailed_debug"]
+      - perses-data:/perses
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - LITELLM_LOG_LEVEL=INFO
-    ports: ["4055:4000"]
-    volumes:
-      - ./config/litellm/config.yaml:/app/config.yaml:ro
-    networks: [antigravity_mesh]
+      - PERSES_DATABASE_FILE_FOLDER=/perses
     deploy:
       resources:
         limits:
           memory: 256M
           cpus: '0.5'
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health/readiness')\" || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
     security_opt:
       - no-new-privileges:true
     read_only: true
     tmpfs:
       - /tmp
+    networks: [antigravity_mesh]
+    restart: unless-stopped
+
+  # [COST CONTROL] Budget Proxy (Apache-2.0, replaces LiteLLM VC-backed)
+  budget-proxy:
+    build: ./src/budget-proxy
+    container_name: ag-budget-proxy
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LOCAL_LLM_URL=http://ovms:8000/v1
+      - DAILY_BUDGET_USD=${DAILY_BUDGET_USD:-50}
+    ports: ["4055:4000"]
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health')\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
 
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 5: AGENT CONTROL PLANE
@@ -603,7 +623,7 @@ services:
         exec /docker-mcp gateway run --transport sse --port 8080
     volumes:
       - ./config/mcp-catalog.yaml:/etc/mcp/catalog.yaml:ro
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     ports: ["7755:8080"]
     networks: [antigravity_mesh]
     deploy:
@@ -629,7 +649,7 @@ services:
     environment:
       - DATA_DIR=/data
     volumes:
-      - C:\Users\NickV\Downloads:/data:ro
+      - ${HOST_DATA_DIR:-./data}:/data:ro
     labels:
       - "mcp.type=server"
       - "mcp.name=filesystem"
@@ -706,11 +726,11 @@ services:
       - ACCELERATOR=cpu
       - OPEA_HARDWARE_MODE=auto
       - GOD_MODE_ITERATIONS=50
-      - LITELLM_URL=http://litellm:4000
+      - LITELLM_URL=http://budget-proxy:4000
     volumes:
       - ./workflows:/app/workflows
       - ./well-known:/app/well-known
-      - C:\Users\NickV\Downloads:/app/context:ro
+      - ${HOST_CONTEXT_DIR:-./data}:/app/context:ro
     depends_on:
       # NOTE: argo-bootstrap dependency relaxed — K3D DinD has cgroup issues
       # argo-bootstrap:
@@ -729,6 +749,7 @@ services:
         condition: service_healthy
     ports: ["8080:8080", "8081:8081"]
     networks: [antigravity_mesh]
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -741,19 +762,23 @@ services:
   # LAYER 7: HUMAN INTERFACES
   # ═══════════════════════════════════════════════════════════════════
 
-  # [CHAT] Open WebUI - Human Chat Interface (REQUIRED)
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:latest
-    ports: ["3355:8080"]
+  # [CHAT] LibreChat (MIT, replaces Open WebUI custom license)
+  librechat:
+    image: ghcr.io/danny-avila/librechat:v0.7.6
+    container_name: ag-librechat
+    ports: ["3355:3080"]
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - WEBUI_AUTH=false
-      - ENABLE_SIGNUP=false
-      - OPENAI_API_BASE_URLS=http://orchestrator:8080/v1
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ENDPOINTS=openAI,anthropic
+      - OPENAI_REVERSE_PROXY=http://budget-proxy:4000/v1
+      - MONGO_URI=mongodb://librechat-db:27017/librechat
     volumes:
-      - open-webui-data:/app/backend/data
+      - librechat-data:/app/client/public/images
+      - ./config/librechat.yaml:/app/librechat.yaml:ro
     depends_on:
-      - orchestrator
+      - budget-proxy
+      - librechat-db
     networks: [antigravity_mesh]
     deploy:
       resources:
@@ -761,6 +786,28 @@ services:
           memory: 512M
           cpus: '0.5'
     read_only: false
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  # [CHAT DB] MongoDB for LibreChat
+  librechat-db:
+    image: mongo:7.0
+    container_name: ag-librechat-db
+    volumes:
+      - librechat-db-data:/data/db
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
   # [TRACE] Streamlit Thought Trace Viewer
   trace-viewer:
@@ -794,8 +841,8 @@ services:
     build: ./src/master-ui
     ports: ["1055:80"]
     depends_on:
-      - grafana
-      - open-webui
+      - perses
+      - librechat
       - trace-viewer
     networks: [antigravity_mesh]
     deploy:
@@ -811,12 +858,15 @@ services:
 
 volumes:
   seaweedfs-data:
+  perses-data:
+  opensearch-data:
   postgres-data:
   milvus-data:
   valkey-data:
   openbao-data:
   k3d-data:
-  open-webui-data:
+  librechat-data:
+  librechat-db-data:
 
 networks:
   antigravity_mesh:

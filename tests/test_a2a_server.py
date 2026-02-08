@@ -1,11 +1,11 @@
 """Comprehensive tests for A2A server endpoints."""
 
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
+import httpx
 import pytest
 import respx
-import httpx
 from fastapi.testclient import TestClient
 
 
@@ -128,7 +128,9 @@ class TestWebhookEndpoint:
     async def test_webhook_endpoint_failed_status(self, mock_reflect, client, monkeypatch):
         """Test POST /webhook triggers reflection on failure."""
         monkeypatch.setenv("WEBHOOK_SECRET", "")
-        response = client.post("/webhook", json={"task_id": "test-task", "status": "Failed", "message": "Error occurred"})
+        response = client.post(
+            "/webhook", json={"task_id": "test-task", "status": "Failed", "message": "Error occurred"}
+        )
         assert response.status_code == 200
         # goose_reflect should have been called
 

@@ -81,11 +81,16 @@ class TestEnsureBucket:
     @patch("workflows.s3_client.get_client")
     def test_ensure_bucket_creates_if_missing(self, mock_get_client):
         """Test ensure_bucket creates bucket if head_bucket raises exception."""
-        from workflows.s3_client import ensure_bucket
+        from workflows.s3_client import _bucket_ensured, ensure_bucket
+
+        _bucket_ensured.discard("test-bucket")
+
+        from botocore.exceptions import ClientError
 
         mock_s3 = MagicMock()
-        # Simulate bucket doesn't exist
-        mock_s3.head_bucket.side_effect = Exception("Not found")
+        # Simulate bucket doesn't exist — must raise ClientError (not plain Exception)
+        error_response = {"Error": {"Code": "404", "Message": "Not Found"}, "ResponseMetadata": {"HTTPStatusCode": 404}}
+        mock_s3.head_bucket.side_effect = ClientError(error_response, "HeadBucket")
         mock_get_client.return_value = mock_s3
 
         # Call ensure_bucket
@@ -99,7 +104,9 @@ class TestEnsureBucket:
     @patch("workflows.s3_client.get_client")
     def test_ensure_bucket_caches(self, mock_get_client):
         """Test ensure_bucket doesn't recreate existing bucket."""
-        from workflows.s3_client import ensure_bucket
+        from workflows.s3_client import _bucket_ensured, ensure_bucket
+
+        _bucket_ensured.discard("test-bucket")
 
         mock_s3 = MagicMock()
         # Simulate bucket exists

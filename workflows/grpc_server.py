@@ -1,8 +1,8 @@
 """Intel SuperBuilder gRPC middleware — maps Intel GUI requests to Goose agents."""
 
-import os
-import logging
 import asyncio
+import logging
+import os
 from concurrent import futures
 
 import grpc
@@ -21,7 +21,7 @@ class SuperBuilderServicer:
     and inherit from the generated servicer base class.
     """
 
-    def ExecuteWorkflow(self, request, context):
+    def ExecuteWorkflow(self, request, context):  # noqa: N802
         """Maps Intel GUI requests to Goose agent execution."""
         tenant_id = dict(context.invocation_metadata()).get("x-tenant-id", "default")
         logger.info(f"gRPC ExecuteWorkflow: tenant={tenant_id}")
@@ -32,6 +32,7 @@ class SuperBuilderServicer:
         # Run async workflow submission in sync context
         # Use asyncio.run() which handles event loop creation/cleanup automatically
         from workflows.workflow_defs import submit_workflow
+
         try:
             run_id = asyncio.run(submit_workflow(workflow_name, params))
         except RuntimeError as e:
@@ -70,8 +71,7 @@ def serve_grpc():
     #     SuperBuilderServicer(), server
     # )
     logger.warning(
-        "SuperBuilder servicer not registered — proto stubs not yet compiled. "
-        "gRPC health check is available."
+        "SuperBuilder servicer not registered — proto stubs not yet compiled. gRPC health check is available."
     )
 
     server.add_insecure_port(f"[::]:{GRPC_PORT}")

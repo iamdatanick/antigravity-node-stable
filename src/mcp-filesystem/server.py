@@ -1,8 +1,9 @@
 """MCP Filesystem Server — exposes file read/list tools via SSE transport."""
 
-import os
 import glob
 import logging
+import os
+
 from mcp.server.fastmcp import FastMCP
 
 logging.basicConfig(level=logging.INFO)
@@ -16,16 +17,19 @@ mcp = FastMCP("Antigravity-Filesystem")
 async def list_files(pattern: str = "*") -> str:
     """List files in the context directory matching a glob pattern."""
     import json
+
     search_path = os.path.join(DATA_DIR, pattern)
     files = glob.glob(search_path, recursive=True)
     result = []
     for f in sorted(files)[:200]:  # Limit to 200 results
         stat = os.stat(f)
-        result.append({
-            "path": os.path.relpath(f, DATA_DIR),
-            "size": stat.st_size,
-            "is_dir": os.path.isdir(f),
-        })
+        result.append(
+            {
+                "path": os.path.relpath(f, DATA_DIR),
+                "size": stat.st_size,
+                "is_dir": os.path.isdir(f),
+            }
+        )
     return json.dumps(result, indent=2)
 
 
@@ -43,7 +47,7 @@ async def read_file(path: str, max_bytes: int = 100000) -> str:
         return f'{{"error": "File not found: {path}"}}'
 
     try:
-        with open(real_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(real_path, encoding="utf-8", errors="replace") as f:
             content = f.read(max_bytes)
         return content
     except Exception as e:
@@ -55,6 +59,7 @@ async def file_info(path: str) -> str:
     """Get metadata about a file (size, type, modification time)."""
     import json
     import time
+
     full_path = os.path.join(DATA_DIR, path)
     real_path = os.path.realpath(full_path)
     real_data = os.path.realpath(DATA_DIR)
@@ -65,22 +70,25 @@ async def file_info(path: str) -> str:
         return f'{{"error": "File not found: {path}"}}'
 
     stat = os.stat(real_path)
-    return json.dumps({
-        "path": path,
-        "size": stat.st_size,
-        "is_dir": os.path.isdir(real_path),
-        "modified": time.ctime(stat.st_mtime),
-        "extension": os.path.splitext(path)[1],
-    })
+    return json.dumps(
+        {
+            "path": path,
+            "size": stat.st_size,
+            "is_dir": os.path.isdir(real_path),
+            "modified": time.ctime(stat.st_mtime),
+            "extension": os.path.splitext(path)[1],
+        }
+    )
 
 
 @mcp.tool()
 async def search_files(query: str, extensions: str = ".csv,.json,.pdf,.xlsx,.md") -> str:
     """Search for files by name containing query string."""
     import json
+
     ext_list = [e.strip() for e in extensions.split(",")]
     matches = []
-    for root, dirs, files in os.walk(DATA_DIR):
+    for root, _dirs, files in os.walk(DATA_DIR):
         for f in files:
             if query.lower() in f.lower():
                 ext = os.path.splitext(f)[1].lower()

@@ -1,9 +1,7 @@
 """Tests for workflow_defs.py Argo workflow submission."""
 
-import pytest
-from unittest.mock import AsyncMock, patch
-import respx
 import httpx
+import respx
 
 
 class TestWorkflowManifest:

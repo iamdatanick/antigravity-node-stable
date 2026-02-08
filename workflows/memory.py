@@ -1,14 +1,16 @@
 """StarRocks memory push — tenant-partitioned context to 3-layer memory schema."""
 
-import os
-import time
-import logging
+import hashlib
 import itertools
+import logging
+import os
 import re
 import threading
-import hashlib
+import time
+
 import pymysql
 from dbutils.pooled_db import PooledDB
+
 from workflows.telemetry import get_tracer
 
 logger = logging.getLogger("antigravity.memory")
@@ -64,7 +66,9 @@ def push_episodic(
     content: str,
 ):
     """Write an event to episodic memory."""
-    with tracer.start_as_current_span("memory.push_episodic", attributes={"tenant_id": tenant_id, "action_type": action_type}):
+    with tracer.start_as_current_span(
+        "memory.push_episodic", attributes={"tenant_id": tenant_id, "action_type": action_type}
+    ):
         count = next(_event_counter)
         event_id = int(time.time() * 1000) * 1000 + count
 
@@ -134,27 +138,42 @@ def query(sql: str) -> list:
         normalized = sql.strip().upper()
         if not normalized.startswith("SELECT"):
             raise ValueError("Only SELECT queries are permitted")
-        
+
         # Remove SQL comments before checking for forbidden keywords
         # Remove single-line comments (--) and multi-line comments (/* */)
         # Note: This handles simple comment patterns but may not catch all edge cases
         # Remove /* */ style comments
-        normalized = re.sub(r'/\*.*?\*/', ' ', normalized, flags=re.DOTALL)
+        normalized = re.sub(r"/\*.*?\*/", " ", normalized, flags=re.DOTALL)
         # Remove -- style comments
-        normalized = re.sub(r'--[^\n]*', ' ', normalized)
-        
-        forbidden = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "TRUNCATE", "GRANT", "REVOKE"]
+        normalized = re.sub(r"--[^\n]*", " ", normalized)
+
+        forbidden = [
+            "DROP",
+            "DELETE",
+            "INSERT",
+            "UPDATE",
+            "ALTER",
+            "CREATE",
+            "TRUNCATE",
+            "GRANT",
+            "REVOKE",
+            "INTO OUTFILE",
+            "INTO DUMPFILE",
+            "LOAD",
+            "SET",
+            "EXEC",
+        ]
         for keyword in forbidden:
             # Check for keyword as a standalone word (not part of column names)
             # Use word boundaries and handle various whitespace characters
-            pattern = r'\b' + keyword + r'\b'
+            pattern = r"\b" + keyword + r"\b"
             if re.search(pattern, normalized):
                 raise ValueError(f"Forbidden SQL keyword: {keyword}")
-        
+
         conn = _get_conn()
         try:
             with conn.cursor() as cur:
-                cur.execute(sql)
+                cur.execute(normalized)
                 return cur.fetchall()
         finally:
             conn.close()

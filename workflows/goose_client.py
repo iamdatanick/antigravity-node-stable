@@ -1,9 +1,11 @@
 """Goose binary wrapper + MCP Tool Definitions + Self-Correction."""
 
-import os
-import logging
 import json
-from tenacity import retry, stop_after_attempt, retry_if_exception_type
+import logging
+import os
+
+from tenacity import retry, retry_if_exception_type, stop_after_attempt
+
 from workflows.telemetry import get_tracer
 
 logger = logging.getLogger("antigravity.goose")
@@ -61,26 +63,40 @@ async def execute_tool(name: str, params: dict) -> str:
     with tracer.start_as_current_span("goose.execute_tool", attributes={"tool_name": name}):
         if name == "query_starrocks":
             from workflows.memory import query
+
             results = query(params["sql"])
             return json.dumps(results, default=str)
 
         elif name == "search_vectors":
-            from pymilvus import Collection
             # Simplified — real impl would use collection search
             return json.dumps({"status": "search_complete", "results": []})
 
         elif name == "read_context":
             import glob
-            files = glob.glob(f"/app/context/{params.get('pattern', '*')}")
+
+            pattern = params.get("pattern", "*")
+            if ".." in pattern or pattern.startswith("/"):
+                return json.dumps({"error": "Invalid pattern"})
+            base = "/app/context/"
+            full_pattern = os.path.join(base, pattern)
+            resolved = os.path.realpath(full_pattern)
+            if not resolved.startswith(os.path.realpath(base)):
+                return json.dumps({"error": "Path traversal blocked"})
+            files = glob.glob(full_pattern)
             return json.dumps({"files": files})
 
         elif name == "store_artifact":
             from workflows.s3_client import upload
-            upload(params["key"], params.get("data", b"").encode() if isinstance(params.get("data"), str) else params.get("data", b""))
+
+            upload(
+                params["key"],
+                params.get("data", b"").encode() if isinstance(params.get("data"), str) else params.get("data", b""),
+            )
             return json.dumps({"status": "uploaded", "key": params["key"]})
 
         elif name == "get_secret":
             import httpx
+
             addr = os.environ.get("OPENBAO_ADDR", "http://openbao:8200")
             token = os.environ.get("OPENBAO_TOKEN", "dev-only-token")
             async with httpx.AsyncClient() as client:
@@ -92,6 +108,7 @@ async def execute_tool(name: str, params: dict) -> str:
 
         elif name == "publish_event":
             import nats
+
             nc = await nats.connect(os.environ.get("NATS_URL", "nats://nats:4222"))
             await nc.publish(params["subject"], params["payload"].encode())
             await nc.close()
@@ -99,6 +116,7 @@ async def execute_tool(name: str, params: dict) -> str:
 
         elif name == "submit_workflow":
             from workflows.workflow_defs import submit_workflow
+
             run_id = await submit_workflow(params["name"], params.get("params", {}))
             return json.dumps({"status": "submitted", "run_id": run_id})
 
@@ -126,8 +144,9 @@ async def goose_reflect(task_id: str, failure_message: str):
 
 def robust_query(query_text: str):
     """Self-healing query — retries with auto-remediation."""
-    from pymilvus import connections, Collection
     import time
+
+    from pymilvus import connections
 
     try:
         connections.connect(host=os.environ.get("MILVUS_HOST", "milvus"), port="19530")

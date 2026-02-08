@@ -1,7 +1,9 @@
 """MCP Tool Server for StarRocks memory operations."""
 
-import os
 import json
+import os
+import re
+
 import pymysql
 from mcp.server.fastmcp import FastMCP
 
@@ -76,11 +78,40 @@ def query_procedural(skill_name: str = "") -> str:
         conn.close()
 
 
+def _validate_sql(sql: str) -> bool:
+    """Validate SQL is safe SELECT-only query."""
+    # Strip comments
+    cleaned = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
+    cleaned = re.sub(r"--[^\n]*", "", cleaned)
+    normalized = cleaned.strip().upper()
+
+    if not normalized.startswith("SELECT"):
+        return False
+
+    forbidden = [
+        "DROP",
+        "DELETE",
+        "TRUNCATE",
+        "ALTER",
+        "INSERT",
+        "UPDATE",
+        "CREATE",
+        "GRANT",
+        "REVOKE",
+        "LOAD",
+        "INTO OUTFILE",
+        "INTO DUMPFILE",
+        "EXEC",
+        "SET",
+    ]
+    return all(not re.search(r"\b" + kw + r"\b", normalized) for kw in forbidden)
+
+
 @mcp.tool()
 def execute_sql(sql: str) -> str:
     """Execute arbitrary read-only SQL on StarRocks."""
-    if any(kw in sql.upper() for kw in ["DROP", "DELETE", "TRUNCATE", "ALTER"]):
-        return json.dumps({"error": "Destructive SQL operations are not allowed"})
+    if not _validate_sql(sql):
+        return json.dumps({"error": "Only safe SELECT queries are allowed"})
     conn = _get_conn()
     try:
         with conn.cursor() as cur:

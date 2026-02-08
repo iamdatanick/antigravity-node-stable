@@ -40,7 +40,7 @@ async def get_jwks():
 
 async def validate_token(credentials: HTTPAuthorizationCredentials | None = Depends(security)):
     if not AUTH_ENABLED:
-        return {"sub": "anonymous", "roles": ["admin"]}
+        return {"sub": "anonymous", "roles": ["readonly"]}
 
     if credentials is None:
         raise HTTPException(status_code=401, detail="Missing authorization header")

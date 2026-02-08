@@ -5,10 +5,10 @@ Runs FastAPI (HTTP/A2A on port 8080) + gRPC (Intel SuperBuilder on port 8081)
 """
 
 import asyncio
-import logging
-import sys
-import os
 import glob
+import logging
+import os
+import sys
 import threading
 
 # Ensure /app is on Python path so `from workflows.X import Y` works
@@ -95,6 +95,7 @@ async def god_mode_loop():
 
 def start_god_mode_background():
     """Start the God Mode loop in a background thread with its own event loop."""
+
     def _run():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -117,12 +118,14 @@ def main():
 
     # 0. Initialize OpenTelemetry tracing
     from workflows.telemetry import init_telemetry
+
     init_telemetry()
     logger.info("OpenTelemetry tracing initialized")
 
     # 1. Start gRPC server in background thread (port 8081)
     try:
         from workflows.grpc_server import serve_grpc
+
         grpc_thread = threading.Thread(target=serve_grpc, name="grpc-server", daemon=True)
         grpc_thread.start()
         logger.info("gRPC server started on port 8081")
@@ -133,8 +136,10 @@ def main():
     start_god_mode_background()
 
     # 3. Instrument FastAPI app with OpenTelemetry
-    from workflows.a2a_server import app
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+    from workflows.a2a_server import app
+
     FastAPIInstrumentor.instrument_app(app)
     logger.info("FastAPI instrumented with OpenTelemetry")
 

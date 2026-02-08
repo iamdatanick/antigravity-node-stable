@@ -1,11 +1,13 @@
 """SeaweedFS S3 client wrapper using boto3."""
 
-import os
 import logging
+import os
 import threading
+
 import boto3
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
+
 from workflows.telemetry import get_tracer
 
 logger = logging.getLogger("antigravity.s3")
@@ -50,9 +52,9 @@ def ensure_bucket(bucket: str = S3_BUCKET):
             client.head_bucket(Bucket=bucket)
         except ClientError as e:
             # Check the error code - it can be a string like '404' or 'NoSuchBucket'
-            error_code = e.response.get('Error', {}).get('Code', '')
-            http_status = e.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
-            if error_code in ('404', 'NoSuchBucket') or http_status == 404:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            http_status = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
+            if error_code in ("404", "NoSuchBucket") or http_status == 404:
                 client.create_bucket(Bucket=bucket)
                 logger.info(f"Created S3 bucket: {bucket}")
             else:
@@ -78,20 +80,20 @@ def download(key: str, bucket: str = S3_BUCKET) -> bytes:
         body = resp["Body"]
         # Note: ContentLength might be missing if chunked, but usually present for S3
         content_len = resp.get("ContentLength", 0)
-        
+
         # 100MB Limit
-        MAX_SIZE = 100 * 1024 * 1024 
-        
-        if content_len > MAX_SIZE:
+        max_size = 100 * 1024 * 1024
+
+        if content_len > max_size:
             logger.warning(f"Large file download ({content_len} bytes) - truncating to 100MB")
-            data = body.read(MAX_SIZE)
+            data = body.read(max_size)
         else:
             # Read all, but check size during read if possible (boto3 doesn't easily support limit on read())
             # So we rely on ContentLength check mainly.
             data = body.read()
-            if len(data) > MAX_SIZE:
-                 data = data[:MAX_SIZE]
-                 logger.warning(f"Large file download (actual {len(data)} bytes) - truncated to 100MB")
+            if len(data) > max_size:
+                data = data[:max_size]
+                logger.warning(f"Large file download (actual {len(data)} bytes) - truncated to 100MB")
         span.set_attribute("size_bytes", len(data))
         logger.info(f"Downloaded s3://{bucket}/{key} ({len(data)} bytes)")
         return data
