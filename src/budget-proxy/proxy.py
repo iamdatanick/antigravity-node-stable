@@ -5,6 +5,7 @@ with daily budget enforcement and request logging.
 Apache-2.0 licensed, sovereign replacement for LiteLLM.
 """
 
+import asyncio
 import os
 import json
 import time
@@ -29,6 +30,7 @@ DAILY_BUDGET_USD = float(os.environ.get("DAILY_BUDGET_USD", "50"))
 # In-memory cost tracking (resets daily)
 _daily_spend = 0.0
 _spend_date = datetime.now(timezone.utc).date()
+_spend_lock = asyncio.Lock()
 
 # Approximate cost per 1K tokens (input/output)
 COST_TABLE = {
@@ -85,13 +87,14 @@ async def health():
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     global _daily_spend
-    _reset_if_new_day()
 
-    if _daily_spend >= DAILY_BUDGET_USD:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Daily budget exhausted: ${_daily_spend:.2f} / ${DAILY_BUDGET_USD:.2f}",
-        )
+    async with _spend_lock:
+        _reset_if_new_day()
+        if _daily_spend >= DAILY_BUDGET_USD:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily budget exhausted: ${_daily_spend:.2f} / ${DAILY_BUDGET_USD:.2f}",
+            )
 
     body = await request.json()
     model = body.get("model", "gpt-4o-mini")
@@ -114,11 +117,14 @@ async def chat_completions(request: Request):
     result = resp.json()
     usage = result.get("usage", {})
     cost = _estimate_cost(model, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
-    _daily_spend += cost
+
+    async with _spend_lock:
+        _daily_spend += cost
+        current_spend = _daily_spend
 
     logger.info(
         f"model={model} tokens={usage.get('total_tokens', 0)} "
-        f"cost=${cost:.4f} total=${_daily_spend:.4f} elapsed={elapsed:.2f}s"
+        f"cost=${cost:.4f} total=${current_spend:.4f} elapsed={elapsed:.2f}s"
     )
 
     return JSONResponse(content=result)
