@@ -17,7 +17,7 @@
     "visibility": "Perses v0.47.1 (dashboards) + OpenSearch v2.17.1 + Fluent Bit v3.1 (logs)",
     "orchestration": "Argo Workflows v3.5.5 via K3D (K3s in Docker)",
     "storage": "SeaweedFS v3.59 (S3-compatible)",
-    "cost_control": "LiteLLM ($10/day hard budget cap)"
+    "cost_control": "Budget Proxy ($50/day hard budget cap, multi-provider routing)"
   },
   "capabilities": [
     "argo-workflows",
@@ -29,7 +29,7 @@
     "perses",
     "opensearch",
     "fluent-bit",
-    "litellm",
+    "budget-proxy",
     "etcd",
     "starrocks",
     "spire",
@@ -41,15 +41,15 @@
     "keycloak",
     "openbao",
     "ovms",
-    "open-webui",
+    "librechat",
     "streamlit-trace-viewer",
     "master-ui"
   ],
   "ports": {
     "master-ui": 1055,
     "argo-ui": 2755,
-    "open-webui": 3355,
-    "litellm": 4055,
+    "librechat": 3355,
+    "budget-proxy": 4055,
     "nats": 4255,
     "marquez-api": 5055,
     "marquez-admin": 5155,
@@ -144,10 +144,10 @@
     "Layer 1.5: argo-bootstrap (init, exits — installs Argo + Events + CoreDNS patch)",
     "Layer 2: starrocks, valkey, milvus, spire, openbao, ovms",
     "Layer 3: wasm-worker, falco",
-    "Layer 4: perses, litellm",
+    "Layer 4: perses, budget-proxy",
     "Layer 5: mcp-gateway, mcp-starrocks, mcp-filesystem",
     "Layer 6: orchestrator, goose",
-    "Layer 7: open-webui, trace-viewer",
+    "Layer 7: librechat, trace-viewer",
     "Layer 8: master-ui"
   ],
   "deployment": {
@@ -157,7 +157,8 @@
       "orchestrator",
       "mcp-starrocks",
       "trace-viewer",
-      "master-ui"
+      "master-ui",
+      "budget-proxy"
     ],
     "runtime": "Docker Desktop / Rancher Desktop (local), Docker Build Cloud (production)"
   },
@@ -174,7 +175,7 @@
     "iam": "keycloak",
     "secrets": "openbao",
     "mtls": "spire",
-    "budget_cap": "$10/day via LiteLLM",
+    "budget_cap": "$50/day via budget-proxy (multi-provider)",
     "destructive_sql_blocked": true,
     "file_upload_limit_mb": 100
   },
@@ -190,9 +191,9 @@
       "goose",
       "mcp-gateway",
       "marquez",
-      "litellm",
+      "budget-proxy",
       "etcd",
-      "open-webui",
+      "librechat",
       "trace-viewer",
       "master-ui",
       "mcp-starrocks",
