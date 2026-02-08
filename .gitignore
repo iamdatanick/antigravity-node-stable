@@ -16,9 +16,6 @@ data/postgres/
 data/starrocks/
 data/spire/
 
-# SPIRE data (runtime state)
-data/spire/*.sqlite3*
-
 # IDE
 .vscode/
 .idea/
