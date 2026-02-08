@@ -1,5 +1,6 @@
 """FastAPI A2A endpoints: /health, /task, /handoff, /upload, /webhook, /.well-known/agent.json."""
 
+import asyncio
 import hashlib
 import hmac
 import logging
@@ -16,6 +17,7 @@ from slowapi.util import get_remote_address
 from workflows.auth import validate_token
 from workflows.goose_client import goose_reflect
 from workflows.health import full_health_check
+from workflows.inference import list_models as ovms_list_models, run_inference
 from workflows.memory import push_episodic, recall_experience
 from workflows.models import (
     CapabilitiesResponse,
@@ -23,6 +25,8 @@ from workflows.models import (
     HandoffRequest,
     HandoffResponse,
     HealthResponse,
+    InferenceRequest,
+    InferenceResponse,
     TaskRequest,
     TaskResponse,
     ToolsResponse,
@@ -30,6 +34,7 @@ from workflows.models import (
     WebhookPayload,
     WebhookResponse,
 )
+from workflows.lineage import complete_job, fail_job, start_job
 from workflows.s3_client import upload as s3_upload
 
 logger = logging.getLogger("antigravity.a2a")
@@ -43,10 +48,11 @@ if not raw_cors_origins or raw_cors_origins.strip() == "*":
 else:
     allow_origins = [origin.strip() for origin in raw_cors_origins.split(",") if origin.strip()]
 
+allow_creds = allow_origins != ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
-    allow_credentials=True,
+    allow_credentials=allow_creds,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -63,7 +69,8 @@ WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 def verify_webhook_signature(payload_body: bytes, signature: str) -> bool:
     """Verify HMAC-SHA256 signature for webhook payloads."""
     if not WEBHOOK_SECRET:
-        return True  # No secret configured, skip verification (dev mode)
+        logging.warning("WEBHOOK_SECRET not set - rejecting webhook. Set WEBHOOK_SECRET env var.")
+        return False
     expected = hmac.new(WEBHOOK_SECRET.encode(), payload_body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(f"sha256={expected}", signature)
 
@@ -103,6 +110,10 @@ async def task(
 
     logger.info(f"Task received: tenant={x_tenant_id}, goal={goal[:100]}")
 
+    # Lineage: START event (fire-and-forget)
+    lineage_job = f"a2a.task.{x_tenant_id}"
+    asyncio.create_task(start_job(lineage_job))
+
     # 1. Record in episodic memory
     push_episodic(
         tenant_id=x_tenant_id,
@@ -122,6 +133,15 @@ async def task(
         actor="Goose",
         action_type="THOUGHT",
         content=f"Processing goal: {goal}. Found {len(history)} relevant past events.",
+    )
+
+    # Lineage: COMPLETE event (fire-and-forget)
+    asyncio.create_task(
+        complete_job(
+            lineage_job,
+            session_id,
+            outputs=[{"name": f"task.{session_id}"}],
+        )
     )
 
     return {
@@ -153,13 +173,17 @@ async def upload_file(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
+    safe_filename = os.path.basename(file.filename)
+    if not safe_filename or ".." in safe_filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
     # Check file size (100MB limit)
     content = await file.read()
     max_size = 100 * 1024 * 1024  # 100MB
     if len(content) > max_size:
         raise HTTPException(status_code=413, detail="File too large (max 100MB)")
 
-    key = f"context/{x_tenant_id}/{file.filename}"
+    key = f"context/{x_tenant_id}/{safe_filename}"
     s3_upload(key, content)
 
     logger.info(f"File uploaded: {key} ({len(content)} bytes) by tenant={x_tenant_id}")
@@ -198,12 +222,21 @@ async def argo_webhook(
     if status == "Failed":
         await goose_reflect(task_id, message)
         logger.warning(f"Argo workflow {task_id} failed. Goose self-correction triggered.")
+        # Lineage: FAIL event (fire-and-forget)
+        asyncio.create_task(
+            fail_job(f"argo.workflow.{task_id}", task_id, message or "Unknown error")
+        )
+    elif status == "Succeeded":
+        # Lineage: COMPLETE event (fire-and-forget)
+        asyncio.create_task(
+            complete_job(f"argo.workflow.{task_id}", task_id)
+        )
 
     return {"ack": True}
 
 
-# --- LiteLLM/OpenAI proxy client ---
-LITELLM_BASE = os.environ.get("LITELLM_BASE_URL", "http://litellm:4000")
+# --- Budget Proxy / OpenAI-compatible LLM routing ---
+LITELLM_BASE = os.environ.get("LITELLM_URL", os.environ.get("LITELLM_BASE_URL", "http://budget-proxy:4000"))
 SYSTEM_PROMPT_PATH = os.environ.get("SYSTEM_PROMPT_PATH", "/app/config/prompts/system.txt")
 _system_prompt_cache = None
 
@@ -270,7 +303,7 @@ def _load_system_prompt() -> str:
 
 
 
-# OpenAI-compatible endpoint for Open WebUI — routes through LiteLLM
+# OpenAI-compatible endpoint for LibreChat — routes through budget-proxy
 @app.post("/v1/chat/completions")
 @limiter.limit("30/minute")
 async def chat_completions(
@@ -279,7 +312,7 @@ async def chat_completions(
     x_tenant_id: str = Header(default="system"),
     user: dict = Depends(validate_token),
 ):
-    """OpenAI-compatible chat completions — routed through LiteLLM proxy."""
+    """OpenAI-compatible chat completions — routed through budget-proxy."""
     import httpx
 
     messages = [msg.model_dump() for msg in body.messages]
@@ -317,7 +350,7 @@ async def chat_completions(
     enriched_messages = [{"role": "system", "content": system_msg}]
     enriched_messages.extend(messages)
 
-    # 4. Route through LiteLLM proxy
+    # 4. Route through budget-proxy
     model = body.model or os.environ.get("GOOSE_MODEL", "gpt-4o")
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -348,7 +381,7 @@ async def chat_completions(
                 logger.warning(f"Memory write for response failed: {e}")
             return result
         elif resp.status_code == 429:
-            logger.warning("LiteLLM budget exhausted — returning budget error")
+            logger.warning("Budget proxy: daily budget exhausted")
             return {
                 "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
                 "object": "chat.completion",
@@ -362,28 +395,28 @@ async def chat_completions(
             }
         else:
             error_text = resp.text[:500]
-            logger.error(f"LiteLLM returned {resp.status_code}: {error_text}")
+            logger.error(f"Budget proxy returned {resp.status_code}: {error_text}")
             return {
                 "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
                 "object": "chat.completion",
                 "choices": [{
                     "index": 0,
                     "message": {"role": "assistant",
-                                "content": f"Antigravity Node error: LiteLLM proxy returned {resp.status_code}. "
-                                           f"Check LiteLLM config at http://localhost:4055/health"},
+                                "content": f"Antigravity Node error: budget-proxy returned {resp.status_code}. "
+                                           f"Check budget-proxy at http://localhost:4055/health"},
                     "finish_reason": "stop",
                 }],
             }
 
     except httpx.ConnectError:
-        logger.error("Cannot reach LiteLLM proxy")
+        logger.error("Cannot reach budget-proxy")
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
             "object": "chat.completion",
             "choices": [{
                 "index": 0,
                 "message": {"role": "assistant",
-                            "content": "🔌 LiteLLM proxy is unreachable. The AI backend is offline. "
+                            "content": "Budget-proxy is unreachable. The AI backend is offline. "
                                        "System status: check /health endpoint."},
                 "finish_reason": "stop",
             }],
@@ -402,10 +435,10 @@ async def chat_completions(
         }
 
 
-# Also serve models list for Open WebUI compatibility
+# Also serve models list for LibreChat compatibility
 @app.get("/v1/models")
 async def list_models():
-    """OpenAI-compatible models list — proxied from LiteLLM."""
+    """OpenAI-compatible models list — proxied from budget-proxy."""
     import httpx
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -480,6 +513,36 @@ async def list_tools():
     return {"tools": tools, "total": len(tools)}
 
 
+# --- OVMS Inference Endpoints ---
+@app.post("/v1/inference", response_model=InferenceResponse)
+@limiter.limit("120/minute")
+async def inference_endpoint(
+    request: Request,
+    body: InferenceRequest,
+    x_tenant_id: str = Header(default="system"),
+    user: dict = Depends(validate_token),
+):
+    """POST /v1/inference -- Run inference on an OVMS-served model.
+
+    Gracefully handles empty model config (returns no_model_loaded status).
+    Attempts gRPC first, falls back to REST.
+    """
+    logger.info(
+        "Inference request: model=%s, tenant=%s",
+        body.model_name, x_tenant_id,
+    )
+    result = await run_inference(body.model_name, body.input_data)
+    status_code = 200 if result["status"] == "ok" else 200  # always 200; status in body
+    return JSONResponse(content=result, status_code=status_code)
+
+
+@app.get("/v1/models/ovms")
+async def list_ovms_models():
+    """GET /v1/models/ovms -- List models currently loaded in OVMS."""
+    models = await ovms_list_models()
+    return {"models": models, "count": len(models)}
+
+
 # --- Agent Capabilities Summary ---
 @app.get("/capabilities", response_model=CapabilitiesResponse)
 async def capabilities():
@@ -495,6 +558,8 @@ async def capabilities():
             "webhook": "/webhook",
             "chat": "/v1/chat/completions",
             "models": "/v1/models",
+            "inference": "/v1/inference",
+            "ovms_models": "/v1/models/ovms",
             "tools": "/tools",
             "capabilities": "/capabilities",
             "agent_descriptor": "/.well-known/agent.json",
@@ -510,7 +575,7 @@ async def capabilities():
             "procedural": "StarRocks memory_procedural table",
         },
         "budget": {
-            "proxy": "LiteLLM",
+            "proxy": "budget-proxy",
             "max_daily": "$10.00",
             "model": os.environ.get("GOOSE_MODEL", "gpt-4o"),
         },
