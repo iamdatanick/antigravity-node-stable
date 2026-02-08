@@ -26,17 +26,17 @@ class TestCredentialEnvironmentVariables:
         # Check POSTGRES_USER uses ${VAR:-default} syntax
         assert "POSTGRES_USER" in env_vars
         user_value = env_vars["POSTGRES_USER"]
-        assert "${POSTGRES_USER" in user_value or "POSTGRES_USER=" in user_value
+        assert "${POSTGRES_USER" in user_value
         
         # Check POSTGRES_PASSWORD uses ${VAR} syntax (no hardcoded value)
         assert "POSTGRES_PASSWORD" in env_vars
         password_value = env_vars["POSTGRES_PASSWORD"]
-        assert "${POSTGRES_PASSWORD}" in password_value or "POSTGRES_PASSWORD=" not in password_value
+        assert "${POSTGRES_PASSWORD}" in password_value
         
         # Check POSTGRES_DB uses ${VAR:-default} syntax
         assert "POSTGRES_DB" in env_vars
         db_value = env_vars["POSTGRES_DB"]
-        assert "${POSTGRES_DB" in db_value or "POSTGRES_DB=" in db_value
+        assert "${POSTGRES_DB" in db_value
 
     def test_keycloak_uses_env_vars(self, docker_compose_config):
         """Test that Keycloak uses environment variables for credentials."""
@@ -157,7 +157,8 @@ class TestHealthCheckStartPeriod:
         assert "start_period" in starrocks["healthcheck"]
         # Parse start_period (e.g., "30s")
         start_period = starrocks["healthcheck"]["start_period"]
-        assert "30s" in start_period or int(start_period.rstrip("s")) >= 30
+        # Simple validation: check if it contains "30s" or higher
+        assert "30s" in start_period or "45s" in start_period or "60s" in start_period
 
     def test_keycloak_has_start_period(self, docker_compose_config):
         """Test that Keycloak has a start_period configured."""
@@ -165,7 +166,8 @@ class TestHealthCheckStartPeriod:
         assert "healthcheck" in keycloak
         assert "start_period" in keycloak["healthcheck"]
         start_period = keycloak["healthcheck"]["start_period"]
-        assert "45s" in start_period or int(start_period.rstrip("s")) >= 30
+        # Should have 45s or higher
+        assert "45s" in start_period or "60s" in start_period
 
     def test_milvus_has_start_period(self, docker_compose_config):
         """Test that Milvus has a start_period configured."""
@@ -173,7 +175,8 @@ class TestHealthCheckStartPeriod:
         assert "healthcheck" in milvus
         assert "start_period" in milvus["healthcheck"]
         start_period = milvus["healthcheck"]["start_period"]
-        assert "30s" in start_period or int(start_period.rstrip("s")) >= 30
+        # Should have 30s or higher
+        assert "30s" in start_period or "45s" in start_period or "60s" in start_period
 
 
 class TestGitignore:
