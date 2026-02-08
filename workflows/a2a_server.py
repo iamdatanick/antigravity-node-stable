@@ -170,9 +170,6 @@ async def chat_completions(body: ChatCompletionRequest, x_tenant_id: str = Heade
     import httpx
 
     messages = [msg.model_dump() for msg in body.messages]
-    if not messages:
-        return {"choices": [{"message": {"role": "assistant", "content": "No input provided."}}]}
-
     user_msg = messages[-1].get("content", "")
     session_id = str(uuid.uuid4())[:8]
     logger.info(f"Chat request (tenant={x_tenant_id}): {user_msg[:100]}")

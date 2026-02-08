@@ -5,10 +5,15 @@ from typing import Optional, List, Dict, Any
 from enum import Enum
 
 
+# Constants for validation limits
+MAX_GOAL_LENGTH = 10000  # Maximum characters for task goal (balance between flexibility and DoS protection)
+MAX_CONTEXT_LENGTH = 50000  # Maximum characters for task context (allows detailed context without unbounded payloads)
+
+
 # --- /task endpoint ---
 class TaskRequest(BaseModel):
-    goal: str = Field(..., min_length=1, max_length=10000, description="The goal or task to accomplish")
-    context: Optional[str] = Field(default="", max_length=50000, description="Additional context for the task")
+    goal: str = Field(..., min_length=1, max_length=MAX_GOAL_LENGTH, description="The goal or task to accomplish")
+    context: Optional[str] = Field(default="", max_length=MAX_CONTEXT_LENGTH, description="Additional context for the task")
     session_id: Optional[str] = Field(default=None, description="Session ID for continuity; auto-generated if omitted")
 
 
