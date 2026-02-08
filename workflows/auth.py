@@ -1,14 +1,12 @@
 """JWT validation middleware for Keycloak integration."""
 
-import os
 import logging
-from typing import Optional
-from fastapi import Request, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import os
+
 import httpx
-from jose import jwt, JWTError, jwk
-from jose.utils import base64url_decode
-import json
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 
 logger = logging.getLogger("antigravity.auth")
 
@@ -34,32 +32,32 @@ async def get_jwks():
     return _jwks_cache
 
 
-async def validate_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+async def validate_token(credentials: HTTPAuthorizationCredentials | None = Depends(security)):
     if not AUTH_ENABLED:
         return {"sub": "anonymous", "roles": ["admin"]}
-    
+
     if credentials is None:
         raise HTTPException(status_code=401, detail="Missing authorization header")
-    
+
     token = credentials.credentials
     jwks = await get_jwks()
     if jwks is None:
         raise HTTPException(status_code=503, detail="Authentication service unavailable")
-    
+
     try:
         unverified_header = jwt.get_unverified_header(token)
         kid = unverified_header.get("kid")
-        
+
         key = None
         for k in jwks.get("keys", []):
             if k["kid"] == kid:
                 key = k
                 break
-        
+
         if key is None:
             _jwks_cache = None  # Force refresh
             raise HTTPException(status_code=401, detail="Invalid token key ID")
-        
+
         payload = jwt.decode(
             token,
             key,

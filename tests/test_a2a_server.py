@@ -1,7 +1,11 @@
 """Comprehensive tests for A2A server endpoints."""
 
+from io import BytesIO
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+import respx
+import httpx
 from fastapi.testclient import TestClient
 
 
@@ -9,14 +13,8 @@ from fastapi.testclient import TestClient
 def client():
     """FastAPI TestClient for A2A endpoint tests."""
     from workflows.a2a_server import app
+
     return TestClient(app)
-
-
-@pytest.fixture
-def mock_auth():
-    """Mock authentication to bypass JWT validation."""
-    with patch("workflows.a2a_server.validate_token", return_value={"sub": "test-user", "roles": ["admin"]}):
-        yield
 
 
 class TestHealthEndpoint:
@@ -75,8 +73,7 @@ class TestAgentCardEndpoint:
 class TestToolsEndpoint:
     """Test the /tools endpoint."""
 
-    @patch("workflows.a2a_server.httpx.AsyncClient")
-    async def test_tools_endpoint(self, mock_httpx, client):
+    def test_tools_endpoint(self, client):
         """Test GET /tools returns tools list."""
         response = client.get("/tools")
         assert response.status_code == 200
@@ -90,24 +87,18 @@ class TestToolsEndpoint:
 class TestTaskEndpoint:
     """Test the /task endpoint."""
 
-    def test_task_endpoint_validation(self, client, mock_auth):
+    def test_task_endpoint_validation(self, client):
         """Test POST /task with invalid body returns 422."""
-        response = client.post(
-            "/task",
-            json={},  # Missing required fields
-            headers={"x-tenant-id": "test-tenant"}
-        )
+        response = client.post("/task", json={}, headers={"x-tenant-id": "test-tenant"})
         assert response.status_code == 422
 
     @patch("workflows.a2a_server.push_episodic")
     @patch("workflows.a2a_server.recall_experience")
-    def test_task_endpoint_success(self, mock_recall, mock_push, client, mock_auth):
+    def test_task_endpoint_success(self, mock_recall, mock_push, client):
         """Test POST /task with valid goal returns 200."""
         mock_recall.return_value = []
         response = client.post(
-            "/task",
-            json={"goal": "Test goal", "context": {}},
-            headers={"x-tenant-id": "test-tenant"}
+            "/task", json={"goal": "Test goal", "context": "test context"}, headers={"x-tenant-id": "test-tenant"}
         )
         assert response.status_code == 200
         data = response.json()
@@ -115,12 +106,9 @@ class TestTaskEndpoint:
         assert "session_id" in data
         assert data["tenant_id"] == "test-tenant"
 
-    def test_task_endpoint_missing_tenant(self, client, mock_auth):
+    def test_task_endpoint_missing_tenant(self, client):
         """Test POST /task without x-tenant-id returns 400."""
-        response = client.post(
-            "/task",
-            json={"goal": "Test goal", "context": {}}
-        )
+        response = client.post("/task", json={"goal": "Test goal", "context": "test context"})
         assert response.status_code == 400
 
 
@@ -131,10 +119,7 @@ class TestWebhookEndpoint:
     async def test_webhook_endpoint(self, mock_reflect, client, monkeypatch):
         """Test POST /webhook returns ack."""
         monkeypatch.setenv("WEBHOOK_SECRET", "")  # Disable signature check
-        response = client.post(
-            "/webhook",
-            json={"task_id": "test-task", "status": "Succeeded", "message": "OK"}
-        )
+        response = client.post("/webhook", json={"task_id": "test-task", "status": "Succeeded", "message": "OK"})
         assert response.status_code == 200
         data = response.json()
         assert data["ack"] is True
@@ -143,10 +128,7 @@ class TestWebhookEndpoint:
     async def test_webhook_endpoint_failed_status(self, mock_reflect, client, monkeypatch):
         """Test POST /webhook triggers reflection on failure."""
         monkeypatch.setenv("WEBHOOK_SECRET", "")
-        response = client.post(
-            "/webhook",
-            json={"task_id": "test-task", "status": "Failed", "message": "Error occurred"}
-        )
+        response = client.post("/webhook", json={"task_id": "test-task", "status": "Failed", "message": "Error occurred"})
         assert response.status_code == 200
         # goose_reflect should have been called
 
@@ -156,14 +138,13 @@ class TestUploadEndpoint:
 
     @patch("workflows.a2a_server.s3_upload")
     @patch("workflows.a2a_server.push_episodic")
-    def test_upload_endpoint(self, mock_push, mock_s3, client, mock_auth):
+    def test_upload_endpoint(self, mock_push, mock_s3, client):
         """Test POST /upload with file returns key."""
         mock_s3.return_value = None
-        from io import BytesIO
         response = client.post(
             "/upload",
             files={"file": ("test.txt", BytesIO(b"test content"), "text/plain")},
-            headers={"x-tenant-id": "test-tenant"}
+            headers={"x-tenant-id": "test-tenant"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -171,24 +152,20 @@ class TestUploadEndpoint:
         assert "key" in data
         assert "size" in data
 
-    def test_upload_endpoint_no_file(self, client, mock_auth):
+    def test_upload_endpoint_no_file(self, client):
         """Test POST /upload without file returns 422."""
-        response = client.post(
-            "/upload",
-            headers={"x-tenant-id": "test-tenant"}
-        )
+        response = client.post("/upload", headers={"x-tenant-id": "test-tenant"})
         assert response.status_code == 422
 
     @patch("workflows.a2a_server.push_episodic")
-    def test_upload_endpoint_too_large(self, mock_push, client, mock_auth):
+    def test_upload_endpoint_too_large(self, mock_push, client):
         """Test POST /upload with large file returns 413."""
-        from io import BytesIO
         # Create a file larger than 100MB
         large_content = b"x" * (101 * 1024 * 1024)
         response = client.post(
             "/upload",
             files={"file": ("large.txt", BytesIO(large_content), "text/plain")},
-            headers={"x-tenant-id": "test-tenant"}
+            headers={"x-tenant-id": "test-tenant"},
         )
         assert response.status_code == 413
 
@@ -196,49 +173,45 @@ class TestUploadEndpoint:
 class TestChatCompletionsEndpoint:
     """Test the /v1/chat/completions endpoint."""
 
-    @patch("workflows.a2a_server.httpx.AsyncClient")
     @patch("workflows.a2a_server.push_episodic")
     @patch("workflows.a2a_server.recall_experience")
-    async def test_chat_completions(self, mock_recall, mock_push, mock_httpx, client, mock_auth):
+    def test_chat_completions(self, mock_recall, mock_push, client):
         """Test POST /v1/chat/completions returns response."""
         mock_recall.return_value = []
-        
-        # Mock httpx response
-        mock_response = AsyncMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "id": "chatcmpl-123",
-            "object": "chat.completion",
-            "choices": [{
-                "index": 0,
-                "message": {"role": "assistant", "content": "Test response"},
-                "finish_reason": "stop"
-            }]
-        }
-        
-        mock_client_instance = AsyncMock()
-        mock_client_instance.post.return_value = mock_response
-        mock_client_instance.__aenter__.return_value = mock_client_instance
-        mock_client_instance.__aexit__.return_value = None
-        mock_httpx.return_value = mock_client_instance
-        
-        response = client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "gpt-4o",
-                "messages": [{"role": "user", "content": "Hello"}]
-            },
-            headers={"x-tenant-id": "test-tenant"}
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert "choices" in data
+
+        # Use respx to mock httpx calls
+        with respx.mock:
+            respx.post("http://litellm:4000/v1/chat/completions").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "id": "chatcmpl-123",
+                        "object": "chat.completion",
+                        "choices": [
+                            {
+                                "index": 0,
+                                "message": {"role": "assistant", "content": "Test response"},
+                                "finish_reason": "stop",
+                            }
+                        ],
+                    },
+                )
+            )
+
+            response = client.post(
+                "/v1/chat/completions",
+                json={"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+                headers={"x-tenant-id": "test-tenant"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "choices" in data
 
 
 class TestRateLimiting:
     """Test rate limiting functionality."""
 
-    def test_rate_limiting(self, client, mock_auth):
+    def test_rate_limiting(self, client):
         """Test that rate limit headers appear in responses."""
         response = client.get("/capabilities")
         # Rate limit headers should be present or status should be normal

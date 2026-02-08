@@ -5,7 +5,7 @@ import logging
 import uuid
 import hmac
 import hashlib
-from fastapi import FastAPI, Header, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, Header, UploadFile, File, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
