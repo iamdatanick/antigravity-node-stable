@@ -10,8 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Docker Build Cloud endpoint (configured at app.docker.com/accounts/centillionai)
-  DOCKER_BUILD_CLOUD_BUILDER: cloud-centillionai-phucai
+  # Docker Build Cloud endpoint (configured at app.docker.com)
+  DOCKER_BUILD_CLOUD_BUILDER: cloud-iamdatanick-cloud-builder
 
 jobs:
   # ------------------------------------------------------------------ #
@@ -36,7 +36,7 @@ jobs:
         with:
           version: "lab:latest"
           driver: cloud
-          endpoint: "docker.io/centillionai/phucai"
+          endpoint: "docker.io/iamdatanick/cloud-builder"
 
       - name: Build and push all targets
         uses: docker/bake-action@v6
