@@ -1,8 +1,8 @@
 """JWT validation middleware for Keycloak integration."""
 
+import asyncio
 import logging
 import os
-import threading
 
 import httpx
 from fastapi import Depends, HTTPException
@@ -16,14 +16,14 @@ KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "antigravity")
 AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "false").lower() == "true"
 
 _jwks_cache = None
-_jwks_lock = threading.Lock()
+_jwks_lock = asyncio.Lock()
 security = HTTPBearer(auto_error=False)
 
 
 async def get_jwks():
     global _jwks_cache
     if _jwks_cache is None:
-        with _jwks_lock:
+        async with _jwks_lock:
             # Double-check locking pattern
             if _jwks_cache is None:
                 jwks_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
@@ -61,7 +61,7 @@ async def validate_token(credentials: HTTPAuthorizationCredentials | None = Depe
                 break
 
         if key is None:
-            with _jwks_lock:
+            async with _jwks_lock:
                 _jwks_cache = None  # Force refresh on next request
             raise HTTPException(status_code=401, detail="Invalid token key ID")
 

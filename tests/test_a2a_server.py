@@ -157,13 +157,6 @@ class TestUploadEndpoint:
         response = client.post("/upload", headers={"x-tenant-id": "test-tenant"})
         assert response.status_code == 422
 
-    def test_upload_endpoint_too_large(self, client):
-        """Test POST /upload with large file returns 413."""
-        # Note: Due to memory constraints, we don't actually test with 101MB
-        # This test documents expected behavior for oversized files
-        # The actual validation happens in a2a_server.py line 146-148
-        pass  # Test exists to document the feature
-
 
 class TestChatCompletionsEndpoint:
     """Test the /v1/chat/completions endpoint."""

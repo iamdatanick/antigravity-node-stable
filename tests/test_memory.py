@@ -90,21 +90,7 @@ class TestQueryValidation:
     def test_query_select_allowed(self):
         """Test that SELECT queries are allowed."""
         # This test ensures SELECT queries work
-        # We've already tested this in test_recall_experience
-        pass
-
-    @patch("workflows.memory._get_conn")
-    def test_query_drop_blocked(self, mock_get_conn):
-        """Test that DROP queries raise ValueError."""
-        # Note: The current implementation doesn't have explicit query validation
-        # This test documents expected behavior if validation is added
-        pass
-
-    @patch("workflows.memory._get_conn")
-    def test_query_delete_blocked(self, mock_get_conn):
-        """Test that DELETE queries raise ValueError."""
-        # Note: The current implementation doesn't have explicit query validation
-        # This test documents expected behavior if validation is added
+        # Actual validation tested in test_recall_experience
         pass
 
 
