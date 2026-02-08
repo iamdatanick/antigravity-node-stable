@@ -223,7 +223,7 @@ Scope:
 **PR #12 — Upgrade Master UI with HTMX + Alpine.js + Pico CSS (zero build step)**
 
 Scope:
-- Replace inline
+- Replace inline assets with HTMX, Alpine.js, and Pico CSS references for a zero-build UI upgrade
 
 ## Contributing
 
