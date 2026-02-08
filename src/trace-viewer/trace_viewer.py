@@ -19,20 +19,38 @@ STARROCKS_PORT = int(os.environ.get("STARROCKS_PORT", "9030"))
 STARROCKS_USER = os.environ.get("STARROCKS_USER", "root")
 
 
-@st.cache_resource
 def get_connection():
-    """Get StarRocks connection."""
-    return pymysql.connect(
-        host=STARROCKS_HOST,
-        port=STARROCKS_PORT,
-        user=STARROCKS_USER,
-        database="antigravity",
-        cursorclass=pymysql.cursors.DictCursor,
-    )
+    """Get StarRocks connection with reconnect support."""
+    try:
+        conn = pymysql.connect(
+            host=STARROCKS_HOST,
+            port=STARROCKS_PORT,
+            user=STARROCKS_USER,
+            database="antigravity",
+            cursorclass=pymysql.cursors.DictCursor,
+            connect_timeout=5,
+        )
+        return conn
+    except pymysql.Error as e:
+        st.error(f"Cannot connect to StarRocks: {e}")
+        return None
 
 
 try:
     conn = get_connection()
+    
+    if conn is None:
+        st.info("Make sure StarRocks is running and the memory schema has been initialized.")
+        st.stop()
+    
+    # Ensure connection is alive before using it
+    try:
+        conn.ping(reconnect=True)
+    except pymysql.Error as e:
+        st.error(f"Connection lost: {e}")
+        conn = get_connection()
+        if conn is None:
+            st.stop()
 
     # Sidebar filters
     st.sidebar.header("Filters")
@@ -61,6 +79,8 @@ try:
     """
     params.append(limit)
 
+    # Ensure connection is alive before executing query
+    conn.ping(reconnect=True)
     df = pd.read_sql(query, conn, params=params)
 
     if df.empty:
