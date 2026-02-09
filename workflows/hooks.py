@@ -9,14 +9,14 @@ from __future__ import annotations
 import asyncio
 import fnmatch
 import logging
-import time
 import re
+import time
+from collections import defaultdict
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Awaitable, Dict, List, Optional
-from collections import defaultdict
-
+from typing import Any
 
 logger = logging.getLogger("agent-runner.hooks")
 
@@ -25,18 +25,21 @@ logger = logging.getLogger("agent-runner.hooks")
 # ENUMS AND TYPES
 # =============================================================================
 
+
 class HookType(Enum):
     """Hook event types for tool execution lifecycle."""
-    PRE_TOOL = "pre_tool"      # Before tool execution
-    POST_TOOL = "post_tool"    # After tool execution
+
+    PRE_TOOL = "pre_tool"  # Before tool execution
+    POST_TOOL = "post_tool"  # After tool execution
 
 
 class HookDecision(Enum):
     """Decisions that hooks can return to control tool execution flow."""
-    APPROVE = "approve"    # Allow execution to proceed
-    DENY = "deny"          # Block execution
-    MODIFY = "modify"      # Modify the input/output and proceed
-    SKIP = "skip"          # Skip this hook, continue to next
+
+    APPROVE = "approve"  # Allow execution to proceed
+    DENY = "deny"  # Block execution
+    MODIFY = "modify"  # Modify the input/output and proceed
+    SKIP = "skip"  # Skip this hook, continue to next
 
 
 # Type alias for async hook functions
@@ -47,20 +50,22 @@ HookFunction = Callable[["HookContext"], Awaitable["HookResult"]]
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class HookContext:
     """Context passed to hook functions during execution."""
+
     hook_type: HookType
     tool_name: str
-    tool_input: Dict[str, Any] = field(default_factory=dict)
+    tool_input: dict[str, Any] = field(default_factory=dict)
     tool_output: Any = None
-    agent_id: Optional[str] = None
-    session_id: Optional[str] = None
-    user_id: Optional[str] = None
+    agent_id: str | None = None
+    session_id: str | None = None
+    user_id: str | None = None
     timestamp: datetime = field(default_factory=datetime.utcnow)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary for logging/serialization."""
         return {
             "hook_type": self.hook_type.value,
@@ -78,45 +83,44 @@ class HookContext:
 @dataclass
 class HookResult:
     """Result returned by hook functions."""
+
     decision: HookDecision
-    modified_input: Optional[Dict[str, Any]] = None
+    modified_input: dict[str, Any] | None = None
     modified_output: Any = None
-    reason: Optional[str] = None
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    reason: str | None = None
+    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def approve(cls, reason: str = None, metadata: Dict = None) -> "HookResult":
+    def approve(cls, reason: str = None, metadata: dict = None) -> HookResult:
         """Factory for approval result."""
         return cls(decision=HookDecision.APPROVE, reason=reason, metadata=metadata or {})
 
     @classmethod
-    def deny(cls, reason: str, error: str = None, metadata: Dict = None) -> "HookResult":
+    def deny(cls, reason: str, error: str = None, metadata: dict = None) -> HookResult:
         """Factory for denial result."""
         return cls(decision=HookDecision.DENY, reason=reason, error=error, metadata=metadata or {})
 
     @classmethod
-    def modify(cls, modified_input: Dict = None, modified_output: Any = None, reason: str = None) -> "HookResult":
+    def modify(cls, modified_input: dict = None, modified_output: Any = None, reason: str = None) -> HookResult:
         """Factory for modification result."""
         return cls(
-            decision=HookDecision.MODIFY,
-            modified_input=modified_input,
-            modified_output=modified_output,
-            reason=reason
+            decision=HookDecision.MODIFY, modified_input=modified_input, modified_output=modified_output, reason=reason
         )
 
 
 @dataclass
 class RegisteredHook:
     """Internal representation of a registered hook."""
+
     name: str
     hook_type: HookType
     func: HookFunction
-    pattern: str = "*"           # Glob pattern for tool name matching
-    priority: int = 100          # Lower = higher priority (runs first)
+    pattern: str = "*"  # Glob pattern for tool name matching
+    priority: int = 100  # Lower = higher priority (runs first)
     enabled: bool = True
-    once: bool = False           # Fire only once per session
-    timeout_ms: int = 30000      # Timeout for hook execution
+    once: bool = False  # Fire only once per session
+    timeout_ms: int = 30000  # Timeout for hook execution
 
     def matches(self, tool_name: str) -> bool:
         """Check if this hook matches the given tool name using glob patterns."""
@@ -126,6 +130,7 @@ class RegisteredHook:
 # =============================================================================
 # HOOK REGISTRY
 # =============================================================================
+
 
 class HookRegistry:
     """
@@ -140,17 +145,12 @@ class HookRegistry:
     """
 
     def __init__(self):
-        self._hooks: Dict[HookType, List[RegisteredHook]] = {
-            hook_type: [] for hook_type in HookType
-        }
+        self._hooks: dict[HookType, list[RegisteredHook]] = {hook_type: [] for hook_type in HookType}
         self._fired_once: set[str] = set()
-        self._execution_stats: Dict[str, Dict] = defaultdict(lambda: {
-            "call_count": 0,
-            "total_time_ms": 0,
-            "errors": 0,
-            "denials": 0
-        })
-        self._rate_limit_state: Dict[str, List[float]] = defaultdict(list)
+        self._execution_stats: dict[str, dict] = defaultdict(
+            lambda: {"call_count": 0, "total_time_ms": 0, "errors": 0, "denials": 0}
+        )
+        self._rate_limit_state: dict[str, list[float]] = defaultdict(list)
 
     def register(
         self,
@@ -161,7 +161,7 @@ class HookRegistry:
         priority: int = 100,
         enabled: bool = True,
         once: bool = False,
-        timeout_ms: int = 30000
+        timeout_ms: int = 30000,
     ) -> None:
         """
         Register a hook function.
@@ -190,7 +190,7 @@ class HookRegistry:
             priority=priority,
             enabled=enabled,
             once=once,
-            timeout_ms=timeout_ms
+            timeout_ms=timeout_ms,
         )
 
         self._hooks[hook_type].append(hook)
@@ -199,7 +199,7 @@ class HookRegistry:
 
         logger.info(f"Registered hook: {name} [{hook_type.value}] pattern='{pattern}' priority={priority}")
 
-    def unregister(self, name: str, hook_type: Optional[HookType] = None) -> bool:
+    def unregister(self, name: str, hook_type: HookType | None = None) -> bool:
         """
         Unregister a hook by name.
 
@@ -236,11 +236,7 @@ class HookRegistry:
         """Disable a hook by name."""
         return self.enable(name, enabled=False)
 
-    async def execute(
-        self,
-        hook_type: HookType,
-        context: HookContext
-    ) -> HookResult:
+    async def execute(self, hook_type: HookType, context: HookContext) -> HookResult:
         """
         Execute all matching hooks for the given context.
 
@@ -272,10 +268,7 @@ class HookRegistry:
             # Execute with timeout
             start_time = time.time()
             try:
-                result = await asyncio.wait_for(
-                    hook.func(context),
-                    timeout=hook.timeout_ms / 1000
-                )
+                result = await asyncio.wait_for(hook.func(context), timeout=hook.timeout_ms / 1000)
 
                 # Update stats
                 elapsed_ms = (time.time() - start_time) * 1000
@@ -306,12 +299,11 @@ class HookRegistry:
 
                 # APPROVE continues to next hook
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._execution_stats[hook.name]["errors"] += 1
                 logger.error(f"Hook '{hook.name}' timed out after {hook.timeout_ms}ms")
                 return HookResult.deny(
-                    reason=f"Hook '{hook.name}' timed out",
-                    error=f"Timeout after {hook.timeout_ms}ms"
+                    reason=f"Hook '{hook.name}' timed out", error=f"Timeout after {hook.timeout_ms}ms"
                 )
 
             except Exception as e:
@@ -322,7 +314,7 @@ class HookRegistry:
 
         return HookResult.approve(reason="All hooks passed")
 
-    def clear(self, hook_type: Optional[HookType] = None) -> None:
+    def clear(self, hook_type: HookType | None = None) -> None:
         """Clear all hooks of a specific type, or all hooks if type is None."""
         if hook_type:
             self._hooks[hook_type] = []
@@ -333,27 +325,29 @@ class HookRegistry:
             logger.info("Cleared all hooks")
         self._fired_once.clear()
 
-    def list_hooks(self, hook_type: Optional[HookType] = None) -> List[Dict[str, Any]]:
+    def list_hooks(self, hook_type: HookType | None = None) -> list[dict[str, Any]]:
         """List all registered hooks with their configuration."""
         result = []
         types_to_list = [hook_type] if hook_type else list(HookType)
 
         for ht in types_to_list:
             for hook in self._hooks[ht]:
-                result.append({
-                    "name": hook.name,
-                    "type": ht.value,
-                    "pattern": hook.pattern,
-                    "priority": hook.priority,
-                    "enabled": hook.enabled,
-                    "once": hook.once,
-                    "timeout_ms": hook.timeout_ms,
-                    "stats": dict(self._execution_stats.get(hook.name, {}))
-                })
+                result.append(
+                    {
+                        "name": hook.name,
+                        "type": ht.value,
+                        "pattern": hook.pattern,
+                        "priority": hook.priority,
+                        "enabled": hook.enabled,
+                        "once": hook.once,
+                        "timeout_ms": hook.timeout_ms,
+                        "stats": dict(self._execution_stats.get(hook.name, {})),
+                    }
+                )
 
         return result
 
-    def get_stats(self) -> Dict[str, Dict]:
+    def get_stats(self) -> dict[str, dict]:
         """Get execution statistics for all hooks."""
         return dict(self._execution_stats)
 
@@ -361,6 +355,7 @@ class HookRegistry:
 # =============================================================================
 # BUILT-IN HOOKS
 # =============================================================================
+
 
 async def audit_logger_hook(context: HookContext) -> HookResult:
     """
@@ -384,10 +379,7 @@ async def audit_logger_hook(context: HookContext) -> HookResult:
         log_entry["output_preview"] = str(context.tool_output)[:200] if context.tool_output else None
         logger.info(f"[AUDIT] POST_TOOL: {context.tool_name} | agent={context.agent_id} | status=completed")
 
-    return HookResult.approve(
-        reason="Audit logged",
-        metadata={"audit_entry": log_entry}
-    )
+    return HookResult.approve(reason="Audit logged", metadata={"audit_entry": log_entry})
 
 
 class RateLimiter:
@@ -399,7 +391,7 @@ class RateLimiter:
     def __init__(self, requests_per_minute: int = 60, burst_limit: int = 10):
         self.requests_per_minute = requests_per_minute
         self.burst_limit = burst_limit
-        self._request_times: Dict[str, List[float]] = defaultdict(list)
+        self._request_times: dict[str, list[float]] = defaultdict(list)
 
     def _get_key(self, context: HookContext) -> str:
         """Generate rate limit key from context."""
@@ -424,15 +416,13 @@ class RateLimiter:
         recent_requests = [t for t in self._request_times[key] if t > current_time - 1]
         if len(recent_requests) >= self.burst_limit:
             return HookResult.deny(
-                reason=f"Burst rate limit exceeded ({self.burst_limit} requests/second)",
-                error="RATE_LIMIT_BURST"
+                reason=f"Burst rate limit exceeded ({self.burst_limit} requests/second)", error="RATE_LIMIT_BURST"
             )
 
         # Check minute limit
         if request_count >= self.requests_per_minute:
             return HookResult.deny(
-                reason=f"Rate limit exceeded ({self.requests_per_minute} requests/minute)",
-                error="RATE_LIMIT_MINUTE"
+                reason=f"Rate limit exceeded ({self.requests_per_minute} requests/minute)", error="RATE_LIMIT_MINUTE"
             )
 
         # Record this request
@@ -440,10 +430,7 @@ class RateLimiter:
 
         return HookResult.approve(
             reason="Rate limit check passed",
-            metadata={
-                "requests_in_window": request_count + 1,
-                "limit": self.requests_per_minute
-            }
+            metadata={"requests_in_window": request_count + 1, "limit": self.requests_per_minute},
         )
 
 
@@ -459,33 +446,25 @@ class SecurityScanner:
         r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|TRUNCATE)\b.*\b(FROM|INTO|TABLE|WHERE)\b)",
         r"(--|\#|;)\s*(SELECT|DROP|DELETE|UPDATE)",
         r"'\s*(OR|AND)\s*'?\s*[0-9a-zA-Z]*\s*=",
-
         # Command Injection
         r"(\||;|`|\$\(|\))\s*(cat|ls|rm|mv|cp|wget|curl|bash|sh|python|perl|ruby)",
         r"&{2}\s*(rm|cat|wget|curl)",
-
         # Path Traversal
         r"\.\./",
         r"\.\.\\",
-
         # Script Injection
         r"<script[^>]*>",
         r"javascript:",
         r"on(click|load|error|mouseover)=",
     ]
 
-    def __init__(
-        self,
-        patterns: Optional[List[str]] = None,
-        block_on_detection: bool = True,
-        scan_output: bool = False
-    ):
+    def __init__(self, patterns: list[str] | None = None, block_on_detection: bool = True, scan_output: bool = False):
         self.patterns = patterns or self.DEFAULT_PATTERNS
         self.compiled_patterns = [re.compile(p, re.IGNORECASE) for p in self.patterns]
         self.block_on_detection = block_on_detection
         self.scan_output = scan_output
 
-    def _scan_value(self, value: Any) -> List[str]:
+    def _scan_value(self, value: Any) -> list[str]:
         """Scan a value for security threats."""
         threats = []
         str_value = str(value)
@@ -496,7 +475,7 @@ class SecurityScanner:
 
         return threats
 
-    def _scan_dict(self, data: Dict[str, Any]) -> Dict[str, List[str]]:
+    def _scan_dict(self, data: dict[str, Any]) -> dict[str, list[str]]:
         """Recursively scan a dictionary for threats."""
         results = {}
 
@@ -543,31 +522,24 @@ class SecurityScanner:
                 return HookResult.deny(
                     reason="Security threat detected in tool input",
                     error="SECURITY_THREAT_DETECTED",
-                    metadata={"threats": threats_found}
+                    metadata={"threats": threats_found},
                 )
             else:
                 # Log but allow
                 return HookResult.approve(
                     reason="Security threats detected but not blocked",
-                    metadata={"threats": threats_found, "action": "logged_only"}
+                    metadata={"threats": threats_found, "action": "logged_only"},
                 )
 
-        return HookResult.approve(
-            reason="Security scan passed",
-            metadata={"scanned": True}
-        )
+        return HookResult.approve(reason="Security scan passed", metadata={"scanned": True})
 
 
 # =============================================================================
 # DECORATORS FOR HOOK REGISTRATION
 # =============================================================================
 
-def pre_tool(
-    pattern: str = "*",
-    priority: int = 100,
-    once: bool = False,
-    timeout_ms: int = 30000
-):
+
+def pre_tool(pattern: str = "*", priority: int = 100, once: bool = False, timeout_ms: int = 30000):
     """
     Decorator to mark a function as a PRE_TOOL hook.
 
@@ -576,24 +548,21 @@ def pre_tool(
         async def my_pre_hook(context: HookContext) -> HookResult:
             return HookResult.approve()
     """
+
     def decorator(func: HookFunction):
         func._hook_metadata = {
             "hook_type": HookType.PRE_TOOL,
             "pattern": pattern,
             "priority": priority,
             "once": once,
-            "timeout_ms": timeout_ms
+            "timeout_ms": timeout_ms,
         }
         return func
+
     return decorator
 
 
-def post_tool(
-    pattern: str = "*",
-    priority: int = 100,
-    once: bool = False,
-    timeout_ms: int = 30000
-):
+def post_tool(pattern: str = "*", priority: int = 100, once: bool = False, timeout_ms: int = 30000):
     """
     Decorator to mark a function as a POST_TOOL hook.
 
@@ -602,15 +571,17 @@ def post_tool(
         async def my_post_hook(context: HookContext) -> HookResult:
             return HookResult.approve()
     """
+
     def decorator(func: HookFunction):
         func._hook_metadata = {
             "hook_type": HookType.POST_TOOL,
             "pattern": pattern,
             "priority": priority,
             "once": once,
-            "timeout_ms": timeout_ms
+            "timeout_ms": timeout_ms,
         }
         return func
+
     return decorator
 
 
@@ -631,7 +602,7 @@ def register_decorated_hooks(registry: HookRegistry, *funcs: HookFunction) -> No
                 pattern=metadata["pattern"],
                 priority=metadata["priority"],
                 once=metadata["once"],
-                timeout_ms=metadata["timeout_ms"]
+                timeout_ms=metadata["timeout_ms"],
             )
         else:
             logger.warning(f"Function '{func.__name__}' has no hook metadata, skipping")
@@ -641,12 +612,13 @@ def register_decorated_hooks(registry: HookRegistry, *funcs: HookFunction) -> No
 # FACTORY FUNCTIONS FOR BUILT-IN HOOKS
 # =============================================================================
 
+
 def create_default_registry(
     enable_audit: bool = True,
     enable_rate_limiter: bool = True,
     enable_security_scanner: bool = True,
     rate_limit_rpm: int = 60,
-    rate_limit_burst: int = 10
+    rate_limit_burst: int = 10,
 ) -> HookRegistry:
     """
     Create a HookRegistry pre-configured with built-in hooks.
@@ -670,40 +642,21 @@ def create_default_registry(
             hook_type=HookType.PRE_TOOL,
             func=audit_logger_hook,
             pattern="*",
-            priority=10  # Run early
+            priority=10,  # Run early
         )
         registry.register(
-            name="audit_logger_post",
-            hook_type=HookType.POST_TOOL,
-            func=audit_logger_hook,
-            pattern="*",
-            priority=10
+            name="audit_logger_post", hook_type=HookType.POST_TOOL, func=audit_logger_hook, pattern="*", priority=10
         )
 
     if enable_rate_limiter:
         # Rate limiter - runs before other checks
-        rate_limiter = RateLimiter(
-            requests_per_minute=rate_limit_rpm,
-            burst_limit=rate_limit_burst
-        )
-        registry.register(
-            name="rate_limiter",
-            hook_type=HookType.PRE_TOOL,
-            func=rate_limiter,
-            pattern="*",
-            priority=20
-        )
+        rate_limiter = RateLimiter(requests_per_minute=rate_limit_rpm, burst_limit=rate_limit_burst)
+        registry.register(name="rate_limiter", hook_type=HookType.PRE_TOOL, func=rate_limiter, pattern="*", priority=20)
 
     if enable_security_scanner:
         # Security scanner - runs after rate limit but before execution
         scanner = SecurityScanner(block_on_detection=True)
-        registry.register(
-            name="security_scanner",
-            hook_type=HookType.PRE_TOOL,
-            func=scanner,
-            pattern="*",
-            priority=30
-        )
+        registry.register(name="security_scanner", hook_type=HookType.PRE_TOOL, func=scanner, pattern="*", priority=30)
 
     logger.info(f"Created default hook registry with {len(registry.list_hooks())} hooks")
     return registry
@@ -714,6 +667,7 @@ def create_default_registry(
 # =============================================================================
 # Integrates the shared agentic-workflows security layer (injection defense,
 # scope validation, rate limiting, kill switch) into this hook registry.
+
 
 def create_secured_registry(
     enable_audit: bool = True,
@@ -740,7 +694,8 @@ def create_secured_registry(
 
     # Layer in agentic-workflows security (optional dependency)
     try:
-        from agentic_workflows.bridge import create_platform_hooks, PlatformHookConfig
+        from agentic_workflows.bridge import PlatformHookConfig, create_platform_hooks
+
         aw_config = PlatformHookConfig(
             enable_audit=False,  # Already have built-in audit
             enable_rate_limiter=False,  # Already have built-in rate limiter

@@ -1,5 +1,10 @@
 FROM python:3.11-slim
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates bzip2 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    bzip2 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 # Goose binary (release is a tar.bz2 archive)
 ARG GOOSE_VERSION=1.20.1
