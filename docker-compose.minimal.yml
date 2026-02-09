@@ -1,0 +1,30 @@
+# Antigravity Node - Minimal Docker Compose
+name: antigravity-minimal
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: antigravity
+      POSTGRES_PASSWORD: antigravity_secure_2026
+      POSTGRES_DB: antigravity
+    ports: ["5455:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U antigravity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nats:
+    image: nats:2.10-alpine
+    command: "-js"
+    ports: ["4255:4222"]
+
+  valkey:
+    image: valkey/valkey:7.2-alpine
+    ports: ["6380:6379"]
+
+volumes:
+  postgres-data:
