@@ -20,32 +20,32 @@ def test_grpc_server_imports():
 
 
 def test_servicer_class_exists():
-    """Test that SuperBuilderServicer class has the correct method."""
+    """Test that SuperBuilderServicer class has the correct methods."""
     import grpc_server
 
     servicer = grpc_server.SuperBuilderServicer()
     assert hasattr(servicer, "ExecuteWorkflow")
+    assert hasattr(servicer, "GetWorkflowStatus")
 
-    # Verify it's not async (should be a regular method)
+    # Verify they're not async (should be regular methods)
     import inspect
 
     assert not inspect.iscoroutinefunction(servicer.ExecuteWorkflow)
+    assert not inspect.iscoroutinefunction(servicer.GetWorkflowStatus)
 
 
 def test_execute_workflow_sync_call():
-    """Test that ExecuteWorkflow properly calls async submit_workflow in sync context."""
+    """Test that ExecuteWorkflow properly calls async submit_workflow and returns response."""
     import grpc_server
+    from workflows import superbuilder_pb2
 
     servicer = grpc_server.SuperBuilderServicer()
 
     # Mock request and context
-    mock_request = MagicMock()
-    mock_request.workflow_name = "test-workflow"
+    mock_request = superbuilder_pb2.WorkflowRequest(workflow_name="test-workflow", tenant_id="test-tenant")
 
     mock_context = MagicMock()
     mock_context.invocation_metadata.return_value = []
-    mock_context.set_code = MagicMock()
-    mock_context.set_details = MagicMock()
 
     # Mock the submit_workflow function
     with patch("workflows.workflow_defs.submit_workflow") as mock_submit:
@@ -56,14 +56,42 @@ def test_execute_workflow_sync_call():
         mock_submit.side_effect = mock_async_submit
 
         # Call the method
-        servicer.ExecuteWorkflow(mock_request, mock_context)
+        response = servicer.ExecuteWorkflow(mock_request, mock_context)
 
-    # Implementation aborts with UNIMPLEMENTED because proto stubs aren't compiled yet.
-    # context.abort() is called instead of set_code/set_details.
-    mock_context.abort.assert_called_once()
-    call_args = mock_context.abort.call_args
-    assert call_args[0][0] == grpc.StatusCode.UNIMPLEMENTED
-    assert "test-workflow-abc123" in call_args[0][1]
+    # Verify the response
+    assert isinstance(response, superbuilder_pb2.WorkflowResponse)
+    assert response.status == "submitted"
+    assert response.run_id == "test-workflow-abc123"
+    assert response.agent_id == "test-workflow-abc123"
+
+
+def test_get_workflow_status():
+    """Test that GetWorkflowStatus properly calls async get_workflow_status and returns response."""
+    import grpc_server
+    from workflows import superbuilder_pb2
+
+    servicer = grpc_server.SuperBuilderServicer()
+
+    # Mock request and context
+    mock_request = superbuilder_pb2.StatusRequest(run_id="test-workflow-abc123")
+    mock_context = MagicMock()
+
+    # Mock the get_workflow_status function
+    with patch("workflows.workflow_defs.get_workflow_status") as mock_status:
+        # Make it an async function that returns status
+        async def mock_async_status(run_id):
+            return {"name": run_id, "phase": "Succeeded"}
+
+        mock_status.side_effect = mock_async_status
+
+        # Call the method
+        response = servicer.GetWorkflowStatus(mock_request, mock_context)
+
+    # Verify the response
+    assert isinstance(response, superbuilder_pb2.StatusResponse)
+    assert response.run_id == "test-workflow-abc123"
+    assert response.phase == "Succeeded"
+    assert "Succeeded" in response.message
 
 
 def test_health_check_imports():
