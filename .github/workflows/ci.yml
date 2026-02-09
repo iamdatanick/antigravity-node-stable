@@ -31,7 +31,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
-      - run: pip install pytest pytest-asyncio pytest-cov respx
+      - run: pip install pytest pytest-asyncio pytest-cov respx grpcio-tools
+      - name: Compile Protobufs
+        run: |
+          python -m grpc_tools.protoc -I workflows/protos --python_out=workflows --grpc_python_out=workflows workflows/protos/*.proto
       - run: python -m pytest tests/ -v --tb=short --cov=workflows --cov-report=term-missing
 
   security:
