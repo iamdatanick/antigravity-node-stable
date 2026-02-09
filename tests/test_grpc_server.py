@@ -4,8 +4,6 @@ import os
 import sys
 from unittest.mock import MagicMock, patch
 
-import grpc
-
 # Add workflows to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workflows"))
 
@@ -37,6 +35,7 @@ def test_servicer_class_exists():
 def test_execute_workflow_sync_call():
     """Test that ExecuteWorkflow properly calls async submit_workflow and returns response."""
     import grpc_server
+
     from workflows import superbuilder_pb2
 
     servicer = grpc_server.SuperBuilderServicer()
@@ -68,6 +67,7 @@ def test_execute_workflow_sync_call():
 def test_get_workflow_status():
     """Test that GetWorkflowStatus properly calls async get_workflow_status and returns response."""
     import grpc_server
+
     from workflows import superbuilder_pb2
 
     servicer = grpc_server.SuperBuilderServicer()
