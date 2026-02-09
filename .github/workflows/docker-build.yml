@@ -9,10 +9,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # Docker Build Cloud endpoint (configured at app.docker.com/accounts/centillionai)
-  DOCKER_BUILD_CLOUD_BUILDER: cloud-centillionai-phucai
-
 jobs:
   # ------------------------------------------------------------------ #
   # Job 1: Build and push Docker images via Docker Build Cloud
@@ -31,12 +27,23 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Try Docker Build Cloud first; fall back to local buildx if unavailable.
+      # To use Docker Build Cloud, set these GitHub repository variables:
+      #   DOCKER_BUILD_CLOUD_ENDPOINT = "your-org/builder-name"
+      # The DOCKERHUB_TOKEN must have access to the Build Cloud subscription.
       - name: Set up Docker Buildx (Build Cloud)
+        id: buildx-cloud
+        if: vars.DOCKER_BUILD_CLOUD_ENDPOINT != ''
         uses: docker/setup-buildx-action@v3
+        continue-on-error: true
         with:
           version: "lab:latest"
           driver: cloud
-          endpoint: "docker.io/centillionai/phucai"
+          endpoint: "${{ vars.DOCKER_BUILD_CLOUD_ENDPOINT }}"
+
+      - name: Set up Docker Buildx (fallback)
+        if: steps.buildx-cloud.outcome != 'success'
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and push all targets
         uses: docker/bake-action@v6
