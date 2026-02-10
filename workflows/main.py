@@ -2,9 +2,8 @@ import uvicorn
 import logging
 import sys
 import os
-import asyncio
 
-# Ensure project root is in path
+# Ensure the parent directory is in the path for internal imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from workflows.a2a_server import app
@@ -12,7 +11,6 @@ from workflows.a2a_server import app
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger("antigravity")
 

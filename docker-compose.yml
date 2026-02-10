@@ -1,4 +1,4 @@
-private note: output was 892 lines and we are only showing the most recent lines, remainder of lines in C:\Users\NickV\AppData\Local\Temp\.tmpK3qFQW do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: 
+private note: output was 892 lines and we are only showing the most recent lines, remainder of lines in C:\Users\NickV\AppData\Local\Temp\.tmpgdnJ3J do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: 
   # [CHAT DB] MongoDB for LibreChat
   librechat-db:
     image: mongo:7.0
@@ -59,9 +59,9 @@ private note: output was 892 lines and we are only showing the most recent lines
     tmpfs:
       - /tmp
 
-  # ═══════════════════════════════════════════════════════════════════
+  # ###################################################################
   # LAYER 8: MASTER PORTAL
-  # ═══════════════════════════════════════════════════════════════════
+  # ###################################################################
 
   # [PORTAL] Master UI - Unified sub-UI aggregator
   master-ui:
@@ -161,9 +161,9 @@ NOTE: Output was 892 lines, showing only the last 100 lines.
     tmpfs:
       - /tmp
 
-  # ═══════════════════════════════════════════════════════════════════
+  # ###################################################################
   # LAYER 8: MASTER PORTAL
-  # ═══════════════════════════════════════════════════════════════════
+  # ###################################################################
 
   # [PORTAL] Master UI - Unified sub-UI aggregator
   master-ui:
