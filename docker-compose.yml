@@ -108,7 +108,7 @@ services:
 
   # --- L4: OBSERVABILITY ---
   perses:
-    image: perses-dev/perses:latest
+    image: perses/perses:latest
     container_name: antigravity-v13-dashboards
     ports: ["8085:8080"]
     networks: [antigravity_mesh]
