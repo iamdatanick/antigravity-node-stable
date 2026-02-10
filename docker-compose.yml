@@ -1,680 +1,50 @@
-name: antigravity-v13
-
-services:
-
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER -1: PERMISSION FIXER (runs once, exits)
-  # ═══════════════════════════════════════════════════════════════════
-
-  volume-fixer:
-    image: alpine:3.19
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo "=== Fixing volume permissions ==="
-        chown -R 1000:1000 /fix/seaweedfs 2>/dev/null || true
-        chown -R 1000:1000 /fix/milvus 2>/dev/null || true
-        echo "=== Permissions fixed ==="
+private note: output was 873 lines and we are only showing the most recent lines, remainder of lines in C:\Users\NickV\AppData\Local\Temp\.tmpqicOOH do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: 
+      - OPENAI_REVERSE_PROXY=http://budget-proxy:4000/v1
+      - MONGO_URI=mongodb://librechat-db:27017/librechat
     volumes:
-      - seaweedfs-data:/fix/seaweedfs
-      - milvus-data:/fix/milvus
-    restart: "no"
-
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 0: CORE INFRASTRUCTURE (no dependencies except volume-fixer)
-  # ═══════════════════════════════════════════════════════════════════
-
-  # [STATE] PostgreSQL - Shared DB for Argo + Keycloak + Marquez
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER:-antigravity}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB:-antigravity}
-    volumes:
-      - ./config/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
-      - postgres-data:/var/lib/postgresql/data
-    ports: ["5455:5432"]
+      - librechat-data:/app/client/public/images
+      - ./config/librechat.yaml:/app/librechat.yaml:ro
     depends_on:
-      volume-fixer:
-        condition: service_completed_successfully
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-    read_only: false
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U antigravity -d antigravity"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  # [STORAGE] SeaweedFS - S3-Compatible Object Store (replaces Ceph)
-  seaweedfs:
-    image: chrislusf/seaweedfs:3.59
-    command: "server -s3 -s3.port=8333 -master.port=9333 -ip=0.0.0.0 -volume.max=30 -dir=/data"
-    ports: ["8455:8333", "9355:9333"]
-    volumes: [seaweedfs-data:/data]
-    depends_on:
-      volume-fixer:
-        condition: service_completed_successfully
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9333/cluster/status || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
-    read_only: false
-
-  # [NERVOUS SYSTEM] NATS JetStream
-  nats:
-    image: nats:2.10-alpine
-    command: "-js"
-    ports: ["4255:4222"]
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # [ETCD] Standalone etcd for Milvus
-  etcd:
-    image: quay.io/coreos/etcd:v3.5.0
-    command: >
-      etcd
-      -advertise-client-urls=http://0.0.0.0:2379
-      -listen-client-urls=http://0.0.0.0:2379
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-    healthcheck:
-      test: ["CMD-SHELL", "etcdctl endpoint health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    read_only: false
-
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 1: DEPENDS ON LAYER 0
-  # ═══════════════════════════════════════════════════════════════════
-
-  # [IAM] Keycloak - Identity & Access Management
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.0
-    command: start-dev
-    environment:
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      - KC_DB=postgres
-      - KC_DB_URL=jdbc:postgresql://postgres:5432/keycloak
-      - KC_DB_USERNAME=${POSTGRES_USER:-antigravity}
-      - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
-      - KC_HOSTNAME_STRICT=false
-      - KC_HTTP_ENABLED=true
-    ports: ["8355:8080"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-    healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && exec 3>&- || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 45s
-    security_opt:
-      - no-new-privileges:true
-
-  # [LINEAGE] Marquez - OpenLineage Data Lineage
-  marquez:
-    image: marquezproject/marquez:0.48.0
-    ports: ["5055:5000", "5155:5001"]
-    environment:
-      - MARQUEZ_PORT=5000
-      - MARQUEZ_ADMIN_PORT=5001
-      - MARQUEZ_DB=marquez
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=marquez
-      - POSTGRES_USER=${POSTGRES_USER:-antigravity}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - budget-proxy
+      - librechat-db
     networks: [antigravity_mesh]
     deploy:
       resources:
         limits:
           memory: 512M
           cpus: '0.5'
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:5000/api/v1/namespaces || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+    read_only: false
     security_opt:
       - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
+    restart: unless-stopped
 
-  # [LOG AGGREGATION] OpenSearch (Apache-2.0, replaces Loki AGPL-3.0)
-  opensearch:
-    image: opensearchproject/opensearch:2.17.1
-    container_name: ag-opensearch
-    environment:
-      - discovery.type=single-node
-      - DISABLE_SECURITY_PLUGIN=true
-      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
-    ports:
-      - "9200:9200"
+  # [CHAT DB] MongoDB for LibreChat
+  librechat-db:
+    image: mongo:7.0
+    container_name: ag-librechat-db
     volumes:
-      - opensearch-data:/usr/share/opensearch/data
+      - librechat-db-data:/data/db
+    networks: [antigravity_mesh]
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: '1.0'
+          memory: 256M
+          cpus: '0.25'
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 60s
-    security_opt:
-      - no-new-privileges:true
-    networks: [antigravity_mesh]
-    restart: unless-stopped
-
-  # [LOG SHIPPING] Fluent Bit (Apache-2.0, replaces Promtail)
-  fluent-bit:
-    image: fluent/fluent-bit:3.1
-    container_name: ag-fluent-bit
-    volumes:
-      - ./config/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-    networks: [antigravity_mesh]
-    restart: unless-stopped
-
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 1.5: K3D + ARGO BOOTSTRAP
-  # ═══════════════════════════════════════════════════════════════════
-
-  # [ORCHESTRATION] K3D - K3s-in-Docker for Argo Workflows
-  k3d:
-    image: ghcr.io/k3d-io/k3d:5.6.0-dind
-    privileged: true
-    ipc: host
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      stack:
-        soft: 67108864
-        hard: 67108864
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        # Start Docker daemon in background (DinD)
-        dockerd &
-        echo "Starting Docker daemon..."
-        while ! docker info >/dev/null 2>&1; do sleep 1; done
-        echo "Docker daemon ready. Creating K3D cluster..."
-        k3d cluster list | grep -q antigravity || \
-          k3d cluster create antigravity \
-            --config /k3d-state/k3d-config.yaml \
-            --wait
-        k3d kubeconfig get antigravity > /k3d-state/kubeconfig.yaml
-        echo "K3D cluster ready."
-        sleep infinity
-    ports: ["6755:6443", "2755:2746"]
-    volumes:
-      - k3d-data:/k3d-state
-      - ./infra/k3d-config.yaml:/k3d-state/k3d-config.yaml:ro
-      - ./workflows/events/file-watcher.yaml:/k3d-state/file-watcher.yaml:ro
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
-    healthcheck:
-      test: ["CMD-SHELL", "k3d cluster list 2>/dev/null | grep -q running || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-      start_period: 60s
-
-  # [INIT] Argo Bootstrap - installs Argo + Events + configures artifacts
-  argo-bootstrap:
-    image: bitnami/kubectl:1.29
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        KC=/k3d-state/kubeconfig.yaml
-        until kubectl --kubeconfig $$KC get nodes 2>/dev/null; do sleep 5; done
-
-        # 1. Install Argo Workflows
-        kubectl --kubeconfig $$KC create ns argo 2>/dev/null || true
-        kubectl --kubeconfig $$KC apply -n argo \
-          -f https://github.com/argoproj/argo-workflows/releases/download/v3.5.5/install.yaml
-
-        # 2. Patch auth-mode=server (Hera SDK can connect without mTLS)
-        kubectl --kubeconfig $$KC -n argo patch deployment argo-server \
-          --type='json' \
-          -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--auth-mode=server"}]'
-
-        # 3. Configure Artifact Repository -> SeaweedFS
-        kubectl --kubeconfig $$KC -n argo create secret generic s3-creds \
-          --from-literal=accessKey=${S3_ACCESS_KEY:-admin} --from-literal=secretKey=${S3_SECRET_KEY:-admin} 2>/dev/null || true
-
-        cat <<'EOF' | kubectl --kubeconfig $$KC -n argo apply -f -
-        apiVersion: v1
-        kind: ConfigMap
-        metadata:
-          name: workflow-controller-configmap
-        data:
-          artifactRepository: |
-            s3:
-              endpoint: seaweedfs:8333
-              bucket: argo-artifacts
-              insecure: true
-              accessKeySecret:
-                name: s3-creds
-                key: accessKey
-              secretKeySecret:
-                name: s3-creds
-                key: secretKey
-          workflowDefaults: |
-            spec:
-              onExit: notify-agent
-              templates:
-              - name: notify-agent
-                http:
-                  url: "http://antigravity_brain:8080/webhook"
-                  method: POST
-                  body: '{"task_id":"{{workflow.name}}","status":"{{workflow.status}}","message":"{{workflow.failures}}"}'
-        EOF
-
-        # 4. Patch CoreDNS to forward to Docker DNS
-        cat <<'EOF' | kubectl --kubeconfig $$KC apply -f -
-        apiVersion: v1
-        kind: ConfigMap
-        metadata:
-          name: coredns-custom
-          namespace: kube-system
-        data:
-          docker.server: |
-            antigravity_mesh:53 {
-              forward . 172.17.0.1
-            }
-        EOF
-        kubectl --kubeconfig $$KC -n kube-system rollout restart deployment/coredns 2>/dev/null || true
-
-        # 5. Install Argo Events + File Watcher
-        kubectl --kubeconfig $$KC create ns argo-events 2>/dev/null || true
-        kubectl --kubeconfig $$KC apply -n argo-events \
-          -f https://raw.githubusercontent.com/argoproj/argo-events/stable/manifests/install.yaml
-        kubectl --kubeconfig $$KC apply -f /k3d-state/file-watcher.yaml 2>/dev/null || true
-
-        # 6. Wait for rollout
-        kubectl --kubeconfig $$KC rollout status deployment/argo-server -n argo --timeout=120s
-        kubectl --kubeconfig $$KC rollout status deployment/workflow-controller -n argo --timeout=120s
-
-        echo "=== Argo Workflows v3.5.5 + Events installed ==="
-    volumes:
-      - k3d-data:/k3d-state:ro
-    depends_on:
-      k3d:
-        condition: service_healthy
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-    restart: "no"
-
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 2: STANDALONE SERVICES
-  # ═══════════════════════════════════════════════════════════════════
-
-  # [MEMORY] StarRocks - OLAP Analytics
-  starrocks:
-    image: starrocks/allin1-ubuntu:latest
-    ports: ["9055:9030", "8055:8030"]
-    volumes: ["./data/starrocks:/root/StarRocks"]
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8030/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    read_only: false
-
-  # [CACHE] Valkey - In-Memory Cache (replaces Redis)
-  valkey:
-    image: valkey/valkey:7.2-alpine
-    command: valkey-server --appendonly yes --maxmemory 384mb --maxmemory-policy allkeys-lru
-    ports: ["6355:6379"]
-    volumes: ["valkey-data:/data"]
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    read_only: false
-
-  # [VECTOR DB] Milvus - Semantic Search & Embeddings
-  milvus:
-    image: milvusdb/milvus:v2.4.24
-    command: ["milvus", "run", "standalone"]
-    ports:
-      - "19555:19530"
-      - "9155:9091"
-    environment:
-      - ETCD_ENDPOINTS=etcd:2379
-      - MINIO_ADDRESS=seaweedfs:8333
-      - ETCD_USE_EMBED=false
-      - COMMON_STORAGETYPE=local
-      - MILVUS_LOG_LEVEL=info
-    volumes: ["milvus-data:/var/lib/milvus"]
-    depends_on:
-      etcd:
-        condition: service_healthy
-      volume-fixer:
-        condition: service_completed_successfully
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:9091/healthz"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    read_only: false
-
-  # [IDENTITY] SPIFFE/SPIRE - mTLS Identity
-  spire-server:
-    image: ghcr.io/spiffe/spire-server:1.9.0
-    ports: ["8155:8081"]
-    volumes:
-      - ./config/spire:/run/spire/config
-      - ./data/spire:/run/spire/data
-    command: ["-config", "/run/spire/config/server.conf"]
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-    security_opt:
-      - no-new-privileges:true
-
-  # [SECRETS] OpenBao - Secrets Management (Vault fork, MPL-2.0)
-  openbao:
-    image: openbao/openbao:2.0.0
-    command: server -dev -dev-root-token-id=${OPENBAO_DEV_TOKEN:-dev-only-token} -dev-listen-address=0.0.0.0:8200
-    environment:
-      - BAO_DEV_ROOT_TOKEN_ID=${OPENBAO_DEV_TOKEN:-dev-only-token}
-      - BAO_LOG_LEVEL=info
-    cap_add:
-      - IPC_LOCK
-    ports: ["8255:8200"]
-    volumes: ["openbao-data:/openbao/data"]
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8200/v1/sys/health || exit 0"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-    read_only: false
-
-  # [INFERENCE] OpenVINO Model Server - ML Runtime
-  ovms:
-    image: openvino/model_server:2024.5
-    entrypoint: ["/bin/sh", "-c", "echo '{\"model_config_list\":[]}' > /tmp/empty_config.json && /ovms/bin/ovms --config_path /tmp/empty_config.json --rest_port 8000 --port 9000 --log_level INFO --file_system_poll_wait_seconds 5"]
-    ports:
-      - "9255:9000"
-      - "8555:8000"
-    volumes: ["./models:/models:ro"]
-    networks: [antigravity_mesh]
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/v1/config || exit 0"]
-      interval: 15s
-      timeout: 5s
       retries: 3
-      start_period: 10s
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 3: SIDECARS
-  # ═══════════════════════════════════════════════════════════════════
-
-  # [RUNTIME] WasmEdge Sidecar
-  wasm-worker:
-    image: wasmedge/wasmedge:latest
-    entrypoint: ["/bin/sh", "-c", "echo 'WasmEdge Active' && sleep infinity"]
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # [OBSERVABILITY] Falco Runtime Security
-  falco:
-    image: falcosecurity/falco:0.37.0
-    privileged: true
-    restart: "no"
-    volumes:
-      - /var/run/docker.sock:/host/var/run/docker.sock:ro
-      - /dev:/host/dev
-      - /proc:/host/proc:ro
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '1.0'
-
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 4: OBSERVABILITY + COST CONTROL
-  # ═══════════════════════════════════════════════════════════════════
-
-  # [DASHBOARDS] Perses (Apache-2.0, replaces Grafana AGPL-3.0)
-  perses:
-    image: persesdev/perses:v0.47.1
-    container_name: ag-perses
-    ports:
-      - "3055:8080"
-    volumes:
-      - perses-data:/perses
-    environment:
-      - PERSES_DATABASE_FILE_FOLDER=/perses
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-    networks: [antigravity_mesh]
     restart: unless-stopped
 
-  # [COST CONTROL] Budget Proxy (Apache-2.0, replaces LiteLLM VC-backed)
-  budget-proxy:
-    build: ./src/budget-proxy
-    container_name: ag-budget-proxy
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - LOCAL_LLM_URL=http://ovms:8000/v1
-      - DAILY_BUDGET_USD=${DAILY_BUDGET_USD:-50}
-    ports: ["4055:4000"]
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health')\" || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-    restart: unless-stopped
-
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 5: AGENT CONTROL PLANE
-  # ═══════════════════════════════════════════════════════════════════
-
-  # [MCP GATEWAY] Docker Official MCP Router
-  mcp-gateway:
-    image: docker/mcp-gateway:latest
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo "antigravity" | /docker-mcp catalog import /etc/mcp/catalog.yaml 2>/dev/null || true
-        /docker-mcp server enable antigravity-memory 2>/dev/null || true
-        /docker-mcp server enable antigravity-filesystem 2>/dev/null || true
-        echo "=== MCP servers enabled ==="
-        exec /docker-mcp gateway run --transport sse --port 8080
-    volumes:
-      - ./config/mcp-catalog.yaml:/etc/mcp/catalog.yaml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    ports: ["7755:8080"]
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # [MCP TOOL] Filesystem Server (FastMCP SSE — reads /data mount)
-  mcp-filesystem:
-    build: ./src/mcp-filesystem
-    environment:
-      - DATA_DIR=/data
-    volumes:
-      - ${HOST_DATA_DIR:-./data}:/data:ro
-    labels:
-      - "mcp.type=server"
-      - "mcp.name=filesystem"
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # [MCP TOOL] StarRocks Memory Server
-  mcp-starrocks:
-    build: ./src/mcp-starrocks
+  # [TRACE] Streamlit Thought Trace Viewer
+  trace-viewer:
+    build: ./src/trace-viewer
+    ports: ["8655:8501"]
     environment:
       - STARROCKS_HOST=starrocks
       - STARROCKS_PORT=9030
       - STARROCKS_USER=root
-    labels:
-      - "mcp.type=server"
-      - "mcp.name=memory"
     depends_on:
       starrocks:
         condition: service_healthy
@@ -682,7 +52,31 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
+          cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # ═══════════════════════════════════════════════════════════════════
+  # LAYER 8: MASTER PORTAL
+  # ═══════════════════════════════════════════════════════════════════
+
+  # [PORTAL] Master UI - Unified sub-UI aggregator
+  master-ui:
+    build: ./src/master-ui
+    ports: ["1055:80"]
+    depends_on:
+      - perses
+      - librechat
+      - trace-viewer
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 128M
           cpus: '0.25'
     security_opt:
       - no-new-privileges:true
@@ -690,87 +84,23 @@ services:
     tmpfs:
       - /tmp
 
-  # [AGENT] Goose - AI Agent with MCP + A2A
-  # NOTE: Goose agent is integrated INTO the orchestrator container
-  # (binary at /usr/local/bin/goose). The standalone Goose image
-  # (block/goose:v1.20.1) does not exist on Docker Hub.
-  # AI intelligence is provided via LiteLLM proxy → OpenAI/Anthropic.
-  # The orchestrator's /v1/chat/completions routes through LiteLLM.
+volumes:
+  seaweedfs-data:
+  perses-data:
+  opensearch-data:
+  postgres-data:
+  milvus-data:
+  valkey-data:
+  openbao-data:
+  k3d-data:
+  librechat-data:
+  librechat-db-data:
 
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 6: BRAIN (depends on everything)
-  # ═══════════════════════════════════════════════════════════════════
+networks:
+  antigravity_mesh:
+    driver: bridge
+NOTE: Output was 873 lines, showing only the last 100 lines.
 
-  # [BRAIN] Orchestrator - FastAPI (A2A) + gRPC (Intel SuperBuilder)
-  orchestrator:
-    build: .
-    container_name: antigravity_brain
-    env_file: .env
-    environment:
-      - ARGO_SERVER=k3d:2746
-      - NATS_URL=nats://nats:4222
-      - STARROCKS_HOST=starrocks
-      - STARROCKS_HTTP_PORT=8030
-      - VALKEY_URL=redis://valkey:6379
-      - MILVUS_HOST=milvus
-      - MILVUS_PORT=19530
-      - KEYCLOAK_URL=http://keycloak:8080
-      - OPENBAO_ADDR=http://openbao:8200
-      - OPENBAO_TOKEN=${OPENBAO_DEV_TOKEN:-dev-only-token}
-      - OVMS_GRPC=ovms:9000
-      - OVMS_REST=http://ovms:8000
-      - SPIRE_ADDR=spire-server:8081
-      - S3_ENDPOINT=http://seaweedfs:8333
-      - OPENLINEAGE_URL=http://marquez:5000
-      - OPENLINEAGE_NAMESPACE=antigravity
-      - ACCELERATOR=cpu
-      - OPEA_HARDWARE_MODE=auto
-      - GOD_MODE_ITERATIONS=50
-      - LITELLM_URL=http://budget-proxy:4000
-    volumes:
-      - ./workflows:/app/workflows
-      - ./well-known:/app/well-known
-      - ${HOST_CONTEXT_DIR:-./data}:/app/context:ro
-    depends_on:
-      # NOTE: argo-bootstrap dependency relaxed — K3D DinD has cgroup issues
-      # argo-bootstrap:
-      #   condition: service_completed_successfully
-      starrocks:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
-      milvus:
-        condition: service_healthy
-      keycloak:
-        condition: service_started
-      openbao:
-        condition: service_healthy
-      seaweedfs:
-        condition: service_healthy
-    ports: ["8080:8080", "8081:8081"]
-    networks: [antigravity_mesh]
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-    security_opt:
-      - no-new-privileges:true
-
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 7: HUMAN INTERFACES
-  # ═══════════════════════════════════════════════════════════════════
-
-  # [CHAT] LibreChat (MIT, replaces Open WebUI custom license)
-  librechat:
-    image: ghcr.io/danny-avila/librechat:v0.7.6
-    container_name: ag-librechat
-    ports: ["3355:3080"]
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - ENDPOINTS=openAI,anthropic
       - OPENAI_REVERSE_PROXY=http://budget-proxy:4000/v1
       - MONGO_URI=mongodb://librechat-db:27017/librechat
     volumes:
