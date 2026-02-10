@@ -1,5 +1,5 @@
 group "default" {
-  targets = ["orchestrator", "mcp-starrocks", "mcp-filesystem", "trace-viewer", "master-ui", "budget-proxy", "goose-ui"]
+  targets = ["orchestrator", "mcp-starrocks", "mcp-filesystem", "master-ui", "budget-proxy"]
 }
 
 target "orchestrator" {
@@ -25,13 +25,6 @@ target "mcp-filesystem" {
   platforms  = ["linux/amd64"]
 }
 
-target "trace-viewer" {
-  context    = "./src/trace-viewer"
-  dockerfile = "Dockerfile"
-  tags       = ["docker.io/centillionai/trace-viewer:v13.0", "docker.io/centillionai/trace-viewer:latest"]
-  platforms  = ["linux/amd64"]
-}
-
 target "master-ui" {
   context    = "./src/master-ui"
   dockerfile = "Dockerfile"
@@ -43,12 +36,5 @@ target "budget-proxy" {
   context    = "./src/budget-proxy"
   dockerfile = "Dockerfile"
   tags       = ["docker.io/centillionai/budget-proxy:v13.0", "docker.io/centillionai/budget-proxy:latest"]
-  platforms  = ["linux/amd64"]
-}
-
-target "goose-ui" {
-  context    = "./src/goose-ui"
-  dockerfile = "Dockerfile"
-  tags       = ["docker.io/centillionai/goose-ui:v13.0", "docker.io/centillionai/goose-ui:latest"]
   platforms  = ["linux/amd64"]
 }

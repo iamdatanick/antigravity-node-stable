@@ -27,10 +27,11 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # QEMU for arm64 cross-compilation (orchestrator target)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       # Try Docker Build Cloud first; fall back to local buildx if unavailable.
-      # To use Docker Build Cloud, set these GitHub repository variables:
-      #   DOCKER_BUILD_CLOUD_ENDPOINT = "your-org/builder-name"
-      # The DOCKERHUB_TOKEN must have access to the Build Cloud subscription.
       - name: Set up Docker Buildx (Build Cloud)
         id: buildx-cloud
         if: vars.DOCKER_BUILD_CLOUD_ENDPOINT != ''

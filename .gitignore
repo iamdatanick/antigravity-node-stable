@@ -38,3 +38,7 @@ Thumbs.db
 # Test artifacts
 tests/syntax_*.txt
 tests/git_*.txt
+
+# Frontend
+node_modules/
+src/master-ui/dist/

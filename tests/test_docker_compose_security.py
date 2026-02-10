@@ -90,7 +90,7 @@ class TestSecurityHardening:
             "mcp-gateway",
             "mcp-filesystem",
             "mcp-starrocks",
-            "trace-viewer",
+
             "master-ui",
             "orchestrator",
             "keycloak",
@@ -117,7 +117,7 @@ class TestSecurityHardening:
             "mcp-gateway",
             "mcp-filesystem",
             "mcp-starrocks",
-            "trace-viewer",
+
             "master-ui",
         ]
 
@@ -131,7 +131,7 @@ class TestSecurityHardening:
 
     def test_database_containers_not_readonly(self, docker_compose_config):
         """Test that database containers are explicitly not read-only."""
-        db_containers = ["postgres", "etcd", "starrocks", "valkey", "milvus", "openbao", "seaweedfs", "librechat"]
+        db_containers = ["postgres", "etcd", "starrocks", "valkey", "milvus", "openbao", "seaweedfs"]
 
         for container_name in db_containers:
             if container_name in docker_compose_config["services"]:

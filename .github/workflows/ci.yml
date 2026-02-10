@@ -37,6 +37,24 @@ jobs:
           python -m grpc_tools.protoc -I workflows/protos --python_out=workflows --grpc_python_out=workflows workflows/protos/*.proto
       - run: python -m pytest tests/ -v --tb=short --cov=workflows --cov-report=term-missing
 
+  frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: src/master-ui/package-lock.json
+      - run: npm ci
+        working-directory: src/master-ui
+      - run: npx tsc --noEmit
+        working-directory: src/master-ui
+      - run: npx vite build
+        working-directory: src/master-ui
+
   security:
     runs-on: ubuntu-latest
     permissions:

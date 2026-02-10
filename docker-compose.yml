@@ -478,104 +478,15 @@ services:
       - no-new-privileges:true
     restart: unless-stopped
 
-  # === L7: HUMAN INTERFACES ===
-  librechat-db:
-    image: mongo:7.0
-    container_name: ag-librechat-db
-    volumes:
-      - librechat-db-data:/data/db
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.25"
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  librechat:
-    image: ghcr.io/danny-avila/librechat:v0.7.6
-    container_name: ag-librechat
-    ports: ["3355:3080"]
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - ENDPOINTS=openAI,anthropic
-      - OPENAI_REVERSE_PROXY=http://budget-proxy:4000/v1
-      - MONGO_URI=mongodb://librechat-db:27017/librechat
-      - CREDS_KEY=${LIBRECHAT_CREDS_KEY:-f34be427ebb29de8d88c107a71546019685ed8b241d8f2ed00c3df97ad2566f0}
-      - CREDS_IV=${LIBRECHAT_CREDS_IV:-e2341419ec3dd3d19b13a1a87fafcbfb}
-      - JWT_SECRET=${LIBRECHAT_JWT_SECRET:-16f5c2e37e0c9b3fa8d2bc5970a8becb40b3a6c1d7e92f14}
-      - JWT_REFRESH_SECRET=${LIBRECHAT_JWT_REFRESH:-a9d8f1b6c3e0724d5f89b2c1e6a07d3f48b59c2a1e7d06f3}
-      - ALLOW_REGISTRATION=true
-    volumes:
-      - librechat-data:/app/client/public/images
-      - ./config/librechat.yaml:/app/librechat.yaml:ro
-    depends_on:
-      - budget-proxy
-      - librechat-db
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "0.5"
-    security_opt:
-      - no-new-privileges:true
-    read_only: false
-    restart: unless-stopped
-
-  trace-viewer:
-    build: ./src/trace-viewer
-    container_name: antigravity-v13-trace
-    ports: ["8655:8501"]
-    environment:
-      - STARROCKS_HOST=starrocks
-      - STARROCKS_PORT=9030
-      - STARROCKS_USER=root
-    depends_on:
-      starrocks: { condition: service_healthy }
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "0.5"
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  goose-ui:
-    build: ./src/goose-ui
-    container_name: antigravity-v13-goose
-    ports: ["3456:80"]
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.25"
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # === L8: PORTAL ===
+  # === L8: PORTAL (Unified React SPA) ===
   master-ui:
     build: ./src/master-ui
     container_name: antigravity-v13-portal
     ports: ["1055:80"]
     depends_on:
+      - orchestrator
+      - budget-proxy
       - perses
-      - librechat
-      - trace-viewer
     networks: [antigravity_mesh]
     deploy:
       resources:
@@ -587,6 +498,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/cache/nginx
+      - /var/run
 
 networks:
   antigravity_mesh:
@@ -600,5 +513,3 @@ volumes:
   openbao-data:
   perses-data:
   opensearch-data:
-  librechat-data:
-  librechat-db-data:
