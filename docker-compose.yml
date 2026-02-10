@@ -1,202 +1,56 @@
-private note: output was 870 lines and we are only showing the most recent lines, remainder of lines in C:\Users\NickV\AppData\Local\Temp\.tmpJ7QWdL do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: 
-      - ENDPOINTS=openAI,anthropic
-      - OPENAI_REVERSE_PROXY=http://budget-proxy:4000/v1
-      - MONGO_URI=mongodb://librechat-db:27017/librechat
-    volumes:
-      - librechat-data:/app/client/public/images
-      - ./config/librechat.yaml:/app/librechat.yaml:ro
-    depends_on:
-      - budget-proxy
-      - librechat-db
+services:
+  # LAYER 0: CORE INFRASTRUCTURE
+  postgres:
+    image: postgres:16-alpine
+    container_name: antigravity-v13-postgres-1
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
     networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-    security_opt:
-      - no-new-privileges:true
-    restart: unless-stopped
-
-  # [CHAT DB] MongoDB for LibreChat
-  librechat-db:
-    image: mongo:7.0
-    container_name: ag-librechat-db
-    volumes:
-      - librechat-db-data:/data/db
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # [TRACE] Streamlit Thought Trace Viewer
-  trace-viewer:
-    build: ./src/trace-viewer
-    ports: ["8655:8501"]
+  starrocks:
+    image: starrocks/allin1-ubuntu:latest
+    container_name: antigravity-v13-starrocks-1
+    ports:
+      - "9030:9030"
+      - "8030:8030"
+    networks: [antigravity_mesh]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8030/api/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  # LAYER 6: BRAIN (ORCHESTRATOR)
+  orchestrator:
+    build: .
+    container_name: antigravity-v13-orchestrator-1
+    ports:
+      - "8080:8080"
     environment:
       - STARROCKS_HOST=starrocks
-      - STARROCKS_PORT=9030
-      - STARROCKS_USER=root
-    depends_on:
-      starrocks:
-        condition: service_healthy
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
     networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
+    depends_on:
+      postgres: { condition: service_healthy }
+      starrocks: { condition: service_healthy }
 
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 8: MASTER PORTAL
-  # ═══════════════════════════════════════════════════════════════════
-
-  # [PORTAL] Master UI - Unified sub-UI aggregator
+  # LAYER 8: PORTAL (MASTER UI)
   master-ui:
     build: ./src/master-ui
-    ports: ["1055:80"]
+    container_name: antigravity-v13-master-ui-1
+    ports:
+      - "1055:80"
+    networks: [antigravity_mesh]
     depends_on:
-      - perses
-      - librechat
-      - trace-viewer
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-volumes:
-  seaweedfs-data:
-  perses-data:
-  opensearch-data:
-  postgres-data:
-  milvus-data:
-  valkey-data:
-  openbao-data:
-  k3d-data:
-  librechat-data:
-  librechat-db-data:
-
-networks:
-  antigravity_mesh:
-    driver: bridge
-NOTE: Output was 870 lines, showing only the last 100 lines.
-
-      - ENDPOINTS=openAI,anthropic
-      - OPENAI_REVERSE_PROXY=http://budget-proxy:4000/v1
-      - MONGO_URI=mongodb://librechat-db:27017/librechat
-    volumes:
-      - librechat-data:/app/client/public/images
-      - ./config/librechat.yaml:/app/librechat.yaml:ro
-    depends_on:
-      - budget-proxy
-      - librechat-db
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-    security_opt:
-      - no-new-privileges:true
-    restart: unless-stopped
-
-  # [CHAT DB] MongoDB for LibreChat
-  librechat-db:
-    image: mongo:7.0
-    container_name: ag-librechat-db
-    volumes:
-      - librechat-db-data:/data/db
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  # [TRACE] Streamlit Thought Trace Viewer
-  trace-viewer:
-    build: ./src/trace-viewer
-    ports: ["8655:8501"]
-    environment:
-      - STARROCKS_HOST=starrocks
-      - STARROCKS_PORT=9030
-      - STARROCKS_USER=root
-    depends_on:
-      starrocks:
-        condition: service_healthy
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # ═══════════════════════════════════════════════════════════════════
-  # LAYER 8: MASTER PORTAL
-  # ═══════════════════════════════════════════════════════════════════
-
-  # [PORTAL] Master UI - Unified sub-UI aggregator
-  master-ui:
-    build: ./src/master-ui
-    ports: ["1055:80"]
-    depends_on:
-      - perses
-      - librechat
-      - trace-viewer
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-volumes:
-  seaweedfs-data:
-  perses-data:
-  opensearch-data:
-  postgres-data:
-  milvus-data:
-  valkey-data:
-  openbao-data:
-  k3d-data:
-  librechat-data:
-  librechat-db-data:
+      - orchestrator
 
 networks:
   antigravity_mesh:
