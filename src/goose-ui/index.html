@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Goose Chat - Antigravity Node v13.0</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/11.1.1/marked.min.js"></script>
+  <style>
+    :root {
+      --ag-accent: #00d4ff;
+      --ag-accent-dim: rgba(0, 212, 255, 0.15);
+      --ag-green: #22c55e;
+      --ag-red: #ef4444;
+      --ag-yellow: #eab308;
+      --ag-gray: #6b7280;
+      --ag-purple: #a78bfa;
+      --ag-orange: #fb923c;
+    }
+
+    :root:where([data-theme="dark"]) {
+      --pico-background-color: #0f172a;
+      --pico-card-background-color: #1e293b;
+      --pico-card-border-color: #334155;
+      --pico-primary: #00d4ff;
+      --pico-primary-hover: #22d3ee;
+    }
+
+    body {
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    /* Top bar */
+    .top-bar {
+      background: var(--pico-card-background-color);
+      border-bottom: 1px solid var(--pico-card-border-color);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .top-bar h1 {
+      font-size: 1.25rem;
+      margin: 0;
+      color: var(--ag-accent);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.connected { background: var(--ag-green); box-shadow: 0 0 8px var(--ag-green); }
+    .status-dot.disconnected { background: var(--ag-red); animation: none; }
+    .status-dot.connecting { background: var(--ag-yellow); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .system-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.8rem;
+      color: var(--pico-muted-color);
+    }
+
+    .system-info .badge {
+      background: var(--ag-accent-dim);
+      color: var(--ag-accent);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    /* Main layout */
+    .chat-container {
+      display: flex;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 300px;
+      background: var(--pico-card-background-color);
+      border-right: 1px solid var(--pico-card-border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-section {
+      padding: 1rem;
+      border-bottom: 1px solid var(--pico-card-border-color);
+    }
+
+    .sidebar-section h3 {
+      font-size: 0.9rem;
+      margin: 0 0 0.75rem 0;
+      color: var(--ag-accent);
+      font-weight: 600;
+    }
+
+    .sidebar-scrollable {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+    }
+
+    .memory-item {
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      background: var(--pico-background-color);
+      border: 1px solid var(--pico-card-border-color);
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+
+    .memory-item .type {
+      color: var(--ag-purple);
+      font-weight: 600;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+    }
+
+    .memory-item .content {
+      color: var(--pico-color);
+      margin-top: 0.25rem;
+      line-height: 1.4;
+    }
+
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+      scroll-behavior: smooth;
+    }
+
+    .message {
+      margin-bottom: 1.5rem;
+      animation: fadeIn 0.3s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .message.user .message-header {
+      color: var(--ag-accent);
+    }
+
+    .message.assistant .message-header {
+      color: var(--ag-green);
+    }
+
+    .message-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .message.user .message-avatar {
+      background: var(--ag-accent-dim);
+      color: var(--ag-accent);
+    }
+
+    .message.assistant .message-avatar {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--ag-green);
+    }
+
+    .message-bubble {
+      background: var(--pico-card-background-color);
+      border: 1px solid var(--pico-card-border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-left: 38px;
+    }
+
+    .message.user .message-bubble {
+      border-left: 3px solid var(--ag-accent);
+    }
+
+    .message.assistant .message-bubble {
+      border-left: 3px solid var(--ag-green);
+    }
+
+    .message-content {
+      line-height: 1.6;
+      color: var(--pico-color);
+    }
+
+    .message-content p {
+      margin: 0 0 0.75rem 0;
+    }
+
+    .message-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    .message-content pre {
+      background: #1a1b26;
+      border: 1px solid var(--pico-card-border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      overflow-x: auto;
+      position: relative;
+      margin: 0.75rem 0;
+    }
+
+    .message-content code {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.9em;
+    }
+
+    .message-content pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--pico-muted-color);
+    }
+
+    .copy-button {
+      background: var(--ag-accent-dim);
+      color: var(--ag-accent);
+      border: none;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      transition: all 0.2s;
+    }
+
+    .copy-button:hover {
+      background: var(--ag-accent);
+      color: var(--pico-background-color);
+    }
+
+    /* Tool execution panel */
+    .tool-execution {
+      background: rgba(167, 139, 250, 0.1);
+      border: 1px solid var(--ag-purple);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin: 0.75rem 0;
+    }
+
+    .tool-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .tool-name {
+      color: var(--ag-purple);
+      font-weight: 600;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tool-status {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .tool-status.success {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--ag-green);
+    }
+
+    .tool-status.error {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--ag-red);
+    }
+
+    .tool-status.running {
+      background: rgba(234, 179, 8, 0.15);
+      color: var(--ag-yellow);
+    }
+
+    .tool-details {
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+
+    .tool-details pre {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--ag-purple);
+      border-radius: 4px;
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      overflow-x: auto;
+      font-size: 0.75rem;
+    }
+
+    /* Typing indicator */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem;
+      margin-left: 38px;
+    }
+
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ag-accent);
+      animation: typing 1.4s infinite;
+    }
+
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes typing {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.7; }
+      30% { transform: translateY(-10px); opacity: 1; }
+    }
+
+    /* Input area */
+    .input-area {
+      background: var(--pico-card-background-color);
+      border-top: 1px solid var(--pico-card-border-color);
+      padding: 1rem 1.5rem;
+    }
+
+    .input-wrapper {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-end;
+    }
+
+    .input-box {
+      flex: 1;
+      position: relative;
+    }
+
+    .input-box textarea {
+      width: 100%;
+      min-height: 56px;
+      max-height: 200px;
+      resize: vertical;
+      padding: 0.75rem 1rem;
+      background: var(--pico-background-color);
+      border: 2px solid var(--pico-card-border-color);
+      border-radius: 8px;
+      color: var(--pico-color);
+      font-family: inherit;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+
+    .input-box textarea:focus {
+      outline: none;
+      border-color: var(--ag-accent);
+    }
+
+    .input-hint {
+      position: absolute;
+      bottom: 0.5rem;
+      right: 0.75rem;
+      font-size: 0.7rem;
+      color: var(--pico-muted-color);
+      pointer-events: none;
+    }
+
+    .send-button {
+      padding: 0.75rem 1.5rem;
+      background: var(--ag-accent);
+      color: var(--pico-background-color);
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 100px;
+    }
+
+    .send-button:hover:not(:disabled) {
+      background: var(--pico-primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .send-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .action-button {
+      font-size: 0.8rem;
+      padding: 0.4rem 0.8rem;
+      background: var(--pico-card-background-color);
+      border: 1px solid var(--pico-card-border-color);
+      border-radius: 6px;
+      color: var(--pico-color);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .action-button:hover {
+      border-color: var(--ag-accent);
+      color: var(--ag-accent);
+    }
+
+    /* Context panel */
+    .context-item {
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      background: var(--pico-background-color);
+      border: 1px solid var(--pico-card-border-color);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .context-item .name {
+      color: var(--pico-color);
+      font-weight: 500;
+    }
+
+    .context-item .size {
+      color: var(--pico-muted-color);
+      font-size: 0.7rem;
+    }
+
+    .upload-area {
+      border: 2px dashed var(--pico-card-border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .upload-area:hover {
+      border-color: var(--ag-accent);
+      background: var(--ag-accent-dim);
+    }
+
+    .upload-area input {
+      display: none;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--pico-background-color);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--pico-card-border-color);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--ag-accent);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar {
+        display: none;
+      }
+    }
+
+    /* Welcome message */
+    .welcome-message {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--pico-muted-color);
+    }
+
+    .welcome-message h2 {
+      color: var(--ag-accent);
+      margin-bottom: 1rem;
+    }
+
+    .welcome-message .capabilities {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+      text-align: left;
+    }
+
+    .capability {
+      background: var(--pico-card-background-color);
+      border: 1px solid var(--pico-card-border-color);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .capability h4 {
+      color: var(--ag-accent);
+      font-size: 0.9rem;
+      margin: 0 0 0.5rem 0;
+    }
+
+    .capability p {
+      font-size: 0.8rem;
+      margin: 0;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div x-data="gooseChat()">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <h1>
+        🪿 Goose Chat
+      </h1>
+      <div class="system-info">
+        <div class="status-indicator">
+          <span class="status-dot" :class="connectionStatus"></span>
+          <span x-text="connectionText"></span>
+        </div>
+        <span class="badge" x-text="currentModel"></span>
+        <span x-text="'L' + healthLevel"></span>
+      </div>
+    </div>
+
+    <!-- Main Chat Container -->
+    <div class="chat-container">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <!-- Context Files -->
+        <div class="sidebar-section">
+          <h3>📄 Context Files</h3>
+          <div class="upload-area" @click="$refs.fileInput.click()">
+            <div>📎 Click to upload</div>
+            <input type="file" x-ref="fileInput" @change="uploadFile" multiple>
+          </div>
+          <div style="margin-top: 0.75rem;">
+            <template x-for="file in contextFiles" :key="file.name">
+              <div class="context-item">
+                <span class="name" x-text="file.name"></span>
+                <span class="size" x-text="formatBytes(file.size)"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Memory Operations -->
+        <div class="sidebar-scrollable">
+          <h3>🧠 Recent Memory</h3>
+          <template x-for="mem in recentMemory" :key="mem.id">
+            <div class="memory-item">
+              <div class="type" x-text="mem.type"></div>
+              <div class="content" x-text="mem.content"></div>
+            </div>
+          </template>
+          <div x-show="recentMemory.length === 0" style="color: var(--pico-muted-color); font-size: 0.8rem;">
+            No memory operations yet
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Chat Area -->
+      <div class="chat-main">
+        <div class="messages-container" x-ref="messagesContainer">
+          <!-- Welcome Message -->
+          <div x-show="messages.length === 0" class="welcome-message">
+            <h2>Welcome to Goose Chat</h2>
+            <p>Your AI-powered assistant with access to powerful MCP tools and long-term memory</p>
+            
+            <div class="capabilities">
+              <div class="capability">
+                <h4>🔍 Data Analysis</h4>
+                <p>Query StarRocks for analytics and insights</p>
+              </div>
+              <div class="capability">
+                <h4>🧠 Memory</h4>
+                <p>Episodic, semantic, and procedural memory</p>
+              </div>
+              <div class="capability">
+                <h4>📊 Vector Search</h4>
+                <p>Semantic search across your knowledge base</p>
+              </div>
+              <div class="capability">
+                <h4>🛠️ Tool Execution</h4>
+                <p>Execute MCP tools with full visibility</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Messages -->
+          <template x-for="(msg, index) in messages" :key="index">
+            <div class="message" :class="msg.role">
+              <div class="message-header">
+                <div class="message-avatar" x-text="msg.role === 'user' ? '👤' : '🪿'"></div>
+                <span x-text="msg.role === 'user' ? 'You' : 'Goose'"></span>
+                <span style="color: var(--pico-muted-color); font-size: 0.75rem; font-weight: normal;" x-text="formatTime(msg.timestamp)"></span>
+              </div>
+              <div class="message-bubble">
+                <div class="message-content" x-html="renderMarkdown(msg.content)"></div>
+                
+                <!-- Tool Executions -->
+                <template x-if="msg.tools && msg.tools.length > 0">
+                  <div>
+                    <template x-for="tool in msg.tools" :key="tool.id">
+                      <div class="tool-execution">
+                        <div class="tool-header" @click="tool.expanded = !tool.expanded">
+                          <div class="tool-name">
+                            <span>🔧</span>
+                            <span x-text="tool.name"></span>
+                          </div>
+                          <span class="tool-status" :class="tool.status" x-text="tool.status"></span>
+                        </div>
+                        <div x-show="tool.expanded" class="tool-details">
+                          <div><strong>Parameters:</strong></div>
+                          <pre x-text="JSON.stringify(tool.params, null, 2)"></pre>
+                          <div x-show="tool.result"><strong>Result:</strong></div>
+                          <pre x-show="tool.result" x-text="typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result, null, 2)"></pre>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <!-- Typing Indicator -->
+          <div x-show="isTyping" class="message assistant">
+            <div class="message-header">
+              <div class="message-avatar">🪿</div>
+              <span>Goose</span>
+            </div>
+            <div class="typing-indicator">
+              <div class="typing-dot"></div>
+              <div class="typing-dot"></div>
+              <div class="typing-dot"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+          <div class="action-buttons">
+            <button class="action-button" @click="clearConversation">🗑️ Clear</button>
+            <button class="action-button" @click="loadHealth">🏥 Health</button>
+            <button class="action-button" @click="loadCapabilities">🛠️ Tools</button>
+          </div>
+          <div class="input-wrapper">
+            <div class="input-box">
+              <textarea 
+                x-ref="messageInput"
+                x-model="currentMessage"
+                @keydown.enter.prevent="handleEnter"
+                @keydown.shift.enter="handleShiftEnter"
+                placeholder="Ask Goose anything..."
+                :disabled="isTyping || connectionStatus === 'disconnected'"
+              ></textarea>
+              <div class="input-hint">Shift+Enter for new line</div>
+            </div>
+            <button 
+              class="send-button" 
+              @click="sendMessage"
+              :disabled="!currentMessage.trim() || isTyping || connectionStatus === 'disconnected'"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function gooseChat() {
+      return {
+        // Configuration constants
+        MAX_STORED_MESSAGES: 50,
+        LOADING_MODEL_TEXT: 'loading...',
+
+        // Connection state
+        ws: null,
+        connectionStatus: 'disconnected',
+        connectionText: 'Disconnected',
+        reconnectAttempts: 0,
+        maxReconnectAttempts: 5,
+
+        // System state
+        currentModel: 'loading...',
+        healthLevel: '?',
+        
+        // Chat state
+        messages: [],
+        currentMessage: '',
+        isTyping: false,
+        sessionId: null,
+
+        // Context & memory
+        contextFiles: [],
+        recentMemory: [],
+
+        init() {
+          // Load from localStorage
+          this.loadSession();
+          
+          // Connect WebSocket
+          this.connect();
+          
+          // Load system status
+          this.loadHealth();
+          this.loadCapabilities();
+
+          // Setup marked for markdown rendering
+          if (typeof marked !== 'undefined') {
+            marked.setOptions({
+              highlight: function(code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                  return hljs.highlight(code, { language: lang }).value;
+                }
+                return hljs.highlightAuto(code).value;
+              },
+              breaks: true,
+              gfm: true
+            });
+          }
+        },
+
+        connect() {
+          this.connectionStatus = 'connecting';
+          this.connectionText = 'Connecting...';
+
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const wsUrl = `${protocol}//${window.location.host}/api/ws/logs`;
+
+          try {
+            this.ws = new WebSocket(wsUrl);
+
+            this.ws.onopen = () => {
+              this.connectionStatus = 'connected';
+              this.connectionText = 'Connected';
+              this.reconnectAttempts = 0;
+              console.log('WebSocket connected');
+            };
+
+            this.ws.onmessage = (event) => {
+              this.handleWebSocketMessage(event.data);
+            };
+
+            this.ws.onerror = (error) => {
+              console.error('WebSocket error:', error);
+              this.connectionStatus = 'disconnected';
+              this.connectionText = 'Connection error';
+            };
+
+            this.ws.onclose = () => {
+              this.connectionStatus = 'disconnected';
+              this.connectionText = 'Disconnected';
+              console.log('WebSocket closed');
+              
+              // Attempt reconnection
+              if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                setTimeout(() => this.connect(), 2000 * this.reconnectAttempts);
+              }
+            };
+          } catch (error) {
+            console.error('Failed to create WebSocket:', error);
+            this.connectionStatus = 'disconnected';
+            this.connectionText = 'Connection failed';
+          }
+        },
+
+        handleWebSocketMessage(data) {
+          // Parse WebSocket messages - this will be updated based on actual backend format
+          try {
+            const message = JSON.parse(data);
+            
+            if (message.type === 'response') {
+              this.addAssistantMessage(message.content, message.tools);
+              this.isTyping = false;
+            } else if (message.type === 'tool') {
+              this.addToolExecution(message);
+            } else if (message.type === 'memory') {
+              this.addMemoryOperation(message);
+            }
+          } catch (e) {
+            // Handle plain text messages
+            console.log('WebSocket message:', data);
+          }
+        },
+
+        async sendMessage() {
+          if (!this.currentMessage.trim() || this.isTyping) return;
+
+          const userMessage = this.currentMessage.trim();
+          this.currentMessage = '';
+
+          // Add user message to chat
+          this.addUserMessage(userMessage);
+          this.isTyping = true;
+
+          // Use REST API for now since WebSocket is for logs
+          try {
+            const response = await fetch('/api/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-tenant-id': this.sessionId || 'goose-ui'
+              },
+              body: JSON.stringify({
+                model: this.currentModel !== this.LOADING_MODEL_TEXT ? this.currentModel : undefined,
+                messages: this.messages.map(m => ({
+                  role: m.role,
+                  content: m.content
+                })),
+                temperature: 0.7,
+                max_tokens: 2000
+              })
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const assistantMessage = data.choices[0]?.message?.content || 'No response';
+              this.addAssistantMessage(assistantMessage);
+            } else {
+              this.addAssistantMessage(`Error: ${response.status} ${response.statusText}`);
+            }
+          } catch (error) {
+            console.error('Send message error:', error);
+            this.addAssistantMessage('Error: Failed to send message. Please check connection.');
+          } finally {
+            this.isTyping = false;
+          }
+
+          this.saveSession();
+        },
+
+        addUserMessage(content) {
+          this.messages.push({
+            role: 'user',
+            content: content,
+            timestamp: new Date(),
+            tools: []
+          });
+          this.scrollToBottom();
+        },
+
+        addAssistantMessage(content, tools = []) {
+          this.messages.push({
+            role: 'assistant',
+            content: content,
+            timestamp: new Date(),
+            tools: tools.map(t => ({ ...t, expanded: false }))
+          });
+          this.scrollToBottom();
+        },
+
+        addToolExecution(tool) {
+          // Add tool execution to last assistant message
+          const lastMsg = this.messages[this.messages.length - 1];
+          if (lastMsg && lastMsg.role === 'assistant') {
+            if (!lastMsg.tools) lastMsg.tools = [];
+            lastMsg.tools.push({ ...tool, expanded: false });
+          }
+        },
+
+        addMemoryOperation(mem) {
+          this.recentMemory.unshift(mem);
+          if (this.recentMemory.length > 10) {
+            this.recentMemory.pop();
+          }
+        },
+
+        handleEnter(event) {
+          if (!event.shiftKey) {
+            this.sendMessage();
+          }
+        },
+
+        handleShiftEnter(event) {
+          // Let the default behavior happen (insert newline)
+        },
+
+        clearConversation() {
+          if (confirm('Clear all messages?')) {
+            this.messages = [];
+            this.recentMemory = [];
+            this.saveSession();
+          }
+        },
+
+        async loadHealth() {
+          try {
+            const response = await fetch('/api/health');
+            const data = await response.json();
+            
+            // Extract highest level number from levels object
+            let maxLevel = 0;
+            if (data.levels) {
+              Object.keys(data.levels).forEach(key => {
+                const match = key.match(/L(\d+)/);
+                if (match) {
+                  maxLevel = Math.max(maxLevel, parseInt(match[1]));
+                }
+              });
+            }
+            this.healthLevel = maxLevel;
+          } catch (error) {
+            console.error('Health check error:', error);
+            this.healthLevel = '?';
+          }
+        },
+
+        async loadCapabilities() {
+          try {
+            const response = await fetch('/api/capabilities');
+            const data = await response.json();
+            
+            // Extract model from environment or capabilities
+            if (data.model) {
+              this.currentModel = data.model;
+            } else {
+              // Default fallback
+              this.currentModel = 'gpt-4o';
+            }
+
+            // Show available tools in a message
+            if (data.tools && data.tools.length > 0) {
+              const toolsList = data.tools.map(t => `- ${t.name}: ${t.description || 'N/A'}`).join('\n');
+              this.addAssistantMessage(`🛠️ **Available MCP Tools:**\n\n${toolsList}`);
+            }
+          } catch (error) {
+            console.error('Capabilities error:', error);
+            this.currentModel = 'unknown';
+          }
+        },
+
+        async uploadFile(event) {
+          const files = event.target.files;
+          if (!files || files.length === 0) return;
+
+          for (let file of files) {
+            try {
+              const formData = new FormData();
+              formData.append('file', file);
+
+              const response = await fetch('/api/upload', {
+                method: 'POST',
+                headers: {
+                  'x-tenant-id': this.sessionId || 'goose-ui'
+                },
+                body: formData
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                this.contextFiles.push({
+                  name: file.name,
+                  size: file.size,
+                  key: data.key
+                });
+                this.addAssistantMessage(`✅ Uploaded: ${file.name}`);
+              } else {
+                this.addAssistantMessage(`❌ Upload failed: ${file.name}`);
+              }
+            } catch (error) {
+              console.error('Upload error:', error);
+              this.addAssistantMessage(`❌ Upload error: ${file.name}`);
+            }
+          }
+
+          // Clear file input
+          event.target.value = '';
+        },
+
+        renderMarkdown(text) {
+          if (typeof marked !== 'undefined') {
+            return marked.parse(text);
+          }
+          return text.replace(/\n/g, '<br>');
+        },
+
+        formatTime(date) {
+          return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        },
+
+        formatBytes(bytes) {
+          if (bytes === 0) return '0 B';
+          const k = 1024;
+          const sizes = ['B', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        },
+
+        scrollToBottom() {
+          this.$nextTick(() => {
+            const container = this.$refs.messagesContainer;
+            if (container) {
+              container.scrollTop = container.scrollHeight;
+            }
+          });
+        },
+
+        saveSession() {
+          try {
+            localStorage.setItem('goose_messages', JSON.stringify(this.messages.slice(-this.MAX_STORED_MESSAGES)));
+            localStorage.setItem('goose_session_id', this.sessionId || '');
+          } catch (e) {
+            console.warn('Failed to save session:', e);
+          }
+        },
+
+        loadSession() {
+          try {
+            const saved = localStorage.getItem('goose_messages');
+            if (saved) {
+              this.messages = JSON.parse(saved);
+            }
+            
+            this.sessionId = localStorage.getItem('goose_session_id') || this.generateSessionId();
+          } catch (e) {
+            console.warn('Failed to load session:', e);
+            this.sessionId = this.generateSessionId();
+          }
+        },
+
+        generateSessionId() {
+          return 'goose_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11);
+        }
+      };
+    }
+  </script>
+</body>
+</html>
