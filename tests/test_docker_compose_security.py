@@ -90,7 +90,6 @@ class TestSecurityHardening:
             "mcp-gateway",
             "mcp-filesystem",
             "mcp-starrocks",
-
             "master-ui",
             "orchestrator",
             "keycloak",
@@ -117,7 +116,6 @@ class TestSecurityHardening:
             "mcp-gateway",
             "mcp-filesystem",
             "mcp-starrocks",
-
             "master-ui",
         ]
 
