@@ -1,203 +1,182 @@
-private note: output was 892 lines and we are only showing the most recent lines, remainder of lines in C:\Users\NickV\AppData\Local\Temp\.tmpvdeJwP do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: 
-  # [CHAT DB] MongoDB for LibreChat
+version: "3.8"
+
+services:
+  # --- L0: INFRASTRUCTURE ---
+  postgres:
+    image: postgres:16-alpine
+    container_name: antigravity-v13-db
+    environment:
+      POSTGRES_USER: antigravity
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: antigravity
+    ports: ["5432:5432"]
+    networks: [antigravity_mesh]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U antigravity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nats:
+    image: nats:latest
+    container_name: antigravity-v13-nats
+    ports: ["4222:4222", "8222:8222"]
+    networks: [antigravity_mesh]
+
+  seaweedfs:
+    image: chrislusf/seaweedfs
+    container_name: antigravity-v13-s3
+    command: server -s3
+    ports: ["8333:8333", "9333:9333"]
+    networks: [antigravity_mesh]
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.0
+    container_name: antigravity-v13-etcd
+    command: etcd --advertise-client-urls http://0.0.0.0:2379 --listen-client-urls http://0.0.0.0:2379
+    ports: ["2379:2379"]
+    networks: [antigravity_mesh]
+
+  # --- L1: LINEAGE ---
+  marquez:
+    image: marquezproject/marquez:latest
+    container_name: antigravity-v13-lineage
+    ports: ["5000:5000", "5002:5002"]
+    environment:
+      - MARQUEZ_DB_HOST=postgres
+      - MARQUEZ_DB_USER=antigravity
+      - MARQUEZ_DB_PASSWORD=postgres
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [antigravity_mesh]
+
+  # --- L2: MEMORY ---
+  starrocks:
+    image: starrocks/allin1-ubuntu:latest
+    container_name: antigravity-v13-starrocks-1
+    ports: ["9030:9030", "8030:8030", "8040:8040"]
+    networks: [antigravity_mesh]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  valkey:
+    image: valkey/valkey:7.2
+    container_name: antigravity-v13-cache
+    ports: ["6379:6379"]
+    networks: [antigravity_mesh]
+
+  milvus:
+    image: milvusdb/milvus:v2.3.0
+    container_name: antigravity-v13-vector
+    command: milvus run standalone
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+    depends_on: [etcd, seaweedfs]
+    ports: ["19530:19530"]
+    networks: [antigravity_mesh]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: antigravity-v13-iam
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/antigravity
+      KC_DB_USERNAME: antigravity
+      KC_DB_PASSWORD: postgres
+    ports: ["8082:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [antigravity_mesh]
+
+  openbao:
+    image: hashicorp/vault:1.13
+    container_name: antigravity-v13-secrets
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: root
+    ports: ["8200:8200"]
+    networks: [antigravity_mesh]
+
+  # --- L3: SIDECARS ---
+  wasmedge:
+    image: wasmedge/wasmedge:latest
+    container_name: antigravity-v13-runtime
+    networks: [antigravity_mesh]
+
+  # --- L4: OBSERVABILITY ---
+  perses:
+    image: perses-dev/perses:latest
+    container_name: antigravity-v13-dashboards
+    ports: ["8085:8080"]
+    networks: [antigravity_mesh]
+
+  budget-proxy:
+    build: ./src/budget-proxy
+    container_name: antigravity-v13-budget
+    ports: ["8086:80"]
+    networks: [antigravity_mesh]
+
+  # --- L5: CONTROL ---
+  mcp-gateway:
+    image: haproxy:alpine
+    container_name: antigravity-v13-mcp
+    ports: ["7755:80"]
+    networks: [antigravity_mesh]
+
+  # --- L6: BRAIN (Orchestrator) ---
+  orchestrator:
+    build: .
+    container_name: antigravity_brain
+    ports: ["8080:8080", "8081:8081"]
+    environment:
+      - DATABASE_URL=postgresql://antigravity:postgres@postgres:5432/antigravity
+      - STARROCKS_HOST=starrocks
+      - MILVUS_HOST=milvus
+      - KEYCLOAK_URL=http://keycloak:8080
+    depends_on:
+      postgres: { condition: service_healthy }
+      starrocks: { condition: service_started }
+    networks: [antigravity_mesh]
+
+  # --- L7: INTERFACE ---
   librechat-db:
     image: mongo:7.0
     container_name: ag-librechat-db
     volumes:
       - librechat-db-data:/data/db
     networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
 
-  # [TRACE] Streamlit Thought Trace Viewer
+  librechat:
+    image: ghcr.io/danny-avila/librechat-dev:latest
+    container_name: ag-librechat
+    ports: ["3355:3080"]
+    depends_on: [librechat-db]
+    environment:
+      - MONGO_URI=mongodb://librechat-db:27017/LibreChat
+    networks: [antigravity_mesh]
+
   trace-viewer:
     build: ./src/trace-viewer
+    container_name: antigravity-v13-trace
     ports: ["8655:8501"]
-    environment:
-      - STARROCKS_HOST=starrocks
-      - STARROCKS_PORT=9030
-      - STARROCKS_USER=root
-    depends_on:
-      starrocks:
-        condition: service_healthy
     networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
 
-  # [CHAT UI] Goose Chat Interface
-  goose-ui:
-    build: ./src/goose-ui
-    ports: ["8855:80"]
-    depends_on:
-      - orchestrator
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # 
-  # LAYER 8: MASTER PORTAL
-  # 
-
-  # [PORTAL] Master UI - Unified sub-UI aggregator
+  # --- L8: PORTAL ---
   master-ui:
     build: ./src/master-ui
+    container_name: antigravity-v13-portal
     ports: ["1055:80"]
-    depends_on:
-      - perses
-      - librechat
-      - trace-viewer
-      - goose-ui
+    depends_on: [orchestrator]
     networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-volumes:
-  seaweedfs-data:
-  perses-data:
-  opensearch-data:
-  postgres-data:
-  milvus-data:
-  valkey-data:
-  openbao-data:
-  k3d-data:
-  librechat-data:
-  librechat-db-data:
 
 networks:
   antigravity_mesh:
     driver: bridge
-NOTE: Output was 892 lines, showing only the last 100 lines.
-
-  # [CHAT DB] MongoDB for LibreChat
-  librechat-db:
-    image: mongo:7.0
-    container_name: ag-librechat-db
-    volumes:
-      - librechat-db-data:/data/db
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  # [TRACE] Streamlit Thought Trace Viewer
-  trace-viewer:
-    build: ./src/trace-viewer
-    ports: ["8655:8501"]
-    environment:
-      - STARROCKS_HOST=starrocks
-      - STARROCKS_PORT=9030
-      - STARROCKS_USER=root
-    depends_on:
-      starrocks:
-        condition: service_healthy
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # [CHAT UI] Goose Chat Interface
-  goose-ui:
-    build: ./src/goose-ui
-    ports: ["8855:80"]
-    depends_on:
-      - orchestrator
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-  # 
-  # LAYER 8: MASTER PORTAL
-  # 
-
-  # [PORTAL] Master UI - Unified sub-UI aggregator
-  master-ui:
-    build: ./src/master-ui
-    ports: ["1055:80"]
-    depends_on:
-      - perses
-      - librechat
-      - trace-viewer
-      - goose-ui
-    networks: [antigravity_mesh]
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
 
 volumes:
-  seaweedfs-data:
-  perses-data:
-  opensearch-data:
-  postgres-data:
-  milvus-data:
-  valkey-data:
-  openbao-data:
-  k3d-data:
-  librechat-data:
   librechat-db-data:
-
-networks:
-  antigravity_mesh:
-    driver: bridge
