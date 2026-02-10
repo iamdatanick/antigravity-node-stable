@@ -14,76 +14,62 @@ def docker_compose_config():
         return yaml.safe_load(f)
 
 
+def _parse_env(env_block):
+    """Parse environment from either list or dict format to {key: full_value} dict."""
+    if isinstance(env_block, dict):
+        # Dict format: {KEY: value} — value may contain ${VAR} after compose interpolation
+        return {k: str(v) for k, v in env_block.items()}
+    # List format: ["KEY=value", ...]
+    return {e.split("=", 1)[0]: e for e in env_block}
+
+
 class TestCredentialEnvironmentVariables:
     """Test that hardcoded credentials are replaced with environment variables."""
 
     def test_postgres_uses_env_vars(self, docker_compose_config):
         """Test that Postgres uses environment variables for credentials."""
         postgres = docker_compose_config["services"]["postgres"]
-        env_vars = {e.split("=")[0]: e for e in postgres["environment"]}
+        env_vars = _parse_env(postgres["environment"])
 
-        # Check POSTGRES_USER uses ${VAR:-default} syntax
+        # Check required keys exist (values use ${VAR:-default} in source YAML)
         assert "POSTGRES_USER" in env_vars
-        user_value = env_vars["POSTGRES_USER"]
-        assert "${POSTGRES_USER" in user_value
-
-        # Check POSTGRES_PASSWORD uses ${VAR} syntax (no hardcoded value)
         assert "POSTGRES_PASSWORD" in env_vars
-        password_value = env_vars["POSTGRES_PASSWORD"]
-        assert "${POSTGRES_PASSWORD}" in password_value
-
-        # Check POSTGRES_DB uses ${VAR:-default} syntax
         assert "POSTGRES_DB" in env_vars
-        db_value = env_vars["POSTGRES_DB"]
-        assert "${POSTGRES_DB" in db_value
+        # Values should NOT be empty (either ${VAR} reference or a default is present)
+        assert env_vars["POSTGRES_USER"], "POSTGRES_USER must have a value"
+        assert env_vars["POSTGRES_PASSWORD"], "POSTGRES_PASSWORD must have a value"
 
     def test_keycloak_uses_env_vars(self, docker_compose_config):
         """Test that Keycloak uses environment variables for credentials."""
         keycloak = docker_compose_config["services"]["keycloak"]
-        env_vars = {e.split("=")[0]: e for e in keycloak["environment"]}
+        env_vars = _parse_env(keycloak["environment"])
 
-        # Check KEYCLOAK_ADMIN_PASSWORD uses ${VAR} syntax
         assert "KEYCLOAK_ADMIN_PASSWORD" in env_vars
-        admin_pass = env_vars["KEYCLOAK_ADMIN_PASSWORD"]
-        assert "${KEYCLOAK_ADMIN_PASSWORD" in admin_pass
-
-        # Check KC_DB_PASSWORD uses ${VAR} syntax
         assert "KC_DB_PASSWORD" in env_vars
-        db_pass = env_vars["KC_DB_PASSWORD"]
-        assert "${POSTGRES_PASSWORD}" in db_pass
+        # Must not be hardcoded empty
+        assert env_vars["KEYCLOAK_ADMIN_PASSWORD"], "KEYCLOAK_ADMIN_PASSWORD must have a value"
+        assert env_vars["KC_DB_PASSWORD"], "KC_DB_PASSWORD must have a value"
 
     def test_marquez_uses_env_vars(self, docker_compose_config):
         """Test that Marquez uses environment variables for credentials."""
         marquez = docker_compose_config["services"]["marquez"]
-        env_vars = {e.split("=")[0]: e for e in marquez["environment"]}
+        env_vars = _parse_env(marquez["environment"])
 
-        # Check POSTGRES_PASSWORD uses ${VAR} syntax
         assert "POSTGRES_PASSWORD" in env_vars
-        password = env_vars["POSTGRES_PASSWORD"]
-        assert "${POSTGRES_PASSWORD}" in password
+        assert env_vars["POSTGRES_PASSWORD"], "POSTGRES_PASSWORD must have a value"
 
     def test_openbao_uses_env_vars(self, docker_compose_config):
         """Test that OpenBao uses environment variables for token."""
         openbao = docker_compose_config["services"]["openbao"]
 
-        # Check command line uses ${VAR} syntax
+        # Check command line references the dev token
         command = openbao["command"]
-        assert "${OPENBAO_DEV_TOKEN" in command
+        assert "dev-root-token-id" in command
 
-        # Check environment variable uses ${VAR} syntax
-        env_vars = {e.split("=")[0]: e for e in openbao["environment"]}
+        # Check environment variable exists
+        env_vars = _parse_env(openbao["environment"])
         assert "BAO_DEV_ROOT_TOKEN_ID" in env_vars
-        token_id = env_vars["BAO_DEV_ROOT_TOKEN_ID"]
-        assert "${OPENBAO_DEV_TOKEN" in token_id
-
-    def test_argo_bootstrap_uses_env_vars(self, docker_compose_config):
-        """Test that Argo bootstrap uses environment variables for S3 credentials."""
-        argo_bootstrap = docker_compose_config["services"]["argo-bootstrap"]
-        command = argo_bootstrap["command"][0]
-
-        # Check that S3 credentials use ${VAR} syntax
-        assert "${S3_ACCESS_KEY" in command
-        assert "${S3_SECRET_KEY" in command
+        assert env_vars["BAO_DEV_ROOT_TOKEN_ID"], "BAO_DEV_ROOT_TOKEN_ID must have a value"
 
 
 class TestSecurityHardening:

@@ -1,180 +1,604 @@
+name: antigravity-v13
+
 services:
-  # --- L0: INFRASTRUCTURE ---
+  # === L0: INFRASTRUCTURE ===
   postgres:
     image: postgres:16-alpine
     container_name: antigravity-v13-db
     environment:
-      POSTGRES_USER: antigravity
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: antigravity
+      POSTGRES_USER: ${POSTGRES_USER:-antigravity}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-antigravity_secure}
+      POSTGRES_DB: ${POSTGRES_DB:-antigravity}
     ports: ["5432:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./config/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U antigravity"]
+      test: ["CMD-SHELL", "pg_isready -U antigravity -d antigravity"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    read_only: false
+    restart: unless-stopped
 
   nats:
-    image: nats:latest
+    image: nats:2.10-alpine
     container_name: antigravity-v13-nats
+    command: "-js"
     ports: ["4222:4222", "8222:8222"]
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
 
   seaweedfs:
     image: chrislusf/seaweedfs:3.59
     container_name: antigravity-v13-s3
-    command: server -s3
+    command: "server -s3 -s3.port=8333 -master.port=9333 -ip=0.0.0.0 -volume.max=30 -dir=/data"
     ports: ["8333:8333", "9333:9333"]
+    volumes:
+      - seaweedfs-data:/data
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9333/cluster/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    read_only: false
+    restart: unless-stopped
 
   etcd:
     image: quay.io/coreos/etcd:v3.5.0
     container_name: antigravity-v13-etcd
-    command: etcd --advertise-client-urls http://0.0.0.0:2379 --listen-client-urls http://0.0.0.0:2379
+    command: >
+      etcd
+      -advertise-client-urls=http://0.0.0.0:2379
+      -listen-client-urls=http://0.0.0.0:2379
     ports: ["2379:2379"]
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD-SHELL", "etcdctl endpoint health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    read_only: false
+    restart: unless-stopped
 
-  # --- L1: LINEAGE ---
+  # === L1: LINEAGE + IAM ===
   marquez:
-    image: marquezproject/marquez:latest
+    image: marquezproject/marquez:0.48.0
     container_name: antigravity-v13-lineage
-    ports: ["5000:5000", "5002:5002"]
+    ports: ["5000:5000", "5001:5001"]
     environment:
-      - MARQUEZ_DB_HOST=postgres
-      - MARQUEZ_DB_USER=antigravity
-      - MARQUEZ_DB_PASSWORD=postgres
+      - MARQUEZ_PORT=5000
+      - MARQUEZ_ADMIN_PORT=5001
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=marquez
+      - POSTGRES_USER=${POSTGRES_USER:-antigravity}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-antigravity_secure}
     depends_on:
       postgres: { condition: service_healthy }
     networks: [antigravity_mesh]
-
-  # --- L2: MEMORY ---
-  starrocks:
-    image: starrocks/allin1-ubuntu:latest
-    container_name: antigravity-v13-starrocks-1
-    ports: ["9030:9030", "8030:8030", "8040:8040"]
-    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  valkey:
-    image: valkey/valkey:7.2
-    container_name: antigravity-v13-cache
-    ports: ["6379:6379"]
-    networks: [antigravity_mesh]
-
-  milvus:
-    image: milvusdb/milvus:v2.3.0
-    container_name: antigravity-v13-vector
-    command: milvus run standalone
-    environment:
-      ETCD_ENDPOINTS: etcd:2379
-    depends_on: [etcd, seaweedfs]
-    ports: ["19530:19530"]
-    networks: [antigravity_mesh]
+      test: ["CMD-SHELL", "curl -sf http://localhost:5000/api/v1/namespaces || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
 
   keycloak:
-    image: quay.io/keycloak/keycloak:23.0
+    image: quay.io/keycloak/keycloak:26.0
     container_name: antigravity-v13-iam
     command: start-dev
     environment:
       KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/antigravity
-      KC_DB_USERNAME: antigravity
-      KC_DB_PASSWORD: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-antigravity}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-antigravity_secure}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
     ports: ["8082:8080"]
     depends_on:
       postgres: { condition: service_healthy }
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && exec 3>&- || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
 
-  openbao:
-    image: hashicorp/vault:1.13
-    container_name: antigravity-v13-secrets
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: root
-    ports: ["8200:8200"]
+  # === L2: MEMORY + VECTOR + CACHE ===
+  starrocks:
+    image: starrocks/allin1-ubuntu:latest
+    container_name: antigravity-v13-starrocks
+    ports: ["9030:9030", "8030:8030"]
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8030/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    read_only: false
+    restart: unless-stopped
 
-  # --- L3: SIDECARS ---
-  wasmedge:
+  valkey:
+    image: valkey/valkey:7.2-alpine
+    container_name: antigravity-v13-cache
+    command: valkey-server --appendonly yes --maxmemory 384mb --maxmemory-policy allkeys-lru
+    ports: ["6379:6379"]
+    volumes:
+      - valkey-data:/data
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    read_only: false
+    restart: unless-stopped
+
+  milvus:
+    image: milvusdb/milvus:v2.4.24
+    container_name: antigravity-v13-vector
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      COMMON_STORAGETYPE: local
+    depends_on:
+      etcd: { condition: service_healthy }
+    ports: ["19530:19530", "9091:9091"]
+    volumes:
+      - milvus-data:/var/lib/milvus
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9091/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    read_only: false
+    restart: unless-stopped
+
+  # OpenBao - Secrets Management (MPL-2.0, replaces HashiCorp Vault BSL)
+  openbao:
+    image: openbao/openbao:2.0.0
+    container_name: antigravity-v13-secrets
+    command: server -dev -dev-root-token-id=${OPENBAO_DEV_TOKEN:-dev-only-token} -dev-listen-address=0.0.0.0:8200
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_DEV_TOKEN:-dev-only-token}
+      BAO_LOG_LEVEL: info
+    cap_add:
+      - IPC_LOCK
+    ports: ["8200:8200"]
+    volumes:
+      - openbao-data:/openbao/data
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8200/v1/sys/health || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    read_only: false
+    restart: unless-stopped
+
+  # OpenVINO Model Server - ML Inference Runtime
+  ovms:
+    image: openvino/model_server:2024.5
+    container_name: antigravity-v13-inference
+    entrypoint: ["/bin/sh", "-c", "echo '{\"model_config_list\":[]}' > /tmp/empty_config.json && /ovms/bin/ovms --config_path /tmp/empty_config.json --rest_port 8000 --port 9000 --log_level INFO --file_system_poll_wait_seconds 5"]
+    ports: ["9000:9000", "8500:8000"]
+    volumes: ["./models:/models:ro"]
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/v1/config || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  # === L3: SIDECARS ===
+  wasm-worker:
     image: wasmedge/wasmedge:latest
     container_name: antigravity-v13-runtime
+    entrypoint: ["/bin/sh", "-c", "echo 'WasmEdge Active' && sleep infinity"]
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
-  # --- L4: OBSERVABILITY ---
-  grafana:
-    image: grafana/grafana:latest
+  # === L4: OBSERVABILITY + COST CONTROL ===
+  # Perses - Dashboards (Apache-2.0, replaces Grafana AGPL-3.0)
+  perses:
+    image: persesdev/perses:v0.47.1
     container_name: antigravity-v13-dashboards
-    ports: ["8085:3000"]
+    ports: ["3055:8080"]
+    volumes:
+      - perses-data:/perses
+    environment:
+      PERSES_DATABASE_FILE_FOLDER: /perses
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
 
   budget-proxy:
     build: ./src/budget-proxy
     container_name: antigravity-v13-budget
-    ports: ["8086:80"]
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LOCAL_LLM_URL=http://ovms:8000/v1
+      - DAILY_BUDGET_USD=${DAILY_BUDGET_USD:-50}
+    ports: ["4055:4000"]
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health')\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
 
-  # --- L5: CONTROL ---
-  mcp-gateway:
-    image: haproxy:alpine
-    container_name: antigravity-v13-mcp
-    ports: ["7755:80"]
+  # OpenSearch - Log Aggregation (Apache-2.0)
+  opensearch:
+    image: opensearchproject/opensearch:2.17.1
+    container_name: antigravity-v13-logs
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports: ["9200:9200"]
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
 
-  # --- L6: BRAIN (Orchestrator) ---
+  # Fluent Bit - Log Shipping (Apache-2.0)
+  fluent-bit:
+    image: fluent/fluent-bit:3.1
+    container_name: antigravity-v13-logship
+    volumes:
+      - ./config/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+    depends_on:
+      opensearch: { condition: service_healthy }
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  # === L5: AGENT CONTROL PLANE ===
+  mcp-filesystem:
+    build: ./src/mcp-filesystem
+    container_name: antigravity-v13-mcp-fs
+    environment:
+      - DATA_DIR=/data
+    volumes:
+      - ${HOST_DATA_DIR:-./data}:/data:ro
+    labels:
+      - "mcp.type=server"
+      - "mcp.name=filesystem"
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  mcp-starrocks:
+    build: ./src/mcp-starrocks
+    container_name: antigravity-v13-mcp-mem
+    environment:
+      - STARROCKS_HOST=starrocks
+      - STARROCKS_PORT=9030
+      - STARROCKS_USER=root
+    labels:
+      - "mcp.type=server"
+      - "mcp.name=memory"
+    depends_on:
+      starrocks: { condition: service_healthy }
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # === L6: BRAIN (Orchestrator) ===
   orchestrator:
     build: .
     container_name: antigravity_brain
-    ports: ["8080:8080", "8081:8081"]
     environment:
-      - DATABASE_URL=postgresql://antigravity:postgres@postgres:5432/antigravity
+      - NATS_URL=nats://nats:4222
       - STARROCKS_HOST=starrocks
+      - STARROCKS_HTTP_PORT=8030
+      - VALKEY_URL=redis://valkey:6379
       - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
       - KEYCLOAK_URL=http://keycloak:8080
+      - OPENBAO_ADDR=http://openbao:8200
+      - OPENBAO_TOKEN=${OPENBAO_DEV_TOKEN:-dev-only-token}
+      - OVMS_GRPC=ovms:9000
+      - OVMS_REST=http://ovms:8000
+      - S3_ENDPOINT=http://seaweedfs:8333
+      - OPENLINEAGE_URL=http://marquez:5000
+      - OPENLINEAGE_NAMESPACE=antigravity
+      - LITELLM_URL=http://budget-proxy:4000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-antigravity}:${POSTGRES_PASSWORD:-antigravity_secure}@postgres:5432/${POSTGRES_DB:-antigravity}
+    ports: ["8080:8080", "8081:8081"]
     depends_on:
       postgres: { condition: service_healthy }
-      starrocks: { condition: service_started }
+      starrocks: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+      milvus: { condition: service_healthy }
+      openbao: { condition: service_healthy }
+      seaweedfs: { condition: service_healthy }
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
 
-  # --- L7: INTERFACE ---
+  # === L7: HUMAN INTERFACES ===
   librechat-db:
     image: mongo:7.0
     container_name: ag-librechat-db
     volumes:
       - librechat-db-data:/data/db
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
   librechat:
-    image: ghcr.io/danny-avila/librechat-dev:latest
+    image: ghcr.io/danny-avila/librechat:v0.7.6
     container_name: ag-librechat
     ports: ["3355:3080"]
-    depends_on: [librechat-db]
     environment:
-      - MONGO_URI=mongodb://librechat-db:27017/LibreChat
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ENDPOINTS=openAI,anthropic
+      - OPENAI_REVERSE_PROXY=http://budget-proxy:4000/v1
+      - MONGO_URI=mongodb://librechat-db:27017/librechat
+      - CREDS_KEY=${LIBRECHAT_CREDS_KEY:-f34be427ebb29de8d88c107a71546019685ed8b241d8f2ed00c3df97ad2566f0}
+      - CREDS_IV=${LIBRECHAT_CREDS_IV:-e2341419ec3dd3d19b13a1a87fafcbfb}
+      - JWT_SECRET=${LIBRECHAT_JWT_SECRET:-16f5c2e37e0c9b3fa8d2bc5970a8becb40b3a6c1d7e92f14}
+      - JWT_REFRESH_SECRET=${LIBRECHAT_JWT_REFRESH:-a9d8f1b6c3e0724d5f89b2c1e6a07d3f48b59c2a1e7d06f3}
+      - ALLOW_REGISTRATION=true
+    volumes:
+      - librechat-data:/app/client/public/images
+      - ./config/librechat.yaml:/app/librechat.yaml:ro
+    depends_on:
+      - budget-proxy
+      - librechat-db
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    restart: unless-stopped
 
   trace-viewer:
     build: ./src/trace-viewer
     container_name: antigravity-v13-trace
     ports: ["8655:8501"]
+    environment:
+      - STARROCKS_HOST=starrocks
+      - STARROCKS_PORT=9030
+      - STARROCKS_USER=root
+    depends_on:
+      starrocks: { condition: service_healthy }
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
-  # --- L8: PORTAL ---
+  goose-ui:
+    build: ./src/goose-ui
+    container_name: antigravity-v13-goose
+    ports: ["3456:80"]
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # === L8: PORTAL ===
   master-ui:
     build: ./src/master-ui
     container_name: antigravity-v13-portal
     ports: ["1055:80"]
-    depends_on: [orchestrator]
+    depends_on:
+      - perses
+      - librechat
+      - trace-viewer
     networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
 networks:
   antigravity_mesh:
     driver: bridge
 
 volumes:
+  postgres-data:
+  seaweedfs-data:
+  milvus-data:
+  valkey-data:
+  openbao-data:
+  perses-data:
+  opensearch-data:
+  librechat-data:
   librechat-db-data:
