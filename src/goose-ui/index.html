@@ -751,6 +751,10 @@
   <script>
     function gooseChat() {
       return {
+        // Configuration constants
+        MAX_STORED_MESSAGES: 50,
+        LOADING_MODEL_TEXT: 'loading...',
+
         // Connection state
         ws: null,
         connectionStatus: 'disconnected',
@@ -881,7 +885,7 @@
                 'x-tenant-id': this.sessionId || 'goose-ui'
               },
               body: JSON.stringify({
-                model: this.currentModel !== 'loading...' ? this.currentModel : undefined,
+                model: this.currentModel !== this.LOADING_MODEL_TEXT ? this.currentModel : undefined,
                 messages: this.messages.map(m => ({
                   role: m.role,
                   content: m.content
@@ -1076,7 +1080,7 @@
 
         saveSession() {
           try {
-            localStorage.setItem('goose_messages', JSON.stringify(this.messages.slice(-50))); // Keep last 50
+            localStorage.setItem('goose_messages', JSON.stringify(this.messages.slice(-this.MAX_STORED_MESSAGES)));
             localStorage.setItem('goose_session_id', this.sessionId || '');
           } catch (e) {
             console.warn('Failed to save session:', e);
@@ -1098,7 +1102,7 @@
         },
 
         generateSessionId() {
-          return 'goose_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+          return 'goose_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11);
         }
       };
     }
