@@ -1,12 +1,13 @@
-import asyncio
-import glob
-import logging
-import os
-import sys
-import threading
 import uvicorn
+import logging
+import sys
+import os
+import asyncio
 
+# Ensure project root is in path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from workflows.a2a_server import app
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,8 +18,7 @@ logger = logging.getLogger("antigravity")
 
 def main():
     logger.info("=== ANTIGRAVITY NODE v13.0 STARTING ===")
-    from workflows.a2a_server import app
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
 
 if __name__ == "__main__":
     main()

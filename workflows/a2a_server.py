@@ -6,7 +6,7 @@ app = FastAPI(title="Antigravity Node v13.0", version="13.0.0")
 
 @app.get("/")
 async def root():
-    return {"status": "online", "version": "13.0"}
+    return {"status": "online", "version": "13.0", "message": "Antigravity Node v13.0 API"}
 
 @app.get("/health")
 async def health():
