@@ -1,4 +1,4 @@
-private note: output was 873 lines and we are only showing the most recent lines, remainder of lines in C:\Users\NickV\AppData\Local\Temp\.tmpqicOOH do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: 
+private note: output was 873 lines and we are only showing the most recent lines, remainder of lines in C:\Users\NickV\AppData\Local\Temp\.tmpCCfqV0 do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: 
       - OPENAI_REVERSE_PROXY=http://budget-proxy:4000/v1
       - MONGO_URI=mongodb://librechat-db:27017/librechat
     volumes:
