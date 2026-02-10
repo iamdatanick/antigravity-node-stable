@@ -1,6 +1,13 @@
 from fastapi import FastAPI
-app = FastAPI()
+import logging
+
+logger = logging.getLogger("antigravity.a2a")
+app = FastAPI(title="Antigravity Node v13.0", version="13.0.0")
+
 @app.get("/")
-def read_root(): return {"status": "online"}
+async def root():
+    return {"status": "online", "version": "13.0", "message": "Antigravity Node v13.0 API"}
+
 @app.get("/health")
-def health(): return {"status": "healthy"}
+async def health():
+    return {"status": "healthy"}
