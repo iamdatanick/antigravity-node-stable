@@ -107,7 +107,6 @@ services:
     networks: [antigravity_mesh]
 
   # --- L4: OBSERVABILITY ---
-  # REPLACED PERSES WITH GRAFANA TO UNBLOCK
   grafana:
     image: grafana/grafana:latest
     container_name: antigravity-v13-dashboards
