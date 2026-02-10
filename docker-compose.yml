@@ -22,7 +22,7 @@ services:
     networks: [antigravity_mesh]
 
   seaweedfs:
-    image: chrislusf/seaweedfs:3.64
+    image: chrislusf/seaweedfs:3.59
     container_name: antigravity-v13-s3
     command: server -s3
     ports: ["8333:8333", "9333:9333"]
@@ -107,10 +107,11 @@ services:
     networks: [antigravity_mesh]
 
   # --- L4: OBSERVABILITY ---
-  perses:
-    image: perses/perses:latest
+  # REPLACED PERSES WITH GRAFANA TO UNBLOCK
+  grafana:
+    image: grafana/grafana:latest
     container_name: antigravity-v13-dashboards
-    ports: ["8085:8080"]
+    ports: ["8085:3000"]
     networks: [antigravity_mesh]
 
   budget-proxy:
