@@ -832,6 +832,24 @@ services:
     tmpfs:
       - /tmp
 
+  # [CHAT UI] Goose Chat Interface
+  goose-ui:
+    build: ./src/goose-ui
+    ports: ["8855:80"]
+    depends_on:
+      - orchestrator
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
   # ═══════════════════════════════════════════════════════════════════
   # LAYER 8: MASTER PORTAL
   # ═══════════════════════════════════════════════════════════════════
@@ -844,6 +862,7 @@ services:
       - perses
       - librechat
       - trace-viewer
+      - goose-ui
     networks: [antigravity_mesh]
     deploy:
       resources:
