@@ -1,0 +1,197 @@
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------------------
+  # LAYER 0: INFRASTRUCTURE (Foundation-Backed, Persistent)
+  # -------------------------------------------------------------------------
+
+  # BLK-023: Upgraded to v3.5.17
+  # BLK-036: Persistence via --data-dir and Volume Mapping
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.17
+    container_name: etcd
+    command:
+      - /usr/local/bin/etcd
+      - --data-dir=/etcd-data
+      - --name=etcd
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+    environment:
+      - ETCD_DATA_DIR=/etcd-data
+      - ALLOW_NONE_AUTHENTICATION=yes
+    volumes:
+      - ./data/etcd:/etcd-data
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # BLK-027: Ceph replaces SeaweedFS/MinIO (license-safe)
+  # BLK-036: Data + Config Persistence (Canonical Paths)
+  ceph-demo:
+    image: quay.io/ceph/ceph:v18
+    container_name: ceph-demo
+    command: demo
+    environment:
+      - CEPH_DEMO_UID=demo
+      - CEPH_DEMO_ACCESS_KEY=antigravity
+      - CEPH_DEMO_SECRET_KEY=antigravity_secret
+      - CEPH_DAEMON=demo
+      - RGW_FRONTEND_PORT=8000
+      - NETWORK_AUTO_DETECT=4
+    volumes:
+      - ./data/ceph:/var/lib/ceph
+      - ./data/ceph_conf:/etc/ceph
+    ports:
+      - "8000:8000"
+      - "5000:5000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # BLK-017: OpenBao (Foundation-Backed Secrets)
+  openbao:
+    image: openbao/openbao:2.1.0
+    container_name: openbao
+    command: server -dev -dev-listen-address=0.0.0.0:8200 -dev-root-token-id=root
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8200/v1/sys/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Observability (CNCF)
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.95.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # LAYER 2: INFERENCE (Intel Optimized)
+  # -------------------------------------------------------------------------
+
+  # BLK-001, BLK-035, GAP-002
+  ovms:
+    image: openvino/model_server:2025.4
+    container_name: ovms
+    command:
+      - --config_path
+      - /models/model_config.json
+      - --port
+      - "9000"
+      - --rest_port
+      - "9001"
+    environment:
+      - ONEDNN_MAX_CPU_ISA=AVX512_CORE
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./models:/models
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/v2/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # -------------------------------------------------------------------------
+  # LAYER 3: LOGIC & PROTOCOL
+  # -------------------------------------------------------------------------
+
+  # BLK-029: AsyncDAGEngine (replaces Argo)
+  orchestrator:
+    build:
+      context: ../../
+      dockerfile: src/orchestrator/Dockerfile.cloud
+    container_name: orchestrator
+    environment:
+      - TENANT_ID=system
+      - ETCD_HOST=etcd
+      - ETCD_PORT=2379
+      - S3_ENDPOINT_URL=http://ceph-demo:8000
+      - AWS_ACCESS_KEY_ID=antigravity
+      - AWS_SECRET_ACCESS_KEY=antigravity_secret
+      - AWS_DEFAULT_REGION=us-east-1
+      - OPENBAO_ADDR=http://openbao:8200
+      - OPENBAO_TOKEN=root
+      - OVMS_REST_URL=http://ovms:9001
+      - LOG_LEVEL=INFO
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    depends_on:
+      etcd:
+        condition: service_healthy
+      ceph-demo:
+        condition: service_healthy
+      ovms:
+        condition: service_healthy
+      openbao:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # BLK-035: Protocol Adapter (REST -> OVMS REST)
+  budget-proxy:
+    build:
+      context: ../../
+      dockerfile: src/budget-proxy/Dockerfile
+    container_name: budget-proxy
+    environment:
+      - OVMS_REST_URL=http://ovms:9001
+      - VAULT_ADDR=http://openbao:8200
+      - VAULT_TOKEN=root
+      - DAILY_BUDGET_USD=50
+    ports:
+      - "4055:4055"
+    depends_on:
+      - ovms
+      - openbao
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # LAYER 4: INTERFACE
+  # -------------------------------------------------------------------------
+
+  ui:
+    build:
+      context: ../../
+      dockerfile: src/ui/Dockerfile
+    container_name: ui
+    ports:
+      - "1055:80"
+    environment:
+      - VITE_API_URL=http://localhost:4055
+    depends_on:
+      - budget-proxy
+    restart: unless-stopped
+
+networks:
+  default:
+    name: antigravity-net
+    driver: bridge
