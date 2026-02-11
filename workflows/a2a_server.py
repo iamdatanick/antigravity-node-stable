@@ -1,6 +1,6 @@
 
 import asyncio, os, subprocess
-from fastapi import FastAPI, WebSocket, Request, UploadFile, File
+from fastapi import FastAPI, WebSocket
 from workflows.health import full_health_check
 
 app = FastAPI()
@@ -12,7 +12,6 @@ async def health():
 @app.websocket("/ws/logs")
 async def ws_logs(websocket: WebSocket):
     await websocket.accept()
-    # Real-time tail of container stdout
     process = await asyncio.create_subprocess_exec("tail", "-f", "/proc/1/fd/1", stdout=subprocess.PIPE)
     try:
         while True:
