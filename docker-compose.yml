@@ -277,6 +277,32 @@ services:
       - /tmp
     restart: unless-stopped
 
+  # Ollama - Local LLM Runtime (MIT)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: antigravity-v13-llm
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_KEEP_ALIVE=10m
+    ports: ["11434:11434"]
+    volumes:
+      - ollama-data:/root/.ollama
+    networks: [antigravity_mesh]
+    deploy:
+      resources:
+        limits:
+          memory: 10G
+          cpus: "4.0"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
   # === L3: SIDECARS ===
   wasm-worker:
     image: wasmedge/wasmedge:latest
@@ -323,7 +349,7 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - LOCAL_LLM_URL=http://ovms:8000/v1
+      - LOCAL_LLM_URL=http://ollama:11434/v1
       - DAILY_BUDGET_USD=${DAILY_BUDGET_USD:-50}
     ports: ["4055:4000"]
     networks: [antigravity_mesh]
@@ -459,6 +485,7 @@ services:
       - OPENLINEAGE_URL=http://marquez:5000
       - OPENLINEAGE_NAMESPACE=antigravity
       - LITELLM_URL=http://budget-proxy:4000
+      - OLLAMA_URL=http://ollama:11434
       - DATABASE_URL=postgresql://${POSTGRES_USER:-antigravity}:${POSTGRES_PASSWORD:-antigravity_secure}@postgres:5432/${POSTGRES_DB:-antigravity}
     ports: ["8080:8080", "8081:8081"]
     depends_on:
@@ -512,4 +539,5 @@ volumes:
   valkey-data:
   openbao-data:
   perses-data:
+  ollama-data:
   opensearch-data:

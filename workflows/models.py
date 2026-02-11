@@ -187,3 +187,25 @@ class WorkflowInfo(BaseModel):
 
 class WorkflowListResponse(BaseModel):
     workflows: list[WorkflowInfo] = Field(default_factory=list, description="List of recent Argo workflows")
+
+
+# --- /api/settings/keys endpoint ---
+class ApiKeyRequest(BaseModel):
+    provider: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9_-]+$",
+        description="Provider slug: openai, anthropic, google, mistral",
+    )
+    api_key: str = Field(..., min_length=1, max_length=256, description="The API key value")
+
+
+class ApiKeyEntry(BaseModel):
+    provider: str
+    masked_key: str
+    configured: bool = True
+
+
+class ApiKeyListResponse(BaseModel):
+    keys: list[ApiKeyEntry]

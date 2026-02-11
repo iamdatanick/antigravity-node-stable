@@ -1,10 +1,113 @@
+import { useState } from "react";
 import { useCapabilities } from "../api/health";
+import type { ApiKeyEntry } from "../api/settings";
+import { useApiKeys, useSaveApiKey, useDeleteApiKey } from "../api/settings";
 import { useTools } from "../api/tools";
-import { Settings as SettingsIcon, Activity, Wrench, Globe, Database, DollarSign } from "lucide-react";
+import {
+  Activity,
+  Check,
+  Database,
+  DollarSign,
+  Globe,
+  Key,
+  Save,
+  Settings as SettingsIcon,
+  Trash2,
+  Wrench,
+  X,
+} from "lucide-react";
+
+interface ProviderConfig {
+  id: string;
+  label: string;
+  placeholder: string;
+}
+
+const PROVIDERS: ProviderConfig[] = [
+  { id: "openai", label: "OpenAI", placeholder: "sk-..." },
+  { id: "anthropic", label: "Anthropic", placeholder: "sk-ant-..." },
+  { id: "google", label: "Google AI", placeholder: "AIza..." },
+  { id: "mistral", label: "Mistral", placeholder: "..." },
+];
+
+interface ProviderKeyRowProps {
+  provider: ProviderConfig;
+  entry: ApiKeyEntry | undefined;
+  inputVal: string;
+  onInputChange: (value: string) => void;
+  onSave: () => void;
+  onDelete: () => void;
+  savePending: boolean;
+  deletePending: boolean;
+}
+
+function ProviderKeyRow({
+  provider,
+  entry,
+  inputVal,
+  onInputChange,
+  onSave,
+  onDelete,
+  savePending,
+  deletePending,
+}: ProviderKeyRowProps) {
+  const configured = entry?.configured ?? false;
+
+  return (
+    <div className="flex items-center gap-3 bg-[var(--color-bg-primary)] rounded-lg px-3 py-2">
+      <div className="w-24 shrink-0">
+        <div className="text-xs font-medium text-[var(--color-text-primary)]">{provider.label}</div>
+        <div className="flex items-center gap-1 mt-0.5">
+          {configured ? (
+            <span className="flex items-center gap-0.5 text-[10px] text-green-500">
+              <Check size={10} /> Active
+            </span>
+          ) : (
+            <span className="flex items-center gap-0.5 text-[10px] text-[var(--color-text-muted)]">
+              <X size={10} /> Not set
+            </span>
+          )}
+        </div>
+      </div>
+      {configured && entry?.masked_key ? (
+        <span className="font-mono text-xs text-[var(--color-text-muted)] flex-1">{entry.masked_key}</span>
+      ) : null}
+      <input
+        type="password"
+        placeholder={provider.placeholder}
+        value={inputVal}
+        onChange={(e) => onInputChange(e.target.value)}
+        className="flex-1 min-w-0 px-2 py-1 text-xs rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] font-mono placeholder:text-[var(--color-text-muted)]"
+      />
+      <button
+        onClick={onSave}
+        disabled={!inputVal.trim() || savePending}
+        className="p-1.5 rounded hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] disabled:opacity-30 disabled:cursor-not-allowed"
+        title="Save key"
+      >
+        <Save size={14} />
+      </button>
+      {configured && (
+        <button
+          onClick={onDelete}
+          disabled={deletePending}
+          className="p-1.5 rounded hover:bg-red-500/10 text-red-500 disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Delete key"
+        >
+          <Trash2 size={14} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function Settings() {
   const { data: capabilities, isLoading: capLoading } = useCapabilities();
   const { data: toolsData, isLoading: toolsLoading } = useTools();
+  const { data: keysData, isLoading: keysLoading } = useApiKeys();
+  const saveKey = useSaveApiKey();
+  const deleteKey = useDeleteApiKey();
+  const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
 
   return (
     <div className="space-y-6">
@@ -116,6 +219,43 @@ export default function Settings() {
           <p className="text-sm text-[var(--color-text-muted)]">Cannot load capabilities</p>
         </div>
       )}
+
+      {/* LLM Providers — API Key Management */}
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+        <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Key size={14} />
+          LLM Providers
+        </h2>
+        <p className="text-xs text-[var(--color-text-muted)] mb-4">
+          API keys are stored securely in OpenBao vault. Enter keys for external LLM providers.
+        </p>
+        {keysLoading ? (
+          <Activity className="animate-spin text-[var(--color-accent)]" size={20} />
+        ) : (
+          <div className="space-y-3">
+            {PROVIDERS.map((prov) => (
+              <ProviderKeyRow
+                key={prov.id}
+                provider={prov}
+                entry={keysData?.keys.find((k) => k.provider === prov.id)}
+                inputVal={keyInputs[prov.id] ?? ""}
+                onInputChange={(val) => setKeyInputs((prev) => ({ ...prev, [prov.id]: val }))}
+                onSave={() => {
+                  const val = (keyInputs[prov.id] ?? "").trim();
+                  if (!val) return;
+                  saveKey.mutate(
+                    { provider: prov.id, api_key: val },
+                    { onSuccess: () => setKeyInputs((prev) => ({ ...prev, [prov.id]: "" })) },
+                  );
+                }}
+                onDelete={() => deleteKey.mutate(prov.id)}
+                savePending={saveKey.isPending}
+                deletePending={deleteKey.isPending}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Tools */}
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">

@@ -9,12 +9,14 @@ import os
 import uuid
 from datetime import UTC, datetime
 
+import httpx
 from fastapi import (
     Depends,
     FastAPI,
     File,
     Header,
     HTTPException,
+    Path,
     Query,
     Request,
     UploadFile,
@@ -35,6 +37,9 @@ from workflows.inference import run_inference
 from workflows.lineage import complete_job, fail_job, start_job
 from workflows.memory import push_episodic, recall_experience
 from workflows.models import (
+    ApiKeyEntry,
+    ApiKeyListResponse,
+    ApiKeyRequest,
     BudgetHistoryResponse,
     CapabilitiesResponse,
     ChatCompletionRequest,
@@ -87,6 +92,37 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Webhook authentication
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 
+# OpenBao (vault) for API key storage
+OPENBAO_ADDR = os.environ.get("OPENBAO_ADDR", "http://openbao:8200")
+OPENBAO_TOKEN = os.environ.get("OPENBAO_TOKEN", "dev-only-token")
+VALID_PROVIDERS = {"openai", "anthropic", "google", "mistral"}
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
+
+_OPENBAO_HEADERS = {"X-Vault-Token": OPENBAO_TOKEN, "Content-Type": "application/json"}
+_VAULT_TIMEOUT = httpx.Timeout(5.0)
+
+
+def _vault_key_url(provider: str, *, metadata: bool = False) -> str:
+    """Build the OpenBao KV path for a provider's API key."""
+    prefix = "metadata" if metadata else "data"
+    return f"{OPENBAO_ADDR}/v1/secret/{prefix}/antigravity/api-keys/{provider}"
+
+
+def _mask_key(key: str) -> str:
+    """Mask an API key, showing first 4 and last 4 chars."""
+    if len(key) <= 8:
+        return "****"
+    return f"{key[:4]}...{key[-4:]}"
+
+
+def _validate_provider(provider: str) -> None:
+    """Raise HTTPException if provider is not in the allowed set."""
+    if provider not in VALID_PROVIDERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid provider. Must be one of: {', '.join(sorted(VALID_PROVIDERS))}",
+        )
+
 
 def verify_webhook_signature(payload_body: bytes, signature: str) -> bool:
     """Verify HMAC-SHA256 signature for webhook payloads."""
@@ -103,6 +139,70 @@ async def health():
     result = await full_health_check()
     status_code = 200 if result["status"] == "healthy" else 503
     return JSONResponse(content=result, status_code=status_code)
+
+
+# --- API Key Management (OpenBao) ---
+@app.get("/api/settings/keys", response_model=ApiKeyListResponse)
+async def list_api_keys():
+    """GET /api/settings/keys -- List configured LLM provider API keys (masked)."""
+    keys: list[dict] = []
+    async with httpx.AsyncClient(timeout=_VAULT_TIMEOUT) as client:
+        for provider in sorted(VALID_PROVIDERS):
+            try:
+                resp = await client.get(
+                    _vault_key_url(provider),
+                    headers=_OPENBAO_HEADERS,
+                )
+                if resp.status_code == 200:
+                    raw_key = resp.json().get("data", {}).get("data", {}).get("key", "")
+                    if raw_key:
+                        keys.append({"provider": provider, "masked_key": _mask_key(raw_key), "configured": True})
+                        continue
+            except Exception as e:
+                logger.warning("OpenBao read failed for %s: %s", provider, e)
+            keys.append({"provider": provider, "masked_key": "", "configured": False})
+    return {"keys": keys}
+
+
+@app.post("/api/settings/keys", response_model=ApiKeyEntry)
+async def save_api_key(body: ApiKeyRequest):
+    """POST /api/settings/keys -- Store an LLM provider API key in OpenBao."""
+    _validate_provider(body.provider)
+
+    try:
+        async with httpx.AsyncClient(timeout=_VAULT_TIMEOUT) as client:
+            resp = await client.put(
+                _vault_key_url(body.provider),
+                headers=_OPENBAO_HEADERS,
+                json={"data": {"key": body.api_key}},
+            )
+            if resp.status_code not in (200, 204):
+                raise HTTPException(status_code=502, detail=f"OpenBao write failed: {resp.status_code}")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail="Cannot reach OpenBao vault")
+
+    logger.info("API key saved for provider: %s", body.provider)
+    return {"provider": body.provider, "masked_key": _mask_key(body.api_key), "configured": True}
+
+
+@app.delete("/api/settings/keys/{provider}")
+async def delete_api_key(provider: str = Path(..., pattern=r"^[a-z0-9_-]+$")):
+    """DELETE /api/settings/keys/{provider} -- Remove an LLM provider API key."""
+    _validate_provider(provider)
+
+    try:
+        async with httpx.AsyncClient(timeout=_VAULT_TIMEOUT) as client:
+            resp = await client.delete(
+                _vault_key_url(provider, metadata=True),
+                headers=_OPENBAO_HEADERS,
+            )
+            if resp.status_code not in (200, 204, 404):
+                raise HTTPException(status_code=502, detail=f"OpenBao delete failed: {resp.status_code}")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail="Cannot reach OpenBao vault")
+
+    logger.info("API key deleted for provider: %s", provider)
+    return {"status": "deleted", "provider": provider}
 
 
 @app.get("/.well-known/agent.json")
@@ -461,26 +561,39 @@ async def chat_completions(
 
 
 # Also serve models list for LibreChat compatibility
+_FALLBACK_MODELS = [
+    {"id": "gpt-4o", "object": "model", "owned_by": "antigravity"},
+    {"id": "claude-sonnet-4-20250514", "object": "model", "owned_by": "antigravity"},
+]
+
+
 @app.get("/v1/models")
 async def list_models():
-    """OpenAI-compatible models list — proxied from budget-proxy."""
-    import httpx
+    """OpenAI-compatible models list -- merged from budget-proxy + Ollama."""
+    models: list[dict] = []
 
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
+        # Budget-proxy models
+        try:
             resp = await client.get(f"{LITELLM_BASE}/v1/models")
             if resp.status_code == 200:
-                return resp.json()
-    except Exception:
-        pass
-    # Fallback: return our default model
-    return {
-        "object": "list",
-        "data": [
-            {"id": "gpt-4o", "object": "model", "owned_by": "antigravity"},
-            {"id": "claude-sonnet-4-20250514", "object": "model", "owned_by": "antigravity"},
-        ],
-    }
+                models.extend(resp.json().get("data", []))
+        except Exception:
+            pass
+
+        # Ollama local models
+        try:
+            resp = await client.get(f"{OLLAMA_URL}/api/tags")
+            if resp.status_code == 200:
+                models.extend(
+                    {"id": f"local/{m['name']}", "object": "model", "owned_by": "ollama"}
+                    for m in resp.json().get("models", [])
+                    if m.get("name")
+                )
+        except Exception:
+            pass
+
+    return {"object": "list", "data": models or _FALLBACK_MODELS}
 
 
 # --- MCP Tool Discovery Endpoint ---
