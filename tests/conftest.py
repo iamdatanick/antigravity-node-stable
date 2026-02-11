@@ -267,4 +267,7 @@ def set_test_env(monkeypatch):
     monkeypatch.setenv("GOOSE_PROVIDER", "openai")
     monkeypatch.setenv("GOOSE_MODEL", "gpt-4o")
     monkeypatch.setenv("OVMS_GRPC", "localhost:9000")
-    monkeypatch.setenv("OVMS_REST", "http://localhost:8000")
+    monkeypatch.setenv("OVMS_REST", "http://localhost:9001")
+    monkeypatch.setenv("ETCD_HOST", "localhost")
+    monkeypatch.setenv("CEPH_HOST", "localhost")
+    monkeypatch.setenv("OTEL_COLLECTOR_HOST", "localhost")

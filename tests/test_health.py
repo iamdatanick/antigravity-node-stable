@@ -1,6 +1,6 @@
-"""Tests for workflows/health.py — 5-level health check hierarchy.
+"""Tests for workflows/health.py — 4-level health check hierarchy.
 
-Covers L0-L4 individual levels, _check_url/_check_tcp helpers,
+Covers L0-L3 individual levels, _check_url/_check_tcp helpers,
 and full_health_check aggregate logic.
 """
 
@@ -139,9 +139,9 @@ class TestCheckTcp:
 
         with patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_open:
             mock_open.return_value = (AsyncMock(), mock_writer)
-            result = await _check_tcp("nats", "localhost", 4222)
+            result = await _check_tcp("etcd", "localhost", 2379)
 
-        assert result["name"] == "nats"
+        assert result["name"] == "etcd"
         assert result["healthy"] is True
         assert result["error"] is None
 
@@ -152,7 +152,7 @@ class TestCheckTcp:
 
         with patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_open:
             mock_open.side_effect = ConnectionRefusedError("Connection refused")
-            result = await _check_tcp("nats", "localhost", 4222)
+            result = await _check_tcp("etcd", "localhost", 2379)
 
         assert result["healthy"] is False
         assert "refused" in result["error"].lower()
@@ -165,46 +165,40 @@ class TestCheckTcp:
 
         with patch("workflows.health.asyncio.wait_for", new_callable=AsyncMock) as mock_wait:
             mock_wait.side_effect = TimeoutError()
-            result = await _check_tcp("nats", "localhost", 4222)
+            result = await _check_tcp("etcd", "localhost", 2379)
 
         assert result["healthy"] is False
         assert result["error"] is not None
 
 
 # ---------------------------------------------------------------------------
-# Tests for individual levels (L0-L4)
+# Tests for individual levels (L0-L3)
 # ---------------------------------------------------------------------------
 
 
 class TestCheckLevels:
-    """Tests for check_level_0 through check_level_4."""
+    """Tests for check_level_0 through check_level_3."""
 
     @pytest.mark.asyncio
     async def test_level_0_structure(self):
-        """L0 returns proper structure with level, name, and checks."""
+        """L0 returns proper structure with level, name, and checks for etcd + ceph."""
         from workflows.health import check_level_0
 
         mock_client = _make_client()
-        mock_writer = AsyncMock()
-        mock_writer.close = MagicMock()
-        mock_writer.wait_closed = AsyncMock()
 
-        with (
-            patch("workflows.health.httpx.AsyncClient", return_value=mock_client),
-            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
-        ):
-            mock_tcp.return_value = (AsyncMock(), mock_writer)
-
+        with patch("workflows.health.httpx.AsyncClient", return_value=mock_client):
             result = await check_level_0()
 
         assert result["level"] == "L0"
         assert result["name"] == "infrastructure"
         assert isinstance(result["checks"], (list, tuple))
-        assert len(result["checks"]) >= 2  # seaweedfs + nats
+        assert len(result["checks"]) == 2  # etcd + ceph
+        check_names = {c["name"] for c in result["checks"]}
+        assert check_names == {"etcd", "ceph"}
 
     @pytest.mark.asyncio
     async def test_level_1_structure(self):
-        """L1 returns IAM + lineage checks."""
+        """L1 returns secrets check for openbao."""
         from workflows.health import check_level_1
 
         mock_client = _make_client()
@@ -212,66 +206,40 @@ class TestCheckLevels:
             result = await check_level_1()
 
         assert result["level"] == "L1"
-        assert result["name"] == "iam_lineage"
+        assert result["name"] == "secrets"
         assert isinstance(result["checks"], (list, tuple))
+        assert len(result["checks"]) == 1
+        assert result["checks"][0]["name"] == "openbao"
 
     @pytest.mark.asyncio
     async def test_level_2_structure(self):
-        """L2 returns memory + compute checks (starrocks, milvus, etc.)."""
+        """L2 returns inference check for ovms."""
         from workflows.health import check_level_2
 
         mock_client = _make_client()
-        mock_writer = AsyncMock()
-        mock_writer.close = MagicMock()
-        mock_writer.wait_closed = AsyncMock()
 
-        with (
-            patch("workflows.health.httpx.AsyncClient", return_value=mock_client),
-            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
-        ):
-            mock_tcp.return_value = (AsyncMock(), mock_writer)
+        with patch("workflows.health.httpx.AsyncClient", return_value=mock_client):
             result = await check_level_2()
 
         assert result["level"] == "L2"
-        assert result["name"] == "memory_compute"
-        assert len(result["checks"]) >= 5  # starrocks, milvus, openbao, ovms, ollama, valkey
+        assert result["name"] == "inference"
+        assert len(result["checks"]) == 1
+        assert result["checks"][0]["name"] == "ovms"
 
     @pytest.mark.asyncio
     async def test_level_3_structure(self):
-        """L3 returns agent checks."""
+        """L3 returns observability check for otel-collector."""
         from workflows.health import check_level_3
 
-        mock_writer = AsyncMock()
-        mock_writer.close = MagicMock()
-        mock_writer.wait_closed = AsyncMock()
+        mock_client = _make_client()
 
-        with patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp:
-            mock_tcp.return_value = (AsyncMock(), mock_writer)
+        with patch("workflows.health.httpx.AsyncClient", return_value=mock_client):
             result = await check_level_3()
 
         assert result["level"] == "L3"
-        assert result["name"] == "agent"
-
-    @pytest.mark.asyncio
-    async def test_level_4_structure(self):
-        """L4 returns observability checks."""
-        from workflows.health import check_level_4
-
-        mock_client = _make_client()
-        mock_writer = AsyncMock()
-        mock_writer.close = MagicMock()
-        mock_writer.wait_closed = AsyncMock()
-
-        with (
-            patch("workflows.health.httpx.AsyncClient", return_value=mock_client),
-            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
-        ):
-            mock_tcp.return_value = (AsyncMock(), mock_writer)
-            result = await check_level_4()
-
-        assert result["level"] == "L4"
         assert result["name"] == "observability"
-        assert len(result["checks"]) >= 4  # budget_proxy, perses, opensearch, fluent_bit
+        assert len(result["checks"]) == 1
+        assert result["checks"][0]["name"] == "otel_collector"
 
     @pytest.mark.asyncio
     async def test_level_check_names_present(self):
@@ -302,83 +270,51 @@ class TestFullHealthCheck:
         from workflows.health import full_health_check
 
         mock_client = _make_client()
-        mock_writer = AsyncMock()
-        mock_writer.close = MagicMock()
-        mock_writer.wait_closed = AsyncMock()
 
-        with (
-            patch("workflows.health.httpx.AsyncClient", return_value=mock_client),
-            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
-        ):
-            mock_tcp.return_value = (AsyncMock(), mock_writer)
-
+        with patch("workflows.health.httpx.AsyncClient", return_value=mock_client):
             result = await full_health_check()
 
         assert result["status"] == "healthy"
         assert "levels" in result
-        assert len(result["levels"]) == 5
+        assert len(result["levels"]) == 4
 
     @pytest.mark.asyncio
     async def test_degraded_when_service_fails(self):
         """When any service is unhealthy, aggregate status is 'degraded'."""
         from workflows.health import full_health_check
 
-        mock_client = _make_client(fail_urls={"budget-proxy"})
-        mock_writer = AsyncMock()
-        mock_writer.close = MagicMock()
-        mock_writer.wait_closed = AsyncMock()
+        mock_client = _make_client(fail_urls={"v1/sys/health"})
 
-        with (
-            patch("workflows.health.httpx.AsyncClient", return_value=mock_client),
-            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
-        ):
-            mock_tcp.return_value = (AsyncMock(), mock_writer)
-
+        with patch("workflows.health.httpx.AsyncClient", return_value=mock_client):
             result = await full_health_check()
 
         assert result["status"] == "degraded"
 
     @pytest.mark.asyncio
     async def test_levels_order(self):
-        """Levels L0-L4 appear in order."""
+        """Levels L0-L3 appear in order."""
         from workflows.health import full_health_check
 
         mock_client = _make_client()
-        mock_writer = AsyncMock()
-        mock_writer.close = MagicMock()
-        mock_writer.wait_closed = AsyncMock()
 
-        with (
-            patch("workflows.health.httpx.AsyncClient", return_value=mock_client),
-            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
-        ):
-            mock_tcp.return_value = (AsyncMock(), mock_writer)
-
+        with patch("workflows.health.httpx.AsyncClient", return_value=mock_client):
             result = await full_health_check()
 
         level_names = [lv["level"] for lv in result["levels"]]
-        assert level_names == ["L0", "L1", "L2", "L3", "L4"]
+        assert level_names == ["L0", "L1", "L2", "L3"]
 
     @pytest.mark.asyncio
     async def test_degraded_when_non_200(self):
         """A 503 response (without accept_any) causes degraded status.
 
-        The starrocks URL resolves to http://starrocks:8030/api/health,
-        so we match on '8030' to target it specifically.
+        The etcd URL resolves to http://etcd:2379/health,
+        so we match on '2379' to target it specifically.
         """
         from workflows.health import full_health_check
 
-        mock_client = _make_client(responses={"8030": 503})
-        mock_writer = AsyncMock()
-        mock_writer.close = MagicMock()
-        mock_writer.wait_closed = AsyncMock()
+        mock_client = _make_client(responses={"2379": 503})
 
-        with (
-            patch("workflows.health.httpx.AsyncClient", return_value=mock_client),
-            patch("workflows.health.asyncio.open_connection", new_callable=AsyncMock) as mock_tcp,
-        ):
-            mock_tcp.return_value = (AsyncMock(), mock_writer)
-
+        with patch("workflows.health.httpx.AsyncClient", return_value=mock_client):
             result = await full_health_check()
 
         assert result["status"] == "degraded"

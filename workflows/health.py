@@ -1,4 +1,4 @@
-"""5-level health check hierarchy for Antigravity Node v13.0.
+"""4-level health check hierarchy for Antigravity Node v14.1.
 
 Uses httpx (not aiohttp) because aiohttp's DNS resolver conflicts with
 uvicorn's event loop, causing all checks to fail with empty errors when
@@ -13,7 +13,7 @@ import httpx
 
 logger = logging.getLogger("antigravity.health")
 
-# Shared timeout — 5s gives slow-starting services (Keycloak, StarRocks) time
+# Shared timeout — 5s gives slow-starting services time to respond
 _TIMEOUT = httpx.Timeout(5.0, connect=3.0)
 
 
@@ -49,91 +49,68 @@ async def _check_tcp(name: str, host: str, port: int) -> dict:
 
 
 async def check_level_0() -> dict:
-    """L0 Infrastructure: seaweedfs, nats."""
+    """L0 Infrastructure: etcd, ceph."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         results = await asyncio.gather(
             _check_url(
                 client,
-                "seaweedfs",
-                f"http://{os.environ.get('SEAWEEDFS_HOST', 'seaweedfs')}:9333/cluster/status",
+                "etcd",
+                f"http://{os.environ.get('ETCD_HOST', 'etcd')}:2379/health",
             ),
-            _check_tcp("nats", os.environ.get("NATS_HOST", "nats"), 4222),
+            _check_url(
+                client,
+                "ceph",
+                f"http://{os.environ.get('CEPH_HOST', 'ceph-demo')}:8000",
+                accept_any=True,
+            ),
         )
     return {"level": "L0", "name": "infrastructure", "checks": list(results)}
 
 
 async def check_level_1() -> dict:
-    """L1 IAM + Lineage: keycloak, marquez."""
-    keycloak_url = f"{os.environ.get('KEYCLOAK_URL', 'http://keycloak:8080')}/"
-    marquez_url = f"http://{os.environ.get('MARQUEZ_HOST', 'marquez')}:5000/api/v1/namespaces"
+    """L1 Secrets: openbao."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         results = await asyncio.gather(
-            _check_url(client, "keycloak", keycloak_url, accept_any=True),
-            _check_url(client, "marquez", marquez_url),
-        )
-    return {"level": "L1", "name": "iam_lineage", "checks": list(results)}
-
-
-async def check_level_2() -> dict:
-    """L2 Memory + Compute: starrocks, milvus, valkey, openbao, ovms, ollama."""
-    ovms_rest = os.environ.get("OVMS_REST", "http://ovms:8000")
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        results = await asyncio.gather(
-            _check_url(
-                client,
-                "starrocks",
-                f"http://{os.environ.get('STARROCKS_HOST', 'starrocks')}:{os.environ.get('STARROCKS_HTTP_PORT', '8030')}/api/health",
-            ),
-            _check_url(
-                client,
-                "milvus",
-                f"http://{os.environ.get('MILVUS_HOST', 'milvus')}:9091/healthz",
-            ),
             _check_url(
                 client,
                 "openbao",
                 f"{os.environ.get('OPENBAO_ADDR', 'http://openbao:8200')}/v1/sys/health",
             ),
-            _check_url(client, "ovms", f"{ovms_rest}/v1/config", accept_any=True),
-            _check_url(
-                client,
-                "ollama",
-                f"{os.environ.get('OLLAMA_URL', 'http://ollama:11434')}/api/tags",
-            ),
-            _check_tcp("valkey", "valkey", 6379),
         )
-    return {"level": "L2", "name": "memory_compute", "checks": list(results)}
+    return {"level": "L1", "name": "secrets", "checks": list(results)}
+
+
+async def check_level_2() -> dict:
+    """L2 Inference: ovms."""
+    ovms_rest = os.environ.get("OVMS_REST", "http://ovms:9001")
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        results = await asyncio.gather(
+            _check_url(client, "ovms", f"{ovms_rest}/v2/health/live"),
+        )
+    return {"level": "L2", "name": "inference", "checks": list(results)}
 
 
 async def check_level_3() -> dict:
-    """L3 Agent: MCP servers (starrocks, filesystem)."""
-    results = await asyncio.gather(
-        _check_tcp("mcp_starrocks", "mcp-starrocks", 8000),
-        _check_tcp("mcp_filesystem", "mcp-filesystem", 8000),
-    )
-    return {"level": "L3", "name": "agent", "checks": list(results)}
-
-
-async def check_level_4() -> dict:
-    """L4 Observability: budget-proxy, perses, opensearch, fluent-bit."""
+    """L3 Observability: otel-collector."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         results = await asyncio.gather(
-            _check_url(client, "budget_proxy", "http://budget-proxy:4000/health"),
-            _check_url(client, "perses", "http://perses:8080/api/v1/health"),
-            _check_url(client, "opensearch", "http://opensearch:9200/_cluster/health"),
-            _check_tcp("fluent_bit", "fluent-bit", 24224),
+            _check_url(
+                client,
+                "otel_collector",
+                f"http://{os.environ.get('OTEL_COLLECTOR_HOST', 'otel-collector')}:4318",
+                accept_any=True,
+            ),
         )
-    return {"level": "L4", "name": "observability", "checks": list(results)}
+    return {"level": "L3", "name": "observability", "checks": list(results)}
 
 
 async def full_health_check() -> dict:
-    """Run all 5 levels and compute aggregate status."""
+    """Run all 4 levels and compute aggregate status."""
     levels = await asyncio.gather(
         check_level_0(),
         check_level_1(),
         check_level_2(),
         check_level_3(),
-        check_level_4(),
     )
 
     all_healthy = all(check["healthy"] for level in levels for check in level["checks"])
