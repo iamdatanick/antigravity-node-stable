@@ -33,6 +33,10 @@ _daily_spend = 0.0
 _spend_date = datetime.now(UTC).date()
 _spend_lock = asyncio.Lock()
 
+# Hourly spend tracking (24-hour window, resets with day)
+_hourly_spend: list[float] = [0.0] * 24
+_current_hour: int = datetime.now(UTC).hour
+
 # Cached API keys from OpenBao (TTL-based)
 _key_cache: dict[str, str] = {}
 _key_cache_time: float = 0.0
@@ -75,12 +79,28 @@ async def _fetch_vault_key(provider: str) -> str:
 
 
 def _reset_if_new_day():
-    global _daily_spend, _spend_date
+    global _daily_spend, _spend_date, _hourly_spend, _current_hour
     today = datetime.now(UTC).date()
     if today != _spend_date:
         logger.info(f"New day: resetting spend from ${_daily_spend:.4f}")
         _daily_spend = 0.0
+        _hourly_spend = [0.0] * 24
+        _current_hour = datetime.now(UTC).hour
         _spend_date = today
+
+
+def _update_hourly(cost: float):
+    """Track spend per hour for the budget history chart."""
+    global _current_hour
+    now_hour = datetime.now(UTC).hour
+    if now_hour != _current_hour:
+        # Zero out skipped hours
+        h = (_current_hour + 1) % 24
+        while h != (now_hour + 1) % 24:
+            _hourly_spend[h] = 0.0
+            h = (h + 1) % 24
+        _current_hour = now_hour
+    _hourly_spend[now_hour] += cost
 
 
 def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
@@ -125,6 +145,18 @@ async def health():
     }
 
 
+@app.get("/budget/history")
+async def budget_history():
+    """Return hourly spend breakdown for the UI budget chart."""
+    _reset_if_new_day()
+    return {
+        "current_spend": round(_daily_spend, 4),
+        "max_daily": DAILY_BUDGET_USD,
+        "currency": "USD",
+        "hourly_spend": [round(h, 6) for h in _hourly_spend],
+    }
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     global _daily_spend
@@ -161,6 +193,7 @@ async def chat_completions(request: Request):
 
     async with _spend_lock:
         _daily_spend += cost
+        _update_hourly(cost)
         current_spend = _daily_spend
 
     logger.info(
