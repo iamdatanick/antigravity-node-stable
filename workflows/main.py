@@ -1,4 +1,4 @@
-"""Antigravity Node v13.0 — Dual-Protocol Entry Point.
+"""Antigravity Node v14.1 — Dual-Protocol Entry Point.
 
 Runs FastAPI (HTTP/A2A on port 8080) + gRPC (Intel SuperBuilder on port 8081)
 + God Mode loop (background iterations).
@@ -34,9 +34,9 @@ async def check_dependencies(loop_id: int) -> str:
     import aiohttp
 
     checks = {
-        "starrocks": f"http://{os.environ.get('STARROCKS_HOST', 'starrocks')}:{os.environ.get('STARROCKS_HTTP_PORT', '8030')}/api/health",
-        "milvus": f"http://{os.environ.get('MILVUS_HOST', 'milvus')}:9091/healthz",
-        "keycloak": f"{os.environ.get('KEYCLOAK_URL', 'http://keycloak:8080')}/health/ready",
+        "etcd": f"http://{os.environ.get('ETCD_HOST', 'etcd')}:{os.environ.get('ETCD_PORT', '2379')}/health",
+        "ceph": f"http://{os.environ.get('CEPH_HOST', 'ceph-demo')}:{os.environ.get('CEPH_PORT', '8000')}",
+        "ovms": f"http://{os.environ.get('OVMS_HOST', 'ovms')}:9001/v2/health/live",
         "openbao": f"{os.environ.get('OPENBAO_ADDR', 'http://openbao:8200')}/v1/sys/health",
     }
     results = {}
@@ -75,7 +75,7 @@ def ingest_context(loop_id: int) -> str:
 
 async def god_mode_loop():
     """Background God Mode loop — runs MAX_ITERATIONS health/ingest cycles."""
-    logger.info(f"=== ANTIGRAVITY NODE v13.0 GOD MODE ({MAX_ITERATIONS} iterations) ===")
+    logger.info(f"=== ANTIGRAVITY NODE v14.1 GOD MODE ({MAX_ITERATIONS} iterations) ===")
 
     for i in range(1, MAX_ITERATIONS + 1):
         logger.info(f"GOD MODE LOOP {i}/{MAX_ITERATIONS}")
@@ -113,7 +113,7 @@ def start_god_mode_background():
 
 # --- Main Entry Point ---
 def main():
-    logger.info("=== ANTIGRAVITY NODE v13.0 STARTING ===")
+    logger.info("=== ANTIGRAVITY NODE v14.1 STARTING ===")
     logger.info(f"God Mode iterations: {MAX_ITERATIONS}")
 
     # 0. Initialize OpenTelemetry tracing
