@@ -2,11 +2,12 @@
 import asyncio
 import logging
 import os
+import subprocess
 from datetime import UTC, datetime
 from typing import List, Optional
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -18,7 +19,6 @@ logger = logging.getLogger("antigravity-orchestrator")
 
 app = FastAPI(title="Antigravity Orchestrator", version="14.1.0")
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,7 +27,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Models ---
 class WorkflowListResponse(BaseModel):
     workflows: List[dict]
 
@@ -44,19 +43,12 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     stream: bool = False
 
-# --- Endpoints ---
-
 @app.get("/health")
 async def health():
     return {"status": "healthy", "version": "14.1.0"}
 
-@app.get("/capabilities")
-async def capabilities():
-    return {"node": "antigravity-v14-pilot", "features": ["rag", "chat", "inference"]}
-
 @app.get("/tools", response_model=ToolsResponse)
 async def list_tools():
-    """List 6 active v14.1 MCP tools."""
     return {
         "tools": [
             {"name": "chat", "server": "budget-proxy", "description": "LLM chat via budget-proxy"},
@@ -71,49 +63,50 @@ async def list_tools():
 
 @app.websocket("/ws/logs")
 async def ws_logs(websocket: WebSocket):
-    """Log terminal endpoint - tails orchestrator output."""
     await websocket.accept()
     try:
-        # In a real environment, we would tail a log file or use a subprocess
-        # For stabilization, we send a heartbeat indicating system operational status
+        # Professional log tailing
+        log_path = "/proc/1/fd/1" # Docker stdout
+        if not os.path.exists(log_path):
+             while True:
+                await asyncio.sleep(5)
+                await websocket.send_text(f"[{datetime.now().strftime('%H:%M:%S')}] System Operational\r\n")
+                
+        process = await asyncio.create_subprocess_exec(
+            'tail', '-f', log_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
         while True:
-            await asyncio.sleep(5)
-            ts = datetime.now(UTC).strftime("%H:%M:%S")
-            await websocket.send_text(f"\x1b[90m[{ts}]\x1b[0m System operational - A2A active\r\n")
-    except WebSocketDisconnect:
-        logger.info("Log WebSocket disconnected")
-    except Exception as e:
-        logger.error(f"Log WebSocket error: {e}")
+            line = await process.stdout.readline()
+            if not line: break
+            await websocket.send_text(line.decode())
+    except Exception:
+        pass
 
 @app.get("/workflows", response_model=WorkflowListResponse)
-async def list_workflows(request: Request):
+async def list_workflows():
     return {"workflows": []}
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatRequest):
-    """Route chat to budget-proxy."""
     proxy_url = os.environ.get("LITELLM_BASE_URL", "http://budget-proxy:4055")
     async with httpx.AsyncClient(timeout=120.0) as client:
         try:
-            resp = await client.post(
-                f"{proxy_url}/v1/chat/completions",
-                json=request.dict(),
-            )
+            resp = await client.post(f"{proxy_url}/v1/chat/completions", json=request.dict())
             return JSONResponse(status_code=resp.status_code, content=resp.json())
         except Exception as e:
             logger.error(f"Chat proxy error: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+            return JSONResponse(status_code=502, content={"error": "Proxy connection failed"})
 
 @app.get("/v1/models")
 async def list_models():
-    """List available models from budget-proxy."""
     proxy_url = os.environ.get("LITELLM_BASE_URL", "http://budget-proxy:4055")
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             resp = await client.get(f"{proxy_url}/v1/models")
             return JSONResponse(status_code=resp.status_code, content=resp.json())
-        except Exception as e:
-            logger.error(f"Models proxy error: {e}")
+        except Exception:
             return {"object": "list", "data": [{"id": "gpt-4o", "object": "model"}]}
 
 if __name__ == "__main__":
