@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """OpenLineage integration for Antigravity Node.
 
 Emits lineage events to Marquez for data provenance tracking.
