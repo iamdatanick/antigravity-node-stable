@@ -208,48 +208,54 @@ class TestDailyReset:
 class TestRouteModel:
     """Tests for _route_model provider selection."""
 
-    def test_route_openai(self):
+    @pytest.mark.asyncio
+    async def test_route_openai(self):
         """OpenAI models route to api.openai.com."""
         import proxy
 
         proxy.OPENAI_API_KEY = "sk-test"
 
-        base, headers, model = proxy._route_model("gpt-4o")
+        base, headers, model = await proxy._route_model("gpt-4o")
 
         assert "openai.com" in base
         assert "Authorization" in headers
         assert model == "gpt-4o"
 
-    def test_route_anthropic(self):
+    @pytest.mark.asyncio
+    async def test_route_anthropic(self):
         """Claude models route to api.anthropic.com."""
         import proxy
 
-        base, headers, model = proxy._route_model("claude-sonnet-4-20250514")
+        proxy.ANTHROPIC_API_KEY = "sk-ant-test"
+
+        base, headers, model = await proxy._route_model("claude-sonnet-4-20250514")
 
         assert "anthropic.com" in base
         assert "x-api-key" in headers
         assert "anthropic-version" in headers
         assert model == "claude-sonnet-4-20250514"
 
-    def test_route_local(self):
+    @pytest.mark.asyncio
+    async def test_route_local(self):
         """local/ prefix routes to LOCAL_LLM_URL (OVMS)."""
         import proxy
 
         proxy.LOCAL_LLM_URL = "http://ovms:8000/v1"
 
-        base, headers, model = proxy._route_model("local/llama3")
+        base, headers, model = await proxy._route_model("local/llama3")
 
         assert base == "http://ovms:8000/v1"
         assert model == "llama3"  # prefix stripped
 
-    def test_route_local_when_no_openai_key(self):
+    @pytest.mark.asyncio
+    async def test_route_local_when_no_openai_key(self):
         """When OPENAI_API_KEY is empty, non-Claude models route local."""
         import proxy
 
         proxy.OPENAI_API_KEY = ""
         proxy.LOCAL_LLM_URL = "http://ovms:8000/v1"
 
-        base, headers, model = proxy._route_model("gpt-4o")
+        base, headers, model = await proxy._route_model("gpt-4o")
 
         assert base == "http://ovms:8000/v1"
 
