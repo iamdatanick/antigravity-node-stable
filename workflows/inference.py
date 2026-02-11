@@ -25,7 +25,7 @@ logger = logging.getLogger("antigravity.inference")
 # Configuration
 # ---------------------------------------------------------------------------
 OVMS_GRPC_TARGET = os.environ.get("OVMS_GRPC", "ovms:9000")
-OVMS_REST_BASE = os.environ.get("OVMS_REST", "http://ovms:8000")
+OVMS_REST_BASE = os.environ.get("OVMS_REST_URL", os.environ.get("OVMS_REST", "http://ovms:9001"))
 GRPC_TIMEOUT_S = float(os.environ.get("OVMS_GRPC_TIMEOUT", "10"))
 REST_TIMEOUT_S = float(os.environ.get("OVMS_REST_TIMEOUT", "10"))
 
