@@ -20,9 +20,6 @@ services:
       - ALLOW_NONE_AUTHENTICATION=yes
     volumes:
       - ./data/etcd:/etcd-data
-    ports:
-      - "2379:2379"
-      - "2380:2380"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]
@@ -47,9 +44,6 @@ services:
     volumes:
       - ./data/ceph:/var/lib/ceph
       - ./data/ceph_conf:/etc/ceph
-    ports:
-      - "8000:8000"
-      - "5000:5000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000"]
@@ -64,8 +58,6 @@ services:
     command: server -dev -dev-listen-address=0.0.0.0:8200 -dev-root-token-id=root
     cap_add:
       - IPC_LOCK
-    ports:
-      - "8200:8200"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8200/v1/sys/health"]
@@ -80,9 +72,6 @@ services:
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml
-    ports:
-      - "4317:4317"
-      - "4318:4318"
     restart: unless-stopped
 
   # -------------------------------------------------------------------------
@@ -105,9 +94,6 @@ services:
       - LOG_LEVEL=INFO
     volumes:
       - ./models:/models
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9001/v2/health/live"]
@@ -139,9 +125,6 @@ services:
       - OVMS_REST_URL=http://ovms:9001
       - LITELLM_BASE_URL=http://budget-proxy:4055
       - LOG_LEVEL=INFO
-    ports:
-      - "8080:8080"
-      - "8081:8081"
     depends_on:
       etcd:
         condition: service_healthy
@@ -168,8 +151,6 @@ services:
       - VAULT_ADDR=http://openbao:8200
       - VAULT_TOKEN=root
       - DAILY_BUDGET_USD=50
-    ports:
-      - "4055:4055"
     depends_on:
       - ovms
       - openbao
@@ -187,8 +168,6 @@ services:
     container_name: ui
     ports:
       - "1055:80"
-    environment:
-      - VITE_API_URL=http://localhost:4055
     depends_on:
       - budget-proxy
     restart: unless-stopped
