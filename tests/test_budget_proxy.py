@@ -92,13 +92,13 @@ class TestBudgetHistory:
     @pytest.mark.asyncio
     async def test_budget_history_returns_200(self, client):
         """Budget history endpoint returns 200."""
-        resp = await client.get("/budget/history")
+        resp = await client.get("/history")
         assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_budget_history_has_required_fields(self, client):
         """Budget history returns current_spend, max_daily, currency, hourly_spend."""
-        resp = await client.get("/budget/history")
+        resp = await client.get("/history")
         data = resp.json()
         assert "current_spend" in data
         assert "max_daily" in data
@@ -113,7 +113,7 @@ class TestBudgetHistory:
         import proxy
 
         proxy._daily_spend = 7.5
-        history = (await client.get("/budget/history")).json()
+        history = (await client.get("/history")).json()
         health = (await client.get("/health")).json()
         assert history["current_spend"] == health["daily_spend_usd"]
         assert history["max_daily"] == health["daily_budget_usd"]

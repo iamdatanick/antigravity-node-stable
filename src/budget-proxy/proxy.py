@@ -145,7 +145,7 @@ async def health():
     }
 
 
-@app.get("/budget/history")
+@app.get("/history")
 async def budget_history():
     """Return hourly spend breakdown for the UI budget chart."""
     _reset_if_new_day()
