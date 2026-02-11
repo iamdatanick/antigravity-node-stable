@@ -37,7 +37,10 @@ export function useSaveApiKey() {
         method: "POST",
         body: JSON.stringify(data),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["api-keys"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["api-keys"] });
+      qc.invalidateQueries({ queryKey: ["models"] });
+    },
   });
 }
 
@@ -47,6 +50,9 @@ export function useDeleteApiKey() {
   return useMutation({
     mutationFn: (provider: string) =>
       apiFetch(`/api/settings/keys/${provider}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["api-keys"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["api-keys"] });
+      qc.invalidateQueries({ queryKey: ["models"] });
+    },
   });
 }

@@ -15,15 +15,15 @@ import {
 import { useState } from "react";
 
 const NAV = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/chat", icon: MessageSquare, label: "Chat" },
-  { to: "/logs", icon: ScrollText, label: "Logs" },
-  { to: "/memory", icon: Database, label: "Memory" },
-  { to: "/query", icon: Terminal, label: "Query" },
-  { to: "/workflows", icon: Workflow, label: "Workflows" },
-  { to: "/budget", icon: DollarSign, label: "Budget" },
-  { to: "/services", icon: Server, label: "Services" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/", icon: LayoutDashboard, label: "Dashboard", available: true },
+  { to: "/chat", icon: MessageSquare, label: "Chat", available: true },
+  { to: "/logs", icon: ScrollText, label: "Logs", available: false },
+  { to: "/memory", icon: Database, label: "Memory", available: false },
+  { to: "/query", icon: Terminal, label: "Query", available: false },
+  { to: "/workflows", icon: Workflow, label: "Workflows", available: false },
+  { to: "/budget", icon: DollarSign, label: "Budget", available: true },
+  { to: "/services", icon: Server, label: "Services", available: true },
+  { to: "/settings", icon: Settings, label: "Settings", available: true },
 ] as const;
 
 export default function Sidebar() {
@@ -45,23 +45,25 @@ export default function Sidebar() {
             <div className="text-sm font-bold text-[var(--color-text-primary)] truncate">
               Antigravity
             </div>
-            <div className="text-[10px] text-[var(--color-text-muted)]">v13.0 — The God Node</div>
+            <div className="text-[10px] text-[var(--color-text-muted)]">v14.1 — Phoenix</div>
           </div>
         )}
       </div>
 
       {/* Nav links */}
       <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto">
-        {NAV.map(({ to, icon: Icon, label }) => (
+        {NAV.map(({ to, icon: Icon, label, available }) => (
           <NavLink
             key={to}
             to={to}
             end={to === "/"}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                isActive
-                  ? "bg-[var(--color-accent-dim)] text-[var(--color-accent)] font-medium"
-                  : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)]"
+                !available
+                  ? "opacity-30 cursor-default text-[var(--color-text-muted)]"
+                  : isActive
+                    ? "bg-[var(--color-accent-dim)] text-[var(--color-accent)] font-medium"
+                    : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)]"
               }`
             }
           >

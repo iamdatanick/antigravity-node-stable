@@ -389,3 +389,42 @@ class TestUpstreamErrors:
             )
 
         assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Tests for /v1/models
+# ---------------------------------------------------------------------------
+
+
+class TestModelsEndpoint:
+    """Tests for GET /v1/models model listing."""
+
+    @pytest.mark.asyncio
+    async def test_models_returns_200(self, client):
+        """Models endpoint returns 200 with OpenAI-compatible format."""
+        resp = await client.get("/v1/models")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["object"] == "list"
+        assert isinstance(body["data"], list)
+        assert len(body["data"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_models_include_cost_table_entries(self, client):
+        """Every model in COST_TABLE appears in the models list."""
+        from proxy import COST_TABLE
+
+        resp = await client.get("/v1/models")
+        model_ids = {m["id"] for m in resp.json()["data"]}
+        for model_name in COST_TABLE:
+            if model_name != "local":
+                assert model_name in model_ids
+
+    @pytest.mark.asyncio
+    async def test_models_have_required_fields(self, client):
+        """Each model entry has id, object, owned_by fields."""
+        resp = await client.get("/v1/models")
+        for m in resp.json()["data"]:
+            assert "id" in m
+            assert "object" in m
+            assert "owned_by" in m

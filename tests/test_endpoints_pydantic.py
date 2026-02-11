@@ -236,7 +236,7 @@ class TestCapabilitiesEndpoint:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["node"] == "Antigravity Node v13.0"
+        assert data["node"] == "Antigravity Node v14.1 Phoenix"
         assert "a2a" in data["protocols"]
         assert "endpoints" in data
         assert "mcp_servers" in data

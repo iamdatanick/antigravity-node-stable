@@ -66,7 +66,7 @@ from workflows.workflow_defs import ARGO_NAMESPACE, ARGO_SERVER
 logger = logging.getLogger("antigravity.a2a")
 tracer = get_tracer("antigravity.a2a")
 
-app = FastAPI(title="Antigravity Node v13.0", version="13.0.0")
+app = FastAPI(title="Antigravity Node v14.1", version="14.1.0")
 
 # CORS middleware
 raw_cors_origins = os.environ.get("CORS_ORIGINS", "*")
@@ -357,7 +357,7 @@ async def argo_webhook(
 
 
 # --- Budget Proxy / OpenAI-compatible LLM routing ---
-LITELLM_BASE = os.environ.get("LITELLM_URL", os.environ.get("LITELLM_BASE_URL", "http://budget-proxy:4000"))
+LITELLM_BASE = os.environ.get("LITELLM_URL", os.environ.get("LITELLM_BASE_URL", "http://budget-proxy:4055"))
 SYSTEM_PROMPT_PATH = os.environ.get("SYSTEM_PROMPT_PATH", "/app/config/prompts/system.txt")
 _system_prompt_cache = None
 
@@ -411,7 +411,7 @@ def _load_system_prompt() -> str:
         except (FileNotFoundError, PermissionError):
             continue
 
-    _system_prompt_cache = "You are the Antigravity Node v13.0, a sovereign AI agent."
+    _system_prompt_cache = "You are the Antigravity Node v14.1 Phoenix, a sovereign AI agent."
     return _system_prompt_cache
 
 
@@ -521,7 +521,7 @@ async def chat_completions(
                         "message": {
                             "role": "assistant",
                             "content": f"Antigravity Node error: budget-proxy returned {resp.status_code}. "
-                            f"Check budget-proxy at http://localhost:4055/health",
+                            f"Check system health at /health",
                         },
                         "finish_reason": "stop",
                     }
@@ -555,7 +555,7 @@ async def chat_completions(
                     "index": 0,
                     "message": {
                         "role": "assistant",
-                        "content": f"Antigravity Node v13.0 encountered an error: {str(e)[:200]}",
+                        "content": f"Antigravity Node v14.1 encountered an error: {str(e)[:200]}",
                     },
                     "finish_reason": "stop",
                 }
@@ -599,69 +599,15 @@ async def list_models():
     return {"object": "list", "data": models or _FALLBACK_MODELS}
 
 
-# --- MCP Tool Discovery Endpoint ---
+# --- Tool Discovery Endpoint ---
 @app.get("/tools", response_model=ToolsResponse)
 async def list_tools():
-    """List all available MCP tools across all tool servers."""
-    import httpx
-
-    tools = []
-
-    # Orchestrator built-in tools (from mcp_server.py)
-    builtin = [
-        {
-            "name": "search_memory",
-            "server": "orchestrator",
-            "description": "Search StarRocks memory tables for relevant context",
-        },
-        {"name": "query_memory", "server": "orchestrator", "description": "Execute SQL on StarRocks memory tables"},
-        {"name": "trigger_task", "server": "orchestrator", "description": "Trigger an Argo workflow via Hera SDK"},
-        {"name": "reflect_on_failure", "server": "orchestrator", "description": "Analyze logs from a failed workflow"},
-        {"name": "ingest_file", "server": "orchestrator", "description": "Ingest document into semantic memory"},
+    """List all available tools in v14.1 Phoenix."""
+    tools = [
+        {"name": "chat", "server": "budget-proxy", "description": "LLM chat via budget-proxy with cost controls"},
+        {"name": "upload", "server": "orchestrator", "description": "Upload files to Ceph S3-compatible storage"},
+        {"name": "inference", "server": "ovms", "description": "Run inference on OVMS-served OpenVINO models"},
     ]
-    tools.extend(builtin)
-
-    # MCP StarRocks tools
-    mcp_servers = {
-        "mcp-starrocks": "http://mcp-starrocks:8000",
-        "mcp-filesystem": "http://mcp-filesystem:8000",
-    }
-
-    for server_name, base_url in mcp_servers.items():
-        try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
-                # SSE endpoints only support GET, use a quick GET with small read
-                await client.get(f"{base_url}/sse", timeout=httpx.Timeout(2.0, connect=2.0))
-                # HTTP 200 means SSE stream opened successfully
-                tools.append(
-                    {
-                        "name": f"{server_name}",
-                        "server": server_name,
-                        "status": "connected",
-                        "transport": "sse",
-                        "url": f"{base_url}/sse",
-                    }
-                )
-        except (httpx.ReadTimeout, httpx.RemoteProtocolError):
-            # ReadTimeout means SSE connection opened but no events yet — that's OK
-            tools.append(
-                {
-                    "name": f"{server_name}",
-                    "server": server_name,
-                    "status": "connected",
-                    "transport": "sse",
-                    "url": f"{base_url}/sse",
-                }
-            )
-        except Exception:
-            tools.append(
-                {
-                    "name": f"{server_name}",
-                    "server": server_name,
-                    "status": "unreachable",
-                }
-            )
-
     return {"tools": tools, "total": len(tools)}
 
 
@@ -701,37 +647,29 @@ async def list_ovms_models():
 async def capabilities():
     """Return full node capabilities for A2A discovery."""
     return {
-        "node": "Antigravity Node v13.0",
+        "node": "Antigravity Node v14.1 Phoenix",
         "protocols": ["a2a", "mcp", "openai-compatible"],
         "endpoints": {
             "health": "/health",
             "task": "/task",
             "upload": "/upload",
             "handoff": "/handoff",
-            "webhook": "/webhook",
             "chat": "/v1/chat/completions",
             "models": "/v1/models",
             "inference": "/v1/inference",
             "ovms_models": "/v1/models/ovms",
-            "query": "/query",
-            "workflows": "/workflows",
             "tools": "/tools",
             "capabilities": "/capabilities",
+            "budget_history": "/budget/history",
             "agent_descriptor": "/.well-known/agent.json",
         },
-        "mcp_servers": {
-            "mcp-starrocks": {"transport": "sse", "url": "http://mcp-starrocks:8000/sse"},
-            "mcp-filesystem": {"transport": "sse", "url": "http://mcp-filesystem:8000/sse"},
-            "mcp-gateway": {"transport": "sse", "url": "http://mcp-gateway:8080/sse"},
-        },
+        "mcp_servers": {},
         "memory": {
-            "episodic": "StarRocks memory_episodic table",
-            "semantic": "StarRocks memory_semantic table + Milvus vectors",
-            "procedural": "StarRocks memory_procedural table",
+            "episodic": "etcd KV store",
         },
         "budget": {
             "proxy": "budget-proxy",
-            "max_daily": "$10.00",
+            "max_daily": os.environ.get("DAILY_BUDGET_USD", "$50.00"),
             "model": os.environ.get("GOOSE_MODEL", "gpt-4o"),
         },
     }

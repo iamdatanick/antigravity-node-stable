@@ -204,6 +204,31 @@ async def chat_completions(request: Request):
     return JSONResponse(content=result)
 
 
+@app.get("/v1/models")
+async def list_models():
+    """OpenAI-compatible model list derived from COST_TABLE."""
+    models = []
+    for model_name in COST_TABLE:
+        if model_name == "local":
+            continue
+        models.append(
+            {
+                "id": model_name,
+                "object": "model",
+                "owned_by": "antigravity",
+            }
+        )
+    if LOCAL_LLM_URL:
+        models.append(
+            {
+                "id": "local/default",
+                "object": "model",
+                "owned_by": "local",
+            }
+        )
+    return {"object": "list", "data": models}
+
+
 if __name__ == "__main__":
     import uvicorn
 

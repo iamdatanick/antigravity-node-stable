@@ -74,7 +74,12 @@ export default function AmbientHUD({ activeModel, onModelChange, isStreaming }: 
                   </option>
                 ))
               ) : (
-                <option value="gpt-4o" className="bg-[#0f172a]">gpt-4o</option>
+                <>
+                  <option value="gpt-4o" className="bg-[#0f172a]">GPT-4o</option>
+                  <option value="gpt-4o-mini" className="bg-[#0f172a]">GPT-4o Mini</option>
+                  <option value="claude-sonnet-4-20250514" className="bg-[#0f172a]">Claude Sonnet 4</option>
+                  <option value="claude-haiku-4-5-20251001" className="bg-[#0f172a]">Claude Haiku 4.5</option>
+                </>
               )}
             </select>
             <ChevronDown size={9} className="absolute right-0 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] opacity-40 pointer-events-none" />
