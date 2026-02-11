@@ -25,11 +25,18 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://ovms:8000/v1")
 DAILY_BUDGET_USD = float(os.environ.get("DAILY_BUDGET_USD", "50"))
+OPENBAO_ADDR = os.environ.get("OPENBAO_ADDR", "http://openbao:8200")
+OPENBAO_TOKEN = os.environ.get("OPENBAO_TOKEN", "dev-only-token")
 
 # In-memory cost tracking (resets daily)
 _daily_spend = 0.0
 _spend_date = datetime.now(UTC).date()
 _spend_lock = asyncio.Lock()
+
+# Cached API keys from OpenBao (TTL-based)
+_key_cache: dict[str, str] = {}
+_key_cache_time: float = 0.0
+_KEY_CACHE_TTL = 60.0  # Re-fetch from vault every 60s
 
 # Approximate cost per 1K tokens (input/output)
 COST_TABLE = {
@@ -39,6 +46,32 @@ COST_TABLE = {
     "claude-haiku-4-5-20251001": {"input": 0.001, "output": 0.005},
     "local": {"input": 0.0, "output": 0.0},
 }
+
+
+async def _fetch_vault_key(provider: str) -> str:
+    """Fetch an API key from OpenBao KV v2."""
+    global _key_cache, _key_cache_time
+    now = time.monotonic()
+    if now - _key_cache_time < _KEY_CACHE_TTL and provider in _key_cache:
+        return _key_cache[provider]
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"{OPENBAO_ADDR}/v1/secret/data/antigravity/api-keys/{provider}",
+                headers={"X-Vault-Token": OPENBAO_TOKEN},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                key = data.get("data", {}).get("data", {}).get("key", "")
+                if key:
+                    _key_cache[provider] = key
+                    _key_cache_time = now
+                    logger.info(f"Loaded {provider} API key from OpenBao")
+                    return key
+    except Exception as e:
+        logger.debug(f"OpenBao key fetch for {provider} failed: {e}")
+    return ""
 
 
 def _reset_if_new_day():
@@ -55,21 +88,30 @@ def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> fl
     return (prompt_tokens / 1000 * costs["input"]) + (completion_tokens / 1000 * costs["output"])
 
 
-def _route_model(model: str) -> tuple[str, dict, str]:
+async def _route_model(model: str) -> tuple[str, dict, str]:
     """Returns (base_url, headers, effective_model)."""
     if model.startswith("claude"):
+        key = ANTHROPIC_API_KEY or await _fetch_vault_key("anthropic")
+        if key:
+            return (
+                "https://api.anthropic.com/v1",
+                {"x-api-key": key, "anthropic-version": "2023-06-01"},
+                model,
+            )
+        return (LOCAL_LLM_URL, {}, model)
+
+    if model.startswith("local/"):
+        return (LOCAL_LLM_URL, {}, model.removeprefix("local/"))
+
+    # OpenAI and other models
+    key = OPENAI_API_KEY or await _fetch_vault_key("openai")
+    if key:
         return (
-            "https://api.anthropic.com/v1",
-            {"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
+            "https://api.openai.com/v1",
+            {"Authorization": f"Bearer {key}"},
             model,
         )
-    if model.startswith("local/") or not OPENAI_API_KEY:
-        return (LOCAL_LLM_URL, {}, model.removeprefix("local/"))
-    return (
-        "https://api.openai.com/v1",
-        {"Authorization": f"Bearer {OPENAI_API_KEY}"},
-        model,
-    )
+    return (LOCAL_LLM_URL, {}, model)
 
 
 @app.get("/health")
@@ -97,7 +139,7 @@ async def chat_completions(request: Request):
 
     body = await request.json()
     model = body.get("model", "gpt-4o-mini")
-    base_url, headers, effective_model = _route_model(model)
+    base_url, headers, effective_model = await _route_model(model)
     body["model"] = effective_model
 
     start = time.monotonic()

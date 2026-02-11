@@ -1,5 +1,13 @@
 import { create } from "zustand";
 
+export interface Attachment {
+  name: string;
+  size: number;
+  key: string;
+  type: string;
+  content?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -8,6 +16,7 @@ export interface ChatMessage {
   thinking?: string[];
   tools?: { name: string; result: string }[];
   streaming?: boolean;
+  attachments?: Attachment[];
 }
 
 interface ChatState {

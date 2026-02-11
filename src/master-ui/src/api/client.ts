@@ -62,6 +62,21 @@ export async function apiFetch<T>(path: string, init?: ApiFetchOptions): Promise
   return res.json();
 }
 
+export async function uploadFile(file: File): Promise<{ status: string; key: string; size: number }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE}/upload`, {
+    method: "POST",
+    headers: { "X-Tenant-Id": "default" },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Upload failed: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
 export async function* streamChat(
   messages: { role: string; content: string }[],
   model = "gpt-4o",

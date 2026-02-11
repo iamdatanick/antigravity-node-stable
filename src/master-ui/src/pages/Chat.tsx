@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useChatStore } from "../stores/chatStore";
+import type { Attachment } from "../stores/chatStore";
 import { streamChat } from "../api/client";
 import { useModels } from "../api/models";
 import ChatBubble from "../components/chat/ChatBubble";
@@ -23,14 +24,45 @@ export default function Chat() {
   }, [messages]);
 
   const handleSend = useCallback(
-    async (text: string) => {
-      addMessage({ role: "user", content: text });
+    async (text: string, attachments: Attachment[]) => {
+      // Build the display content (what the user sees in the chat)
+      let displayContent = text;
+      if (attachments.length > 0 && !text) {
+        displayContent = `Sent ${attachments.length} file${attachments.length > 1 ? "s" : ""}: ${attachments.map((a) => a.name).join(", ")}`;
+      }
+
+      addMessage({
+        role: "user",
+        content: displayContent,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
       const assistantId = addMessage({ role: "assistant", content: "", streaming: true });
       setStreaming(true);
 
+      // Build LLM messages — inject file content as context
+      const fileContext = attachments
+        .filter((a) => a.content)
+        .map((a) => `<file name="${a.name}" type="${a.type}">\n${a.content}\n</file>`)
+        .join("\n\n");
+
+      const fileRefs = attachments
+        .filter((a) => !a.content)
+        .map((a) => `[Binary file: ${a.name} (${(a.size / 1024).toFixed(1)} KB) — stored at ${a.key}]`)
+        .join("\n");
+
+      let enrichedText = text;
+      if (fileContext || fileRefs) {
+        const parts: string[] = [];
+        if (fileContext) parts.push(`The user attached the following file(s):\n\n${fileContext}`);
+        if (fileRefs) parts.push(`The user also attached binary file(s):\n${fileRefs}`);
+        if (text) parts.push(`User message: ${text}`);
+        else parts.push("The user sent these files without a message. Acknowledge the files and offer to help analyze them.");
+        enrichedText = parts.join("\n\n");
+      }
+
       const chatMessages = [
         ...messages.map((m) => ({ role: m.role, content: m.content })),
-        { role: "user", content: text },
+        { role: "user", content: enrichedText },
       ];
 
       try {
@@ -120,7 +152,7 @@ export default function Chat() {
               ].map((q) => (
                 <button
                   key={q}
-                  onClick={() => handleSend(q)}
+                  onClick={() => handleSend(q, [])}
                   className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
                 >
                   {q}

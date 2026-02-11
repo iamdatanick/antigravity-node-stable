@@ -351,6 +351,8 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LOCAL_LLM_URL=http://ollama:11434/v1
       - DAILY_BUDGET_USD=${DAILY_BUDGET_USD:-50}
+      - OPENBAO_ADDR=http://openbao:8200
+      - OPENBAO_TOKEN=${OPENBAO_DEV_TOKEN:-dev-only-token}
     ports: ["4055:4000"]
     networks: [antigravity_mesh]
     deploy:

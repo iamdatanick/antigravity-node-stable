@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { marked } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/tokyo-night-dark.css";
-import { Bot, User, ChevronDown, ChevronRight, Wrench } from "lucide-react";
+import { Bot, User, ChevronDown, ChevronRight, Wrench, FileText } from "lucide-react";
 import { useState } from "react";
 import type { ChatMessage } from "../../stores/chatStore";
 
@@ -92,6 +92,24 @@ export default function ChatBubble({ message }: { message: ChatMessage }) {
           }`}
           dangerouslySetInnerHTML={{ __html: html }}
         />
+
+        {/* Attachments */}
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {message.attachments.map((a) => (
+              <div
+                key={a.key}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[11px]"
+              >
+                <FileText size={12} className="text-[var(--color-accent)] shrink-0" />
+                <span className="text-[var(--color-text-secondary)] truncate max-w-[160px]">{a.name}</span>
+                <span className="text-[var(--color-text-muted)]">
+                  {a.size < 1024 ? `${a.size} B` : a.size < 1024 * 1024 ? `${(a.size / 1024).toFixed(1)} KB` : `${(a.size / (1024 * 1024)).toFixed(1)} MB`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Streaming cursor */}
         {message.streaming && (

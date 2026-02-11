@@ -310,14 +310,17 @@ async def upload_file(
 
     logger.info(f"File uploaded: {key} ({len(content)} bytes) by tenant={x_tenant_id}")
 
-    # Record in episodic memory
-    push_episodic(
-        tenant_id=x_tenant_id,
-        session_id="upload",
-        actor="User",
-        action_type="FILE_UPLOAD",
-        content=f"Uploaded {file.filename} ({len(content)} bytes)",
-    )
+    # Record in episodic memory (non-fatal if DB unavailable)
+    try:
+        push_episodic(
+            tenant_id=x_tenant_id,
+            session_id="upload",
+            actor="User",
+            action_type="FILE_UPLOAD",
+            content=f"Uploaded {file.filename} ({len(content)} bytes)",
+        )
+    except Exception as e:
+        logger.warning(f"Episodic memory write failed (non-fatal): {e}")
 
     return {"status": "uploaded", "key": key, "size": len(content)}
 
