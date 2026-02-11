@@ -49,7 +49,7 @@ class TestRequirements:
             assert banned not in content, f"{banned} must be removed for cloud deploy"
 
     def test_required_packages_present(self):
-        """python-etcd3, aioboto3, tenacity must be in cloud requirements."""
+        """etcd3, aioboto3, tenacity must be in cloud requirements."""
         req_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
             "deployment", "cloud-test", "requirements.txt",
@@ -58,7 +58,7 @@ class TestRequirements:
             pytest.skip("Cloud requirements.txt not yet created")
         with open(req_path) as f:
             content = f.read().lower()
-        for required in ["python-etcd3", "aioboto3", "tenacity"]:
+        for required in ["etcd3", "aioboto3", "tenacity"]:
             assert required in content, f"{required} must be in cloud requirements"
 
     def test_smoke_imports(self):

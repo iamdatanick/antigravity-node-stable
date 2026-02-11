@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """OpenLineage integration for Antigravity Node.
 
 Emits lineage events to Marquez for data provenance tracking.
@@ -13,6 +11,8 @@ Environment variables:
     OPENLINEAGE_URL       -- Marquez API base (default: http://marquez:5000)
     OPENLINEAGE_NAMESPACE -- Namespace for jobs/datasets (default: antigravity)
 """
+
+from __future__ import annotations
 
 import logging
 import os
@@ -31,6 +31,7 @@ try:
         RunState,
     )
     from openlineage.client.transport import HttpConfig, HttpTransport
+
     _HAS_OPENLINEAGE = True
 except ImportError:
     _HAS_OPENLINEAGE = False
