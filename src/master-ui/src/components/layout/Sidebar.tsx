@@ -2,6 +2,7 @@ import { NavLink } from "react-router";
 import {
   LayoutDashboard,
   MessageSquare,
+  Sparkles,
   ScrollText,
   Database,
   Terminal,
@@ -16,11 +17,9 @@ import { useState } from "react";
 
 const NAV = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard", available: true },
-  { to: "/chat", icon: MessageSquare, label: "Chat", available: true },
+  { to: "/hybrid", icon: Sparkles, label: "Hybrid Chat", available: true },
+  { to: "/chat", icon: MessageSquare, label: "Legacy Chat", available: true },
   { to: "/logs", icon: ScrollText, label: "Logs", available: false },
-  { to: "/memory", icon: Database, label: "Memory", available: false },
-  { to: "/query", icon: Terminal, label: "Query", available: false },
-  { to: "/workflows", icon: Workflow, label: "Workflows", available: false },
   { to: "/budget", icon: DollarSign, label: "Budget", available: true },
   { to: "/services", icon: Server, label: "Services", available: true },
   { to: "/settings", icon: Settings, label: "Settings", available: true },
@@ -35,7 +34,6 @@ export default function Sidebar() {
         collapsed ? "w-16" : "w-56"
       }`}
     >
-      {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-[var(--color-border)]">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-purple)] flex items-center justify-center text-white font-bold text-sm shrink-0">
           AG
@@ -50,7 +48,6 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Nav links */}
       <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto">
         {NAV.map(({ to, icon: Icon, label, available }) => (
           <NavLink
@@ -73,7 +70,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Collapse toggle */}
       <button
         onClick={() => setCollapsed((c) => !c)}
         className="flex items-center justify-center py-3 border-t border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"

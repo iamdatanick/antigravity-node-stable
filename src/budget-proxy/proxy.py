@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import os
@@ -14,14 +13,23 @@ app = FastAPI(title="Budget Proxy", version="14.1.0")
 
 # Config
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://ovms:9001/v1")
 LOCAL_DEFAULT_MODEL = os.environ.get("LOCAL_DEFAULT_MODEL", "tinyllama")
-DAILY_BUDGET_USD = float(os.environ.get("DAILY_BUDGET_USD", "50"))
+DAILY_BUDGET_USD = float(os.environ.get("DAILY_BUDGET_USD", "999999")) # Set high as per user instruction
 
 _daily_spend = 0.0
 _spend_lock = asyncio.Lock()
 
 async def _route_model(model: str) -> tuple[str, dict, str]:
+    # Vertex AI / Google Routing
+    if model.startswith("vertex/") or model.startswith("gemini-"):
+        effective_model = model.replace("vertex/", "")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{effective_model}:streamGenerateContent?key={GOOGLE_API_KEY}"
+        # Note: Google uses a different format, but for a simple proxy we might need a wrapper 
+        # For now, we route it. If it's standard OpenAI-compatible Google endpoint:
+        return ("https://generativelanguage.googleapis.com/v1beta/openai", {"Authorization": f"Bearer {GOOGLE_API_KEY}"}, effective_model)
+
     if model.startswith("local/"):
         return (LOCAL_LLM_URL, {}, model.removeprefix("local/"))
     
@@ -62,7 +70,11 @@ async def chat_completions(request: Request):
             )
             if resp.status_code != 200:
                 logger.error(f"Upstream {base_url} returned {resp.status_code}: {resp.text}")
-                return JSONResponse(status_code=resp.status_code, content=resp.json())
+                # Try to return the upstream error
+                try:
+                    return JSONResponse(status_code=resp.status_code, content=resp.json())
+                except:
+                    return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
             return JSONResponse(content=resp.json())
         except Exception as e:
             logger.error(f"Proxy error: {e}")
@@ -91,10 +103,14 @@ async def create_embeddings(request: Request):
 
 @app.get("/v1/models")
 async def list_models():
+    # Return a rich list for the UI
     return {"object": "list", "data": [
-        {"id": "gpt-4o", "object": "model", "owned_by": "antigravity"},
-        {"id": "gpt-4o-mini", "object": "model", "owned_by": "antigravity"},
-        {"id": "tinyllama", "object": "model", "owned_by": "local"}
+        {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
+        {"id": "gpt-4o-mini", "object": "model", "owned_by": "openai"},
+        {"id": "tinyllama", "object": "model", "owned_by": "local"},
+        {"id": "vertex/gemini-1.5-pro", "object": "model", "owned_by": "vertex"},
+        {"id": "vertex/gemini-1.5-flash", "object": "model", "owned_by": "vertex"},
+        {"id": "vertex/medlm-large", "object": "model", "owned_by": "vertex"},
     ]}
 
 if __name__ == "__main__":
