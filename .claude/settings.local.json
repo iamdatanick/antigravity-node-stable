@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" checkout -b feature/v14-phoenix)",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell:*)",
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" add deployment/)",
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" commit -m \"$\\(cat <<''EOF''\nchore: scaffold v14.1 cloud deployment directories\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(test:*)",
+      "Bash(python:*)",
+      "Bash(git -C \"C:/Users/NickV/OneDrive/Desktop/Antigravity-Node\" status)",
+      "Bash(git -C \"C:/Users/NickV/OneDrive/Desktop/Antigravity-Node\" log --oneline -5)",
+      "Bash(git -C \"C:/Users/NickV/OneDrive/Desktop/Antigravity-Node\" add deployment/cloud-test/docker-compose.yml)",
+      "Bash(git -C \"C:/Users/NickV/OneDrive/Desktop/Antigravity-Node\" commit -m \"$\\(cat <<''EOF''\nfeat\\(cloud\\): add hardened v14.1 docker-compose with healthchecks and persistence\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" add deployment/cloud-test/config/otel-collector-config.yaml)",
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" commit -m \"$\\(cat <<''EOF''\nfeat\\(cloud\\): add OTel collector config\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" branch --show-current)",
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" add deployment/cloud-test/scripts/check_avx512.sh tests/test_cloud_scripts.py)",
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" commit -m \"$\\(cat <<''EOF''\nfeat\\(cloud\\): add AVX-512 hardware check script \\(CG-107\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" add deployment/cloud-test/scripts/fix_perms.sh)",
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" commit -m \"$\\(cat <<''EOF''\nfeat\\(cloud\\): add pre-boot permission fix script \\(CG-108\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C:*)",
+      "Bash(git -C \"C:\\\\Users\\\\NickV\\\\OneDrive\\\\Desktop\\\\Antigravity-Node\" commit -m \"$\\(cat <<''EOF''\nfeat\\(cloud\\): add model hydration script for OVMS \\(ACT-105\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(\"C:\\\\Users\\\\NickV\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe\" -m pytest tests/ -q --tb=short)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "MCP_DOCKER"
+  ]
+}

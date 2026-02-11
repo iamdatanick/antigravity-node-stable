@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import sys,subprocess,os; f=os.environ.get('CLAUDE_FILE_PATH',''); exit(0) if not f.endswith('.py') or not os.path.exists(f) else subprocess.run(['python','-m','ruff','format','--quiet',f],capture_output=True).returncode\"",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import sys,os; f=os.environ.get('CLAUDE_FILE_PATH',''); sys.exit(1) if f.endswith('.env') and not f.endswith('.env.example') else sys.exit(0)\"",
+            "timeout": 3000
+          }
+        ]
+      }
+    ]
+  }
+}
