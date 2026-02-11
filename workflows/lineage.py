@@ -1,8 +1,11 @@
-"""OpenLineage integration for Antigravity Node v13.0.
+"""OpenLineage integration for Antigravity Node.
 
 Emits lineage events to Marquez for data provenance tracking.
 All lineage calls are non-blocking: failures are logged and never
 propagate to the caller.
+
+In v14.1 Phoenix, OpenLineage/Marquez is optional. If the openlineage
+package is not installed, all functions become safe no-ops.
 
 Environment variables:
     OPENLINEAGE_URL       -- Marquez API base (default: http://marquez:5000)
@@ -14,17 +17,22 @@ import os
 import uuid
 from datetime import UTC, datetime
 
-from openlineage.client import OpenLineageClient
-from openlineage.client.facet import ErrorMessageRunFacet
-from openlineage.client.run import (
-    InputDataset,
-    Job,
-    OutputDataset,
-    Run,
-    RunEvent,
-    RunState,
-)
-from openlineage.client.transport import HttpConfig, HttpTransport
+try:
+    from openlineage.client import OpenLineageClient
+    from openlineage.client.facet import ErrorMessageRunFacet
+    from openlineage.client.run import (
+        InputDataset,
+        Job,
+        OutputDataset,
+        Run,
+        RunEvent,
+        RunState,
+    )
+    from openlineage.client.transport import HttpConfig, HttpTransport
+    _HAS_OPENLINEAGE = True
+except ImportError:
+    _HAS_OPENLINEAGE = False
+
 from opentelemetry import trace
 
 logger = logging.getLogger("antigravity.lineage")
@@ -44,10 +52,10 @@ tracer = trace.get_tracer("antigravity.lineage")
 # ---------------------------------------------------------------------------
 # Client (lazy singleton)
 # ---------------------------------------------------------------------------
-_client: OpenLineageClient | None = None
+_client = None
 
 
-def _get_client() -> OpenLineageClient:
+def _get_client():
     """Return a lazily-initialised OpenLineage HTTP client."""
     global _client
     if _client is None:
@@ -79,26 +87,13 @@ async def emit_run_event(
 ) -> str | None:
     """Emit a RunEvent to Marquez.
 
-    Parameters
-    ----------
-    job_name : str
-        Logical job name (e.g. ``a2a.task``, ``a2a.inference``).
-    event_type : RunState
-        One of START, COMPLETE, FAIL, ABORT, RUNNING, OTHER.
-    run_id : str, optional
-        UUID for the run.  Auto-generated if omitted.
-    inputs : list of dict, optional
-        Input datasets as ``[{"namespace": ..., "name": ...}]``.
-    outputs : list of dict, optional
-        Output datasets as ``[{"namespace": ..., "name": ...}]``.
-    error_message : str, optional
-        Error description (only used for FAIL events).
-
-    Returns
-    -------
-    str or None
-        The ``run_id`` on success, ``None`` on failure.
+    Returns the run_id on success, None on failure or if openlineage
+    is not installed.
     """
+    if not _HAS_OPENLINEAGE:
+        logger.debug("OpenLineage not installed, skipping lineage for %s", job_name)
+        return run_id or str(uuid.uuid4())
+
     with tracer.start_as_current_span("lineage.emit_run_event") as span:
         span.set_attribute("lineage.job_name", job_name)
         span.set_attribute("lineage.event_type", event_type.value)
