@@ -1,4 +1,8 @@
-"""StarRocks memory push — tenant-partitioned context to 3-layer memory schema."""
+"""Memory layer — tenant-partitioned context storage.
+
+In v14.1 Phoenix, StarRocks is replaced by etcd for state. The pymysql/StarRocks
+backend is optional. All functions become safe no-ops if pymysql is not installed.
+"""
 
 import hashlib
 import itertools
@@ -8,8 +12,12 @@ import re
 import threading
 import time
 
-import pymysql
-from dbutils.pooled_db import PooledDB
+try:
+    import pymysql
+    from dbutils.pooled_db import PooledDB
+    _HAS_STARROCKS = True
+except ImportError:
+    _HAS_STARROCKS = False
 
 from workflows.telemetry import get_tracer
 
@@ -29,6 +37,8 @@ _pool_lock = threading.Lock()
 
 def _get_pool():
     """Get or create connection pool for StarRocks FE."""
+    if not _HAS_STARROCKS:
+        return None
     global _pool
     if _pool is None:
         with _pool_lock:
@@ -66,6 +76,9 @@ def push_episodic(
     content: str,
 ):
     """Write an event to episodic memory."""
+    if not _HAS_STARROCKS:
+        logger.debug("StarRocks not available, skipping episodic push")
+        return
     with tracer.start_as_current_span(
         "memory.push_episodic", attributes={"tenant_id": tenant_id, "action_type": action_type}
     ):
@@ -95,6 +108,9 @@ def push_semantic(
     source_uri: str,
 ):
     """Write a knowledge chunk to semantic memory."""
+    if not _HAS_STARROCKS:
+        logger.debug("StarRocks not available, skipping semantic push")
+        return
     conn = _get_conn()
     try:
         with conn.cursor() as cur:
@@ -112,6 +128,9 @@ def push_semantic(
 
 def recall_experience(goal: str, tenant_id: str, limit: int = 10) -> list:
     """Query episodic memory BEFORE generating a new plan."""
+    if not _HAS_STARROCKS:
+        logger.debug("StarRocks not available, returning empty recall")
+        return []
     with tracer.start_as_current_span("memory.recall_experience", attributes={"tenant_id": tenant_id, "limit": limit}):
         conn = _get_conn()
         try:
@@ -131,6 +150,9 @@ def recall_experience(goal: str, tenant_id: str, limit: int = 10) -> list:
 
 def query(sql: str) -> list:
     """Execute read-only SQL on StarRocks memory tables."""
+    if not _HAS_STARROCKS:
+        logger.debug("StarRocks not available, returning empty query")
+        return []
     # Create a hash of the SQL for tracing (to avoid PII exposure)
     sql_hash = hashlib.sha256(sql.encode()).hexdigest()[:16]
     with tracer.start_as_current_span("memory.query", attributes={"sql_hash": sql_hash, "sql_length": len(sql)}):
