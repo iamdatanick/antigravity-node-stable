@@ -1,0 +1,27 @@
+# Antigravity Node v14.1 — Orchestrator (Cloud)
+FROM python:3.11-slim AS base
+
+WORKDIR /app
+
+# Install system deps for grpc + etcd3
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libffi-dev curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Python deps
+COPY deployment/cloud-test/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY workflows/ /app/workflows/
+COPY src/orchestrator/ /app/src/orchestrator/
+COPY well-known/ /app/well-known/
+COPY config/prompts/ /app/config/prompts/
+
+# Healthcheck
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+EXPOSE 8080 8081
+
+CMD ["python", "-m", "workflows.main"]
