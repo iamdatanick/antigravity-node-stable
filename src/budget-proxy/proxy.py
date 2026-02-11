@@ -25,6 +25,7 @@ _spend_lock = asyncio.Lock()
 COST_TABLE = {
     "gpt-4o": {"input": 0.005, "output": 0.015},
     "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+    "text-embedding-3-small": {"input": 0.00002, "output": 0.0},
     "tinyllama": {"input": 0.0, "output": 0.0},
 }
 
@@ -69,9 +70,49 @@ async def chat_completions(request: Request):
             logger.error(f"Proxy error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/v1/embeddings")
+async def create_embeddings(request: Request):
+    """Route embedding requests to OpenAI - budget-tracked."""
+    global _daily_spend
+    
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+        
+    key = OPENAI_API_KEY
+    if not key:
+        raise HTTPException(status_code=503, detail="No embedding API key available")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            resp = await client.post(
+                "https://api.openai.com/v1/embeddings",
+                json=body,
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            )
+            if resp.status_code != 200:
+                return JSONResponse(status_code=resp.status_code, content=resp.json())
+            
+            result = resp.json()
+            usage = result.get("usage", {})
+            cost = usage.get("total_tokens", 0) / 1_000_000 * 0.02
+            
+            async with _spend_lock:
+                _daily_spend += cost
+                
+            return JSONResponse(content=result)
+        except Exception as e:
+            logger.error(f"Embedding error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/v1/models")
 async def list_models():
-    return {"object": "list", "data": [{"id": "gpt-4o", "object": "model", "owned_by": "antigravity"}]}
+    return {"object": "list", "data": [
+        {"id": "gpt-4o", "object": "model", "owned_by": "antigravity"},
+        {"id": "gpt-4o-mini", "object": "model", "owned_by": "antigravity"},
+        {"id": "text-embedding-3-small", "object": "model", "owned_by": "antigravity"}
+    ]}
 
 if __name__ == "__main__":
     import uvicorn
