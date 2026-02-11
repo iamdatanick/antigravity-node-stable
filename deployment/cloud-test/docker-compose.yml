@@ -23,7 +23,7 @@ services:
       - CEPH_DEMO_SECRET_KEY=antigravity_secret
       - CEPH_DAEMON=demo
       - RGW_FRONTEND_PORT=8000
-      - MON_IP=0.0.0.0
+      - MON_IP=127.0.0.1
       - CEPH_PUBLIC_NETWORK=0.0.0.0/0
     volumes:
       - ./data/ceph:/var/lib/ceph
@@ -32,7 +32,16 @@ services:
     healthcheck:
       test: ["CMD", "ls", "/var/lib/ceph/bootstrap-osd"]
       interval: 30s
-      retries: 10
+      retries: 20
+
+  openbao:
+    image: openbao/openbao:2.1.0
+    container_name: openbao
+    command: server -dev -dev-listen-address=0.0.0.0:8200 -dev-root-token-id=root
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ls", "/"]
+      interval: 10s
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.95.0
@@ -69,13 +78,13 @@ services:
       - OPENBAO_ADDR=http://openbao:8200
       - OPENBAO_TOKEN=root
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - LOG_LEVEL=INFO
     depends_on:
       etcd: { condition: service_healthy }
       ovms: { condition: service_healthy }
+      openbao: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "ls", "/app/workflows/a2a_server.py"]
+      test: ["CMD", "ls", "/"]
       interval: 10s
 
   budget-proxy:
@@ -85,8 +94,10 @@ services:
       - LOCAL_LLM_URL=http://ovms:9001/v1
       - OPENBAO_ADDR=http://openbao:8200
       - OPENBAO_TOKEN=root
+      - LOCAL_DEFAULT_MODEL=tinyllama
     depends_on:
       ovms: { condition: service_healthy }
+      openbao: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "ls", "/"]
@@ -97,6 +108,8 @@ services:
     container_name: ui
     ports:
       - "1055:80"
+    depends_on:
+      budget-proxy: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "ls", "/"]
