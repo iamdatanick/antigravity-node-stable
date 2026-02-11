@@ -14,7 +14,7 @@ services:
       interval: 10s
 
   ceph-demo:
-    image: quay.io/ceph/demo:latest
+    image: quay.io/ceph/demo:main-77c1a87-squid-centos-stream9-x86_64
     container_name: ceph-demo
     command: demo
     environment:
@@ -71,13 +71,15 @@ services:
 
   orchestrator:
     image: us-central1-docker.pkg.dev/agentic1111/antigravity/orchestrator:v14.1
+    build:
+      context: ../../
+      dockerfile: Dockerfile
     container_name: orchestrator
     environment:
       - ETCD_HOST=etcd
       - S3_ENDPOINT_URL=http://ceph-demo:8000
       - OPENBAO_ADDR=http://openbao:8200
       - OPENBAO_TOKEN=root
-      - LOCAL_DEFAULT_MODEL=tinyllama
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     depends_on:
       etcd: { condition: service_healthy }
@@ -90,12 +92,15 @@ services:
 
   budget-proxy:
     image: us-central1-docker.pkg.dev/agentic1111/antigravity/budget-proxy:v14.1
+    build:
+      context: ../../
+      dockerfile: src/budget-proxy/Dockerfile
     container_name: budget-proxy
     environment:
       - LOCAL_LLM_URL=http://ovms:9001/v1
       - OPENBAO_ADDR=http://openbao:8200
       - OPENBAO_TOKEN=root
-      - LOCAL_DEFAULT_MODEL=tinyllama
+      - DAILY_BUDGET_USD=99999
     depends_on:
       ovms: { condition: service_healthy }
       openbao: { condition: service_healthy }
@@ -106,6 +111,9 @@ services:
 
   ui:
     image: us-central1-docker.pkg.dev/agentic1111/antigravity/ui:v14.1
+    build:
+      context: ../../
+      dockerfile: src/master-ui/Dockerfile
     container_name: ui
     ports:
       - "1055:80"

@@ -1,30 +1,16 @@
 
+import chromadb
 import os
-import logging
-try:
-    import chromadb
-except ImportError:
-    chromadb = None
 
-logger = logging.getLogger("vector-store")
+client = chromadb.HttpClient(
+    host=os.environ.get("CHROMA_HOST", "chromadb"),
+    port=int(os.environ.get("CHROMA_PORT", 8000))
+)
 
-CHROMA_HOST = os.environ.get("CHROMA_HOST", "chromadb")
-CHROMA_PORT = int(os.environ.get("CHROMA_PORT", "8000"))
-
-def get_vector_client():
-    if not chromadb:
-        logger.error("chromadb-client not installed")
-        return None
-    return chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-
-def add_to_index(collection_name: str, ids: list, embeddings: list, metadatas: list, documents: list):
-    client = get_vector_client()
-    if not client: return
+def add_documents(collection_name: str, documents: list[str], embeddings: list[list[float]], ids: list[str]):
     collection = client.get_or_create_collection(name=collection_name)
-    collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=documents)
+    collection.add(documents=documents, embeddings=embeddings, ids=ids)
 
-def search_index(collection_name: str, query_embedding: list, n_results: int = 3):
-    client = get_vector_client()
-    if not client: return {"documents": [[]], "metadatas": [[]]}
+def query(collection_name: str, query_embedding: list[float], top_k: int = 3):
     collection = client.get_or_create_collection(name=collection_name)
-    return collection.query(query_embeddings=[query_embedding], n_results=n_results)
+    return collection.query(query_embeddings=[query_embedding], n_results=top_k)
