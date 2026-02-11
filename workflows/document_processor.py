@@ -1,7 +1,6 @@
-
 import logging
 import os
-from typing import List
+
 try:
     import pypdf
 except ImportError:
@@ -13,11 +12,12 @@ except ImportError:
 
 logger = logging.getLogger("document-processor")
 
+
 def process_file(file_path: str) -> str:
     """Parse PDF, DOCX, or TXT into plain text."""
     if not os.path.exists(file_path):
         return ""
-        
+
     ext = file_path.split(".")[-1].lower()
     try:
         if ext == "pdf" and pypdf:
@@ -28,16 +28,18 @@ def process_file(file_path: str) -> str:
             doc = Document(file_path)
             return "\n".join([p.text for p in doc.paragraphs])
         else:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 return f.read()
     except Exception as e:
         logger.error(f"Failed to process {file_path}: {e}")
         return ""
 
-def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> List[str]:
+
+def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> list[str]:
     """Split text into overlapping chunks."""
-    if not text: return []
+    if not text:
+        return []
     chunks = []
     for i in range(0, len(text), chunk_size - overlap):
-        chunks.append(text[i:i + chunk_size])
+        chunks.append(text[i : i + chunk_size])
     return chunks

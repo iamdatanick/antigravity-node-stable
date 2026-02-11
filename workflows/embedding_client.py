@@ -1,9 +1,10 @@
-
-import os
-import httpx
 import logging
+import os
+
+import httpx
 
 logger = logging.getLogger("embedding-client")
+
 
 async def get_embeddings(text: str) -> list[float]:
     """Call budget-proxy for OpenAI embeddings."""
@@ -11,8 +12,7 @@ async def get_embeddings(text: str) -> list[float]:
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             resp = await client.post(
-                f"{proxy_url}/v1/embeddings",
-                json={"model": "text-embedding-3-small", "input": text}
+                f"{proxy_url}/v1/embeddings", json={"model": "text-embedding-3-small", "input": text}
             )
             if resp.status_code == 200:
                 return resp.json()["data"][0]["embedding"]
