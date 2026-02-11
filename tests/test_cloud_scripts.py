@@ -1,6 +1,8 @@
 """Tests for cloud deployment scripts (bash, validated via subprocess)."""
 import os
 
+import pytest
+
 SCRIPTS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(__file__)),
     "deployment", "cloud-test", "scripts",
@@ -28,3 +30,39 @@ class TestCheckAvx512:
         has_avx512 = False
         force = env_override == "1"
         assert not has_avx512 or force  # either has it or forced
+
+
+class TestRequirements:
+    """Validate cloud requirements.txt meets v14.1 spec."""
+
+    def test_banned_packages_removed(self):
+        """asyncpg, pymilvus, nats-py must NOT be in cloud requirements."""
+        req_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "deployment", "cloud-test", "requirements.txt",
+        )
+        if not os.path.exists(req_path):
+            pytest.skip("Cloud requirements.txt not yet created")
+        with open(req_path) as f:
+            content = f.read().lower()
+        for banned in ["asyncpg", "pymilvus", "nats-py"]:
+            assert banned not in content, f"{banned} must be removed for cloud deploy"
+
+    def test_required_packages_present(self):
+        """python-etcd3, aioboto3, tenacity must be in cloud requirements."""
+        req_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "deployment", "cloud-test", "requirements.txt",
+        )
+        if not os.path.exists(req_path):
+            pytest.skip("Cloud requirements.txt not yet created")
+        with open(req_path) as f:
+            content = f.read().lower()
+        for required in ["python-etcd3", "aioboto3", "tenacity"]:
+            assert required in content, f"{required} must be in cloud requirements"
+
+    def test_smoke_imports(self):
+        """Verify core packages are importable (CG-101 smoke test)."""
+        import importlib
+        for pkg in ["fastapi", "pydantic", "tenacity", "httpx"]:
+            importlib.import_module(pkg)
