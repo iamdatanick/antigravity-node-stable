@@ -15,6 +15,7 @@ import time
 try:
     import pymysql
     from dbutils.pooled_db import PooledDB
+
     _HAS_STARROCKS = True
 except ImportError:
     _HAS_STARROCKS = False

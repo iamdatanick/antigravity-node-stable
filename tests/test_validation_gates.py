@@ -3,6 +3,7 @@
 These tests validate the deployment spec, not live services.
 Live integration tests run on the GCP instance.
 """
+
 import os
 
 import yaml
@@ -78,9 +79,7 @@ class TestVG106Resilience:
         with open(compose_path) as f:
             compose = yaml.safe_load(f)
         for name, svc in compose["services"].items():
-            assert svc.get("restart") == "unless-stopped", (
-                f"Service {name} must have restart: unless-stopped"
-            )
+            assert svc.get("restart") == "unless-stopped", f"Service {name} must have restart: unless-stopped"
 
 
 class TestVG108DependencySmoke:
@@ -136,10 +135,6 @@ class TestComposeDependsOn:
         # Ceph is intentionally excluded — graceful degradation (ACT-110)
         for svc in ["etcd", "ovms", "openbao"]:
             assert svc in deps, f"Orchestrator must depend on {svc}"
-            assert deps[svc]["condition"] == "service_healthy", (
-                f"Orchestrator must wait for {svc} to be healthy"
-            )
+            assert deps[svc]["condition"] == "service_healthy", f"Orchestrator must wait for {svc} to be healthy"
         # Verify ceph-demo is NOT a hard dependency
-        assert "ceph-demo" not in deps, (
-            "ceph-demo must NOT be in depends_on (graceful degradation)"
-        )
+        assert "ceph-demo" not in deps, "ceph-demo must NOT be in depends_on (graceful degradation)"
