@@ -1,14 +1,13 @@
+
 import asyncio
 import logging
 import os
 import subprocess
-from datetime import datetime
+from datetime import datetime, UTC
+from typing import List, Optional
 
 import httpx
-from fastapi import (
-    FastAPI,
-    WebSocket,
-)
+from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -28,31 +27,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 class WorkflowListResponse(BaseModel):
-    workflows: list[dict]
-
+    workflows: List[dict]
 
 class ToolsResponse(BaseModel):
-    tools: list[dict]
+    tools: List[dict]
     total: int
-
 
 class ChatMessage(BaseModel):
     role: str
     content: str
 
-
 class ChatRequest(BaseModel):
     model: str
-    messages: list[ChatMessage]
+    messages: List[ChatMessage]
     stream: bool = False
-
 
 @app.get("/health")
 async def health():
     return {"status": "healthy", "version": "14.1.0"}
-
 
 @app.get("/tools", response_model=ToolsResponse)
 async def list_tools():
@@ -65,37 +58,35 @@ async def list_tools():
             {"name": "list_models", "server": "budget-proxy", "description": "List models"},
             {"name": "system_health", "server": "orchestrator", "description": "Health hierarchy"},
         ],
-        "total": 6,
+        "total": 6
     }
-
 
 @app.websocket("/ws/logs")
 async def ws_logs(websocket: WebSocket):
     await websocket.accept()
     try:
-        # Professional log tailing
-        log_path = "/proc/1/fd/1"  # Docker stdout
+        # Professional log tailing of container stdout
+        log_path = "/proc/1/fd/1"
         if not os.path.exists(log_path):
             while True:
                 await asyncio.sleep(5)
-                await websocket.send_text(f"[{datetime.now().strftime('%H:%M:%S')}] System Operational\r\n")
-
+                await websocket.send_text(f"[{datetime.now(UTC).strftime('%H:%M:%S')}] System Operational\r\n")
+        
         process = await asyncio.create_subprocess_exec(
-            "tail", "-f", log_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            'tail', '-f', log_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
         )
         while True:
             line = await process.stdout.readline()
-            if not line:
-                break
+            if not line: break
             await websocket.send_text(line.decode())
     except Exception:
         pass
 
-
 @app.get("/workflows", response_model=WorkflowListResponse)
 async def list_workflows():
     return {"workflows": []}
-
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatRequest):
@@ -108,7 +99,6 @@ async def chat_completions(request: ChatRequest):
             logger.error(f"Chat proxy error: {e}")
             return JSONResponse(status_code=502, content={"error": "Proxy connection failed"})
 
-
 @app.get("/v1/models")
 async def list_models():
     proxy_url = os.environ.get("LITELLM_BASE_URL", "http://budget-proxy:4055")
@@ -119,8 +109,6 @@ async def list_models():
         except Exception:
             return {"object": "list", "data": [{"id": "gpt-4o", "object": "model"}]}
 
-
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8080)
