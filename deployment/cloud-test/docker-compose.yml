@@ -136,6 +136,7 @@ services:
       - OPENBAO_ADDR=http://openbao:8200
       - OPENBAO_TOKEN=root
       - OVMS_REST_URL=http://ovms:9001
+      - LITELLM_BASE_URL=http://budget-proxy:4055
       - LOG_LEVEL=INFO
     ports:
       - "8080:8080"
@@ -181,7 +182,7 @@ services:
   ui:
     build:
       context: ../../
-      dockerfile: src/ui/Dockerfile
+      dockerfile: src/master-ui/Dockerfile
     container_name: ui
     ports:
       - "1055:80"

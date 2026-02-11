@@ -1,31 +1,56 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useMemo } from "react";
 import { useChatStore } from "../stores/chatStore";
 import type { Attachment } from "../stores/chatStore";
 import { streamChat } from "../api/client";
 import { useModels } from "../api/models";
-import ChatBubble from "../components/chat/ChatBubble";
-import ChatInput from "../components/chat/ChatInput";
-import { Bot, ChevronDown, Trash2 } from "lucide-react";
+import { useHealth, countServices } from "../api/health";
 
+import ParticleField from "../components/chat/ParticleField";
+import Core from "../components/chat/Core";
+import MessageStream from "../components/chat/MessageStream";
+import NeuralInput from "../components/chat/NeuralInput";
+import AmbientHUD from "../components/chat/AmbientHUD";
+
+/**
+ * Consciousness Chamber — Antigravity Node v14.1
+ *
+ * A full-viewport AI interface where the AI exists as a living entity.
+ * Three Z-layers: Aether (particles) → Core (AI orb) → Stream (messages).
+ */
 export default function Chat() {
   const { messages, isStreaming, addMessage, appendContent, updateMessage, setStreaming, clear } =
     useChatStore();
-  const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { data: modelsData } = useModels();
+  const { data: healthData } = useHealth();
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [isTyping, setIsTyping] = useState(false);
 
-  // Resolve active model: user selection > first available > fallback
+  // Resolve active model
   const models = modelsData?.data ?? [];
   const activeModel = selectedModel || models[0]?.id || "gpt-4o";
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  // Compute health ratio (0-1) for ambient visuals
+  const healthRatio = useMemo(() => {
+    const { total, healthy } = countServices(healthData);
+    return total > 0 ? healthy / total : 1; // Default to healthy when no data
+  }, [healthData]);
+
+  // Derive AI core state from conversation state
+  const coreState = useMemo((): "idle" | "listening" | "thinking" | "streaming" | "error" => {
+    if (isStreaming) {
+      // Check if the latest assistant message has content yet
+      const last = messages[messages.length - 1];
+      if (last?.role === "assistant" && last.content === "") return "thinking";
+      return "streaming";
+    }
+    if (isTyping) return "listening";
+    return "idle";
+  }, [isStreaming, isTyping, messages]);
 
   const handleSend = useCallback(
     async (text: string, attachments: Attachment[]) => {
-      // Build the display content (what the user sees in the chat)
+      // Build display content
       let displayContent = text;
       if (attachments.length > 0 && !text) {
         displayContent = `Sent ${attachments.length} file${attachments.length > 1 ? "s" : ""}: ${attachments.map((a) => a.name).join(", ")}`;
@@ -39,7 +64,7 @@ export default function Chat() {
       const assistantId = addMessage({ role: "assistant", content: "", streaming: true });
       setStreaming(true);
 
-      // Build LLM messages — inject file content as context
+      // Build LLM messages with file context injection
       const fileContext = attachments
         .filter((a) => a.content)
         .map((a) => `<file name="${a.name}" type="${a.type}">\n${a.content}\n</file>`)
@@ -88,84 +113,79 @@ export default function Chat() {
   }, []);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Chat</h1>
-            <p className="text-sm text-[var(--color-text-muted)]">Talk to Antigravity Node</p>
-          </div>
-          <div className="relative">
-            <select
-              value={activeModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              disabled={isStreaming}
-              className="appearance-none pl-3 pr-8 py-1.5 text-xs font-mono rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:border-[var(--color-accent)] transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              {models.length > 0 ? (
-                models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.id} ({m.owned_by})
-                  </option>
-                ))
-              ) : (
-                <option value="gpt-4o">gpt-4o (fallback)</option>
-              )}
-            </select>
-            <ChevronDown
-              size={12}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none"
-            />
-          </div>
-        </div>
-        {messages.length > 0 && (
-          <button
-            onClick={clear}
-            className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-red)] transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--color-red-dim)]"
-          >
-            <Trash2 size={12} />
-            Clear
-          </button>
-        )}
-      </div>
+    <div className="fixed inset-0 overflow-hidden bg-[var(--color-bg-primary)]" style={{ animation: "consciousness-fade 0.8s ease-out" }}>
+      {/* Layer 0: Aether — health-reactive particle field */}
+      <ParticleField healthRatio={healthRatio} isStreaming={isStreaming} />
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pb-4">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-purple)] flex items-center justify-center">
-              <Bot size={32} className="text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
-                Antigravity Chat
-              </h2>
-              <p className="text-sm text-[var(--color-text-muted)] max-w-md mt-1">
-                Ask questions, run queries, analyze data, or get help with the system.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 mt-2">
+      {/* Layer 1: Core — AI entity (centered, behind messages when scrolled) */}
+      {messages.length === 0 && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ zIndex: 1 }}>
+          <Core state={coreState} healthRatio={healthRatio} />
+
+          {/* Welcome state — prompt suggestions */}
+          <div className="mt-20 flex flex-col items-center gap-4 animate-[float-in_0.8s_ease-out_0.3s_both]">
+            <h1
+              className="text-lg font-light tracking-[0.3em] uppercase text-[var(--color-text-muted)] opacity-40"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              Antigravity
+            </h1>
+            <div className="flex flex-wrap gap-2 justify-center max-w-md mt-2">
               {[
-                "What's the system status?",
-                "Show me recent memory traces",
-                "How much budget is remaining?",
-                "List available tools",
-              ].map((q) => (
+                "System status",
+                "Available models",
+                "Budget remaining",
+                "What can you do?",
+              ].map((q, i) => (
                 <button
                   key={q}
                   onClick={() => handleSend(q, [])}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
+                  className="px-3 py-1.5 rounded-xl text-[10px] font-mono tracking-wide border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] text-[var(--color-text-muted)] hover:border-[rgba(0,212,255,0.25)] hover:text-[var(--color-accent)] hover:bg-[rgba(0,212,255,0.04)] transition-all duration-300 backdrop-blur-sm"
+                  style={{ animationDelay: `${0.4 + i * 0.1}s` }}
                 >
                   {q}
                 </button>
               ))}
             </div>
           </div>
-        ) : (
-          messages.map((msg) => <ChatBubble key={msg.id} message={msg} />)
-        )}
-      </div>
+        </div>
+      )}
 
-      <ChatInput onSend={handleSend} onStop={handleStop} isStreaming={isStreaming} />
+      {/* Layer 1b: Core — miniaturized when conversation is active */}
+      {messages.length > 0 && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2" style={{ zIndex: 3, transform: "translateX(-50%) scale(0.35)" }}>
+          <Core state={coreState} healthRatio={healthRatio} />
+        </div>
+      )}
+
+      {/* Layer 2: Message Stream */}
+      <MessageStream messages={messages} />
+
+      {/* Layer 3: Neural Input */}
+      <NeuralInput
+        onSend={handleSend}
+        onStop={handleStop}
+        isStreaming={isStreaming}
+        onTypingChange={setIsTyping}
+      />
+
+      {/* Layer 4: Ambient HUD overlays */}
+      <AmbientHUD
+        activeModel={activeModel}
+        onModelChange={setSelectedModel}
+        isStreaming={isStreaming}
+      />
+
+      {/* Clear conversation — tiny button top-center */}
+      {messages.length > 0 && (
+        <button
+          onClick={clear}
+          className="fixed top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-xl text-[9px] font-mono tracking-[0.15em] text-[var(--color-text-muted)] opacity-20 hover:opacity-60 bg-[rgba(15,23,42,0.7)] border border-[rgba(255,255,255,0.04)] backdrop-blur-md transition-all duration-300 hover:border-[rgba(239,68,68,0.2)] hover:text-[var(--color-red)]"
+          style={{ zIndex: 20 }}
+        >
+          CLEAR
+        </button>
+      )}
     </div>
   );
 }

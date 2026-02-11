@@ -61,3 +61,68 @@ body {
 
 .markdown-body a { color: var(--color-accent); }
 .markdown-body a:hover { text-decoration: underline; }
+
+/* === Consciousness Chamber Animations === */
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+@keyframes ripple {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.3); }
+  50% { transform: scale(1.08); box-shadow: 0 0 0 20px rgba(0, 212, 255, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 212, 255, 0); }
+}
+
+@keyframes pulse-stream {
+  0%, 100% { transform: scale(1.08); filter: brightness(1); }
+  50% { transform: scale(1.14); filter: brightness(1.2); }
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes orbit-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes inner-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes float-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes consciousness-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Consciousness chamber scrollbar override — nearly invisible */
+.consciousness-stream::-webkit-scrollbar { width: 2px; }
+.consciousness-stream::-webkit-scrollbar-track { background: transparent; }
+.consciousness-stream::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.15); border-radius: 1px; }
+
+/* Stream card entrance animation */
+.stream-card-enter {
+  animation: float-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Markdown inside glass cards */
+.markdown-body pre {
+  background: rgba(15, 23, 42, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(4px);
+}
