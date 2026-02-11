@@ -2,6 +2,7 @@
 *.env
 data/
 config/
+!config/prompts/
 .git
 docker-compose.yml
 brain_logs.txt

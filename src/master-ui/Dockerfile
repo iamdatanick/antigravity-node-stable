@@ -1,11 +1,11 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY src/master-ui/package.json src/master-ui/package-lock.json ./
 RUN npm ci --production=false
-COPY . .
+COPY src/master-ui/ .
 RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY src/master-ui/nginx.conf /etc/nginx/nginx.conf
 EXPOSE 80

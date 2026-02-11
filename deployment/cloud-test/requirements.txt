@@ -2,14 +2,13 @@
 # CG-101: Pinned for Ceph + Etcd + OVMS compatibility
 
 # State Management (replaces async-pg/postgres)
-python-etcd3==0.12.0
+etcd3>=0.12.0
 
 # S3 Storage (async, for Ceph RGW)
-aioboto3==11.3.0
-boto3>=1.35
+aioboto3>=11.3.0
 
-# gRPC (pinned for python-etcd3 compatibility)
-grpcio==1.60.0
+# gRPC
+grpcio>=1.60.0
 grpcio-tools>=1.60.0
 grpcio-health-checking>=1.60.0
 

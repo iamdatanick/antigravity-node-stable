@@ -17,7 +17,6 @@ services:
       - --listen-client-urls=http://0.0.0.0:2379
       - --advertise-client-urls=http://etcd:2379
     environment:
-      - ETCD_DATA_DIR=/etcd-data
       - ALLOW_NONE_AUTHENTICATION=yes
     volumes:
       - ./data/etcd:/etcd-data
@@ -34,7 +33,7 @@ services:
   # BLK-027: Ceph replaces SeaweedFS/MinIO (license-safe)
   # BLK-036: Data + Config Persistence (Canonical Paths)
   ceph-demo:
-    image: quay.io/ceph/ceph:v18
+    image: quay.io/ceph/demo:latest
     container_name: ceph-demo
     command: demo
     environment:
@@ -44,6 +43,7 @@ services:
       - CEPH_DAEMON=demo
       - RGW_FRONTEND_PORT=8000
       - NETWORK_AUTO_DETECT=4
+      - CEPH_PUBLIC_NETWORK=0.0.0.0/0
     volumes:
       - ./data/ceph:/var/lib/ceph
       - ./data/ceph_conf:/etc/ceph
@@ -143,8 +143,6 @@ services:
       - "8081:8081"
     depends_on:
       etcd:
-        condition: service_healthy
-      ceph-demo:
         condition: service_healthy
       ovms:
         condition: service_healthy
