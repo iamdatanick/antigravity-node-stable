@@ -1,4 +1,4 @@
-"""SeaweedFS S3 client wrapper using boto3."""
+"""Ceph RGW S3 client wrapper using boto3."""
 
 import logging
 import os
@@ -13,9 +13,9 @@ from workflows.telemetry import get_tracer
 logger = logging.getLogger("antigravity.s3")
 tracer = get_tracer("antigravity.s3")
 
-S3_ENDPOINT = os.environ.get("S3_ENDPOINT", "http://seaweedfs:8333")
-S3_ACCESS_KEY = os.environ.get("S3_ACCESS_KEY", "admin")
-S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY", "admin")
+S3_ENDPOINT = os.environ.get("S3_ENDPOINT_URL", os.environ.get("S3_ENDPOINT", "http://ceph-demo:8000"))
+S3_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID", os.environ.get("S3_ACCESS_KEY", "antigravity"))
+S3_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", os.environ.get("S3_SECRET_KEY", "antigravity_secret"))
 S3_BUCKET = os.environ.get("S3_BUCKET", "antigravity")
 
 _s3_client = None
@@ -25,7 +25,7 @@ _bucket_lock = threading.Lock()
 
 
 def get_client():
-    """Get or create a singleton boto3 S3 client pointing to SeaweedFS."""
+    """Get or create a singleton boto3 S3 client pointing to Ceph RGW."""
     global _s3_client
     if _s3_client is None:
         with _s3_client_lock:
@@ -63,7 +63,7 @@ def ensure_bucket(bucket: str = S3_BUCKET):
 
 
 def upload(key: str, data: bytes, bucket: str = S3_BUCKET):
-    """Upload bytes to SeaweedFS S3."""
+    """Upload bytes to Ceph RGW S3."""
     with tracer.start_as_current_span("s3.upload", attributes={"key": key, "bucket": bucket, "size_bytes": len(data)}):
         ensure_bucket(bucket)
         client = get_client()
@@ -72,7 +72,7 @@ def upload(key: str, data: bytes, bucket: str = S3_BUCKET):
 
 
 def download(key: str, bucket: str = S3_BUCKET) -> bytes:
-    """Download bytes from SeaweedFS S3."""
+    """Download bytes from Ceph RGW S3."""
     with tracer.start_as_current_span("s3.download", attributes={"key": key, "bucket": bucket}) as span:
         client = get_client()
         resp = client.get_object(Bucket=bucket, Key=key)
