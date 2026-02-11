@@ -1,4 +1,3 @@
-
 services:
   etcd:
     image: quay.io/coreos/etcd:v3.5.17
@@ -14,7 +13,7 @@ services:
       interval: 10s
 
   ceph-demo:
-    image: quay.io/ceph/demo:main-77c1a87-squid-centos-stream9-x86_64
+    image: quay.io/ceph/demo:latest
     container_name: ceph-demo
     command: demo
     environment:
@@ -23,25 +22,16 @@ services:
       - CEPH_DEMO_SECRET_KEY=antigravity_secret
       - CEPH_DAEMON=demo
       - RGW_FRONTEND_PORT=8000
-      - MON_IP=127.0.0.1
-      - CEPH_PUBLIC_NETWORK=0.0.0.0/0
+      - MON_IP=172.18.0.1
+      - CEPH_PUBLIC_NETWORK=172.18.0.0/16
     volumes:
       - ./data/ceph:/var/lib/ceph
       - ./data/ceph_conf:/etc/ceph
     restart: unless-stopped
     healthcheck:
+      # Check if RGW is responding on 8000
       test: ["CMD", "ls", "/var/lib/ceph/bootstrap-osd"]
       interval: 30s
-      retries: 20
-
-  openbao:
-    image: openbao/openbao:2.1.0
-    container_name: openbao
-    command: server -dev -dev-listen-address=0.0.0.0:8200 -dev-root-token-id=root
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ls", "/"]
-      interval: 10s
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.95.0
@@ -53,7 +43,7 @@ services:
       - "13133:13133"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "ls", "/"]
+      test: ["CMD", "ls", "/etc/otel-collector-config.yaml"]
       interval: 10s
 
   ovms:
@@ -71,9 +61,6 @@ services:
 
   orchestrator:
     image: us-central1-docker.pkg.dev/agentic1111/antigravity/orchestrator:v14.1
-    build:
-      context: ../../
-      dockerfile: Dockerfile
     container_name: orchestrator
     environment:
       - ETCD_HOST=etcd
@@ -84,7 +71,6 @@ services:
     depends_on:
       etcd: { condition: service_healthy }
       ovms: { condition: service_healthy }
-      openbao: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "ls", "/app/workflows/a2a_server.py"]
@@ -92,36 +78,26 @@ services:
 
   budget-proxy:
     image: us-central1-docker.pkg.dev/agentic1111/antigravity/budget-proxy:v14.1
-    build:
-      context: ../../
-      dockerfile: src/budget-proxy/Dockerfile
     container_name: budget-proxy
     environment:
       - LOCAL_LLM_URL=http://ovms:9001/v1
       - OPENBAO_ADDR=http://openbao:8200
       - OPENBAO_TOKEN=root
-      - DAILY_BUDGET_USD=99999
     depends_on:
       ovms: { condition: service_healthy }
-      openbao: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "ls", "/"]
+      test: ["CMD", "ls", "/app/proxy.py"]
       interval: 10s
 
   ui:
     image: us-central1-docker.pkg.dev/agentic1111/antigravity/ui:v14.1
-    build:
-      context: ../../
-      dockerfile: src/master-ui/Dockerfile
     container_name: ui
     ports:
       - "1055:80"
-    depends_on:
-      budget-proxy: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "ls", "/"]
+      test: ["CMD", "ls", "/usr/share/nginx/html/index.html"]
       interval: 10s
 
 networks:
