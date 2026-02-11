@@ -121,6 +121,7 @@ services:
 
   # BLK-029: AsyncDAGEngine (replaces Argo)
   orchestrator:
+    image: us-central1-docker.pkg.dev/agentic1111/antigravity/orchestrator:v14.1
     build:
       context: ../../
       dockerfile: src/orchestrator/Dockerfile.cloud
@@ -157,6 +158,7 @@ services:
 
   # BLK-035: Protocol Adapter (REST -> OVMS REST)
   budget-proxy:
+    image: us-central1-docker.pkg.dev/agentic1111/antigravity/budget-proxy:v14.1
     build:
       context: ../../
       dockerfile: src/budget-proxy/Dockerfile
@@ -178,6 +180,7 @@ services:
   # -------------------------------------------------------------------------
 
   ui:
+    image: us-central1-docker.pkg.dev/agentic1111/antigravity/ui:v14.1
     build:
       context: ../../
       dockerfile: src/master-ui/Dockerfile
