@@ -82,7 +82,7 @@ async def check_level_1() -> dict:
 
 async def check_level_2() -> dict:
     """L2 Inference: ovms."""
-    ovms_rest = os.environ.get("OVMS_REST", "http://ovms:9001")
+    ovms_rest = os.environ.get("OVMS_REST_URL", os.environ.get("OVMS_REST", "http://ovms:9001"))
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         results = await asyncio.gather(
             _check_url(client, "ovms", f"{ovms_rest}/v2/health/live"),

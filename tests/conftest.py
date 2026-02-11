@@ -1,4 +1,4 @@
-"""Antigravity Node v13.0 — Shared Test Fixtures.
+"""Antigravity Node v14.1 — Shared Test Fixtures.
 
 Provides mock services, test database connections, and FastAPI test clients
 for all test modules. No real service connections required for unit tests.
@@ -26,130 +26,6 @@ def test_client():
     from fastapi.testclient import TestClient
 
     return TestClient(app)
-
-
-# ---------------------------------------------------------------------------
-# Mock StarRocks
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def mock_starrocks():
-    """Mock StarRocks connection for memory tests."""
-    mock_conn = MagicMock()
-    mock_cursor = MagicMock()
-    mock_cursor.fetchall.return_value = [
-        {
-            "event_id": 1,
-            "tenant_id": "test-tenant",
-            "timestamp": "2025-01-15 10:30:00",
-            "session_id": "sess-001",
-            "actor": "Goose",
-            "action_type": "THOUGHT",
-            "content": "Analyzing user request",
-        }
-    ]
-    mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
-    mock_cursor.__exit__ = MagicMock(return_value=False)
-    mock_conn.cursor.return_value = mock_cursor
-    mock_conn.close = MagicMock()
-
-    with patch("memory.pymysql") as mock_pymysql:
-        mock_pymysql.connect.return_value = mock_conn
-        mock_pymysql.cursors.DictCursor = MagicMock()
-        yield {
-            "connection": mock_conn,
-            "cursor": mock_cursor,
-            "pymysql": mock_pymysql,
-        }
-
-
-# ---------------------------------------------------------------------------
-# Mock SeaweedFS (boto3 S3)
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def mock_seaweedfs():
-    """Mock SeaweedFS S3 client for storage tests."""
-    mock_client = MagicMock()
-    mock_client.put_object.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
-    mock_client.get_object.return_value = {
-        "Body": MagicMock(read=MagicMock(return_value=b"test data")),
-        "ContentLength": 9,
-    }
-    mock_client.list_objects_v2.return_value = {
-        "Contents": [
-            {"Key": "context/test-tenant/test.csv", "Size": 1024},
-            {"Key": "context/test-tenant/report.pdf", "Size": 2048},
-        ]
-    }
-    mock_client.head_bucket.return_value = {}
-    mock_client.create_bucket.return_value = {}
-
-    with patch("s3_client.boto3") as mock_boto3:
-        mock_boto3.client.return_value = mock_client
-        yield {
-            "client": mock_client,
-            "boto3": mock_boto3,
-        }
-
-
-# ---------------------------------------------------------------------------
-# Mock Milvus
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def mock_milvus():
-    """Mock Milvus connection for vector search tests."""
-    mock_collection = MagicMock()
-    mock_collection.search.return_value = [
-        [
-            MagicMock(
-                id=1,
-                distance=0.95,
-                entity=MagicMock(get=lambda k: {"content": "test result", "doc_id": "doc-1"}.get(k)),
-            )
-        ]
-    ]
-    mock_collection.insert.return_value = MagicMock(primary_keys=[1])
-
-    with patch("tools.milvus_tool.connections") as mock_conn, patch("tools.milvus_tool.Collection") as mock_coll_cls:
-        mock_coll_cls.return_value = mock_collection
-        yield {
-            "collection": mock_collection,
-            "connections": mock_conn,
-        }
-
-
-# ---------------------------------------------------------------------------
-# Mock Argo Client
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def mock_argo():
-    """Mock Argo client for workflow submission tests."""
-    mock_response = AsyncMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "metadata": {"name": "test-workflow-abc123"},
-        "status": {"phase": "Running"},
-    }
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("workflow_defs.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.post = AsyncMock(return_value=mock_response)
-        mock_client.get = AsyncMock(return_value=mock_response)
-        mock_client_cls.return_value = mock_client
-        yield {
-            "client": mock_client,
-            "response": mock_response,
-        }
 
 
 # ---------------------------------------------------------------------------
@@ -249,25 +125,26 @@ def sample_webhook_success():
 
 @pytest.fixture(autouse=True)
 def set_test_env(monkeypatch):
-    """Set environment variables for all tests."""
-    monkeypatch.setenv("STARROCKS_HOST", "localhost")
-    monkeypatch.setenv("STARROCKS_HTTP_PORT", "8030")
-    monkeypatch.setenv("STARROCKS_PORT", "9030")
-    monkeypatch.setenv("S3_ENDPOINT", "http://localhost:8333")
-    monkeypatch.setenv("ARGO_SERVER", "localhost:2746")
-    monkeypatch.setenv("MILVUS_HOST", "localhost")
-    monkeypatch.setenv("MILVUS_PORT", "19530")
-    monkeypatch.setenv("NATS_URL", "nats://localhost:4222")
-    monkeypatch.setenv("VALKEY_URL", "redis://localhost:6379")
+    """Set environment variables for all tests (v14.1 service set)."""
+    # L0 Infrastructure
+    monkeypatch.setenv("ETCD_HOST", "localhost")
+    monkeypatch.setenv("CEPH_HOST", "localhost")
+    monkeypatch.setenv("S3_ENDPOINT_URL", "http://localhost:8000")
+    monkeypatch.setenv("S3_ENDPOINT", "http://localhost:8000")
+    # L0 Secrets
     monkeypatch.setenv("OPENBAO_ADDR", "http://localhost:8200")
     monkeypatch.setenv("OPENBAO_TOKEN", "test-token")
-    monkeypatch.setenv("OPENLINEAGE_URL", "http://localhost:5000")
-    monkeypatch.setenv("OPENLINEAGE_NAMESPACE", "test")
+    # L2 Inference
+    monkeypatch.setenv("OVMS_GRPC", "localhost:9000")
+    monkeypatch.setenv("OVMS_REST_URL", "http://localhost:9001")
+    monkeypatch.setenv("OVMS_REST", "http://localhost:9001")
+    # L3 Observability
+    monkeypatch.setenv("OTEL_COLLECTOR_HOST", "localhost")
+    # Application
     monkeypatch.setenv("GOD_MODE_ITERATIONS", "3")
     monkeypatch.setenv("GOOSE_PROVIDER", "openai")
     monkeypatch.setenv("GOOSE_MODEL", "gpt-4o")
-    monkeypatch.setenv("OVMS_GRPC", "localhost:9000")
-    monkeypatch.setenv("OVMS_REST", "http://localhost:9001")
-    monkeypatch.setenv("ETCD_HOST", "localhost")
-    monkeypatch.setenv("CEPH_HOST", "localhost")
-    monkeypatch.setenv("OTEL_COLLECTOR_HOST", "localhost")
+    monkeypatch.setenv("VALKEY_URL", "redis://localhost:6379")
+    # Lineage (still used in v14.1 for OpenLineage/Marquez)
+    monkeypatch.setenv("OPENLINEAGE_URL", "http://localhost:5000")
+    monkeypatch.setenv("OPENLINEAGE_NAMESPACE", "test")

@@ -65,16 +65,22 @@ echo ""
 echo "=== PHASE 3: Health Verification ==="
 
 echo "[Step 8/9] Health Check..."
+HEALTH_PASS=false
 for i in $(seq 1 12); do
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health 2>/dev/null || echo "000")
     if [ "$HTTP_CODE" = "200" ]; then
         echo "HEALTH CHECK PASS (HTTP 200)"
         curl -s http://localhost:8080/health | python3 -m json.tool
+        HEALTH_PASS=true
         break
     fi
     echo "  Attempt $i/12 — HTTP $HTTP_CODE, retrying in 10s..."
     sleep 10
 done
+if [ "$HEALTH_PASS" = "false" ]; then
+    echo "FATAL: Health check failed after 120s"
+    exit 1
+fi
 
 # --- Phase 4: E2E ---
 echo ""

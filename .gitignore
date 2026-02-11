@@ -43,7 +43,9 @@ tests/git_*.txt
 backups/
 
 # Terraform
-.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.backup
 
 # Frontend
 node_modules/

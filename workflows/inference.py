@@ -1,12 +1,13 @@
-"""OVMS inference pipeline for Antigravity Node v13.0.
+"""OVMS inference pipeline for Antigravity Node v14.1.
 
 Connects to OpenVINO Model Server via gRPC (primary) and REST (fallback).
 Provides run_inference() with graceful degradation when no model is loaded,
 and OpenTelemetry span wrapping for all inference calls.
 
 Environment variables:
-    OVMS_GRPC  -- gRPC target (default: ovms:9000)
-    OVMS_REST  -- REST base URL (default: http://ovms:8000)
+    OVMS_GRPC      -- gRPC target (default: ovms:9000)
+    OVMS_REST_URL  -- REST base URL (default: http://ovms:9001)
+    OVMS_REST      -- Legacy REST env var (fallback)
 """
 
 import logging

@@ -19,16 +19,31 @@ resource "google_compute_network" "vpc" {
   auto_create_subnetworks = true
 }
 
-resource "google_compute_firewall" "allow_services" {
-  name    = "allow-antigravity-services"
+# Public-facing ports (SSH + UI)
+resource "google_compute_firewall" "allow_public" {
+  name    = "allow-antigravity-public"
   network = google_compute_network.vpc.name
 
   allow {
     protocol = "tcp"
-    ports    = ["22", "1055", "4055", "8080", "9001"]
+    ports    = ["22", "1055"]
   }
 
   source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["antigravity-node"]
+}
+
+# Internal service ports — restrict to your admin IP or VPN CIDR
+resource "google_compute_firewall" "allow_internal" {
+  name    = "allow-antigravity-internal"
+  network = google_compute_network.vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["4055", "8080", "9001"]
+  }
+
+  source_ranges = [var.admin_cidr]
   target_tags   = ["antigravity-node"]
 }
 

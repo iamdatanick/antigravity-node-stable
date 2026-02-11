@@ -78,8 +78,6 @@ class TestVG106Resilience:
         with open(compose_path) as f:
             compose = yaml.safe_load(f)
         for name, svc in compose["services"].items():
-            if name == "ui":
-                continue  # UI doesn't need restart policy
             assert svc.get("restart") == "unless-stopped", (
                 f"Service {name} must have restart: unless-stopped"
             )
