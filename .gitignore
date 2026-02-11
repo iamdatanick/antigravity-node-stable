@@ -39,6 +39,12 @@ Thumbs.db
 tests/syntax_*.txt
 tests/git_*.txt
 
+# Backups
+backups/
+
+# Terraform
+.terraform/
+
 # Frontend
 node_modules/
 src/master-ui/dist/
