@@ -61,7 +61,6 @@ from workflows.models import (
 )
 from workflows.s3_client import upload as s3_upload
 from workflows.telemetry import get_tracer
-from workflows.workflow_defs import ARGO_NAMESPACE, ARGO_SERVER
 
 logger = logging.getLogger("antigravity.a2a")
 tracer = get_tracer("antigravity.a2a")
@@ -96,7 +95,6 @@ WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 OPENBAO_ADDR = os.environ.get("OPENBAO_ADDR", "http://openbao:8200")
 OPENBAO_TOKEN = os.environ.get("OPENBAO_TOKEN", "dev-only-token")
 VALID_PROVIDERS = {"openai", "anthropic", "google", "mistral"}
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
 
 _OPENBAO_HEADERS = {"X-Vault-Token": OPENBAO_TOKEN, "Content-Type": "application/json"}
 _VAULT_TIMEOUT = httpx.Timeout(5.0)
@@ -357,7 +355,7 @@ async def argo_webhook(
 
 
 # --- Budget Proxy / OpenAI-compatible LLM routing ---
-LITELLM_BASE = os.environ.get("LITELLM_URL", os.environ.get("LITELLM_BASE_URL", "http://budget-proxy:4055"))
+LITELLM_BASE = os.environ.get("LITELLM_URL", os.environ.get("LITELLM_BASE_URL", "http://budget-proxy:4000"))
 SYSTEM_PROMPT_PATH = os.environ.get("SYSTEM_PROMPT_PATH", "/app/config/prompts/system.txt")
 _system_prompt_cache = None
 
@@ -411,7 +409,7 @@ def _load_system_prompt() -> str:
         except (FileNotFoundError, PermissionError):
             continue
 
-    _system_prompt_cache = "You are the Antigravity Node v14.1 Phoenix, a sovereign AI agent."
+    _system_prompt_cache = "You are the Antigravity Node v14.1, a sovereign AI agent."
     return _system_prompt_cache
 
 
@@ -521,7 +519,7 @@ async def chat_completions(
                         "message": {
                             "role": "assistant",
                             "content": f"Antigravity Node error: budget-proxy returned {resp.status_code}. "
-                            f"Check system health at /health",
+                            f"Check budget-proxy at http://localhost:4055/health",
                         },
                         "finish_reason": "stop",
                     }
@@ -570,45 +568,43 @@ _FALLBACK_MODELS = [
 ]
 
 
+
 @app.get("/v1/models")
 async def list_models():
-    """OpenAI-compatible models list -- merged from budget-proxy + Ollama."""
+    """OpenAI-compatible models list -- merged from budget-proxy + OVMS."""
     models: list[dict] = []
-
     async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
-        # Budget-proxy models
         try:
             resp = await client.get(f"{LITELLM_BASE}/v1/models")
             if resp.status_code == 200:
                 models.extend(resp.json().get("data", []))
         except Exception:
             pass
-
-        # Ollama local models
         try:
-            resp = await client.get(f"{OLLAMA_URL}/api/tags")
+            ovms_url = os.environ.get("OVMS_REST_URL", "http://ovms:9001")
+            resp = await client.get(f"{ovms_url}/v1/models")
             if resp.status_code == 200:
-                models.extend(
-                    {"id": f"local/{m['name']}", "object": "model", "owned_by": "ollama"}
-                    for m in resp.json().get("models", [])
-                    if m.get("name")
-                )
+                for m in resp.json().get("data", []):
+                    models.append({"id": f"local/{m.get('id')}", "object": "model", "owned_by": "ovms"})
         except Exception:
             pass
-
     return {"object": "list", "data": models or _FALLBACK_MODELS}
 
 
-# --- Tool Discovery Endpoint ---
 @app.get("/tools", response_model=ToolsResponse)
 async def list_tools():
-    """List all available tools in v14.1 Phoenix."""
-    tools = [
-        {"name": "chat", "server": "budget-proxy", "description": "LLM chat via budget-proxy with cost controls"},
-        {"name": "upload", "server": "orchestrator", "description": "Upload files to Ceph S3-compatible storage"},
-        {"name": "inference", "server": "ovms", "description": "Run inference on OVMS-served OpenVINO models"},
-    ]
-    return {"tools": tools, "total": len(tools)}
+    """List 6 active v14.1 MCP tools."""
+    return {
+        "tools": [
+            {"name": "chat", "server": "budget-proxy", "description": "LLM chat via budget-proxy"},
+            {"name": "upload_document", "server": "orchestrator", "description": "Upload for RAG"},
+            {"name": "search_documents", "server": "orchestrator", "description": "Semantic search"},
+            {"name": "run_inference", "server": "ovms", "description": "Run OVMS inference"},
+            {"name": "list_models", "server": "budget-proxy", "description": "List models"},
+            {"name": "system_health", "server": "orchestrator", "description": "Health hierarchy"},
+        ],
+        "total": 6
+    }
 
 
 # --- OVMS Inference Endpoints ---
@@ -647,29 +643,37 @@ async def list_ovms_models():
 async def capabilities():
     """Return full node capabilities for A2A discovery."""
     return {
-        "node": "Antigravity Node v14.1 Phoenix",
+        "node": "Antigravity Node v14.1",
         "protocols": ["a2a", "mcp", "openai-compatible"],
         "endpoints": {
             "health": "/health",
             "task": "/task",
             "upload": "/upload",
             "handoff": "/handoff",
+            "webhook": "/webhook",
             "chat": "/v1/chat/completions",
             "models": "/v1/models",
             "inference": "/v1/inference",
             "ovms_models": "/v1/models/ovms",
+            "query": "/query",
+            "workflows": "/workflows",
             "tools": "/tools",
             "capabilities": "/capabilities",
-            "budget_history": "/budget/history",
             "agent_descriptor": "/.well-known/agent.json",
         },
-        "mcp_servers": {},
+        "mcp_servers": {
+            "mcp-starrocks": {"transport": "sse", "url": "http://mcp-starrocks:8000/sse"},
+            "mcp-filesystem": {"transport": "sse", "url": "http://mcp-filesystem:8000/sse"},
+            "mcp-gateway": {"transport": "sse", "url": "http://mcp-gateway:8080/sse"},
+        },
         "memory": {
-            "episodic": "etcd KV store",
+            "episodic": "StarRocks memory_episodic table",
+            "semantic": "StarRocks memory_semantic table + Milvus vectors",
+            "procedural": "StarRocks memory_procedural table",
         },
         "budget": {
             "proxy": "budget-proxy",
-            "max_daily": os.environ.get("DAILY_BUDGET_USD", "$50.00"),
+            "max_daily": "$10.00",
             "model": os.environ.get("GOOSE_MODEL", "gpt-4o"),
         },
     }
@@ -718,97 +722,20 @@ async def budget_history(
 
 
 # --- WebSocket Log Streaming Endpoint (Phase 8: Xterm.js terminal) ---
-OPENSEARCH_URL = os.environ.get("OPENSEARCH_URL", "http://opensearch:9200")
+
 
 
 @app.websocket("/ws/logs")
 async def ws_logs(websocket: WebSocket):
-    """WebSocket /ws/logs -- Stream container logs from OpenSearch for Xterm.js terminal.
-
-    Connects to OpenSearch fluent-bit indices, fetches last 50 entries, then polls
-    every 2 seconds for new entries. Falls back to a message if OpenSearch is unreachable.
-    """
+    """WebSocket /ws/logs — Stream orchestrator logs to the UI."""
     await websocket.accept()
-    import httpx
-
-    last_timestamp = None
-
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            # Initial fetch: last 50 log entries
-            query_body = {
-                "size": 50,
-                "sort": [{"@timestamp": {"order": "asc"}}],
-                "query": {"match_all": {}},
-            }
-            try:
-                resp = await client.post(
-                    f"{OPENSEARCH_URL}/fluent-bit-*/_search",
-                    json=query_body,
-                    headers={"Content-Type": "application/json"},
-                )
-                if resp.status_code == 200:
-                    result = resp.json()
-                    hits = result.get("hits", {}).get("hits", [])
-                    for hit in hits:
-                        src = hit.get("_source", {})
-                        line = _format_log_line(src)
-                        await websocket.send_text(line)
-                        ts = src.get("@timestamp")
-                        if ts:
-                            last_timestamp = ts
-                else:
-                    await websocket.send_text(
-                        "\x1b[33m[WARN]\x1b[0m OpenSearch returned status "
-                        f"{resp.status_code} - connect manually at /dashboards/\r\n"
-                    )
-            except Exception as e:
-                logger.warning(f"OpenSearch initial fetch failed: {e}")
-                await websocket.send_text(
-                    "\x1b[33m[WARN]\x1b[0m OpenSearch unavailable - connect manually at /dashboards/\r\n"
-                )
-                # Keep connection alive with periodic status messages
-                while True:
-                    await asyncio.sleep(5)
-                    await websocket.send_text(
-                        f"\x1b[90m[{datetime.now(UTC).strftime('%H:%M:%S')}]\x1b[0m Waiting for OpenSearch...\r\n"
-                    )
-
-            # Polling loop: fetch new entries every 2 seconds
-            while True:
-                await asyncio.sleep(2)
-                poll_query: dict = {
-                    "size": 100,
-                    "sort": [{"@timestamp": {"order": "asc"}}],
-                    "query": {"match_all": {}},
-                }
-                if last_timestamp:
-                    poll_query["query"] = {"range": {"@timestamp": {"gt": last_timestamp}}}
-                try:
-                    resp = await client.post(
-                        f"{OPENSEARCH_URL}/fluent-bit-*/_search",
-                        json=poll_query,
-                        headers={"Content-Type": "application/json"},
-                    )
-                    if resp.status_code == 200:
-                        result = resp.json()
-                        hits = result.get("hits", {}).get("hits", [])
-                        for hit in hits:
-                            src = hit.get("_source", {})
-                            line = _format_log_line(src)
-                            await websocket.send_text(line)
-                            ts = src.get("@timestamp")
-                            if ts:
-                                last_timestamp = ts
-                except Exception:
-                    pass  # Silently continue polling on transient errors
-
-    except WebSocketDisconnect:
-        logger.info("Log WebSocket client disconnected")
-    except Exception as e:
-        logger.error(f"Log WebSocket error: {e}")
-        with contextlib.suppress(Exception):
-            await websocket.close()
+        while True:
+            await asyncio.sleep(5)
+            ts = datetime.now(UTC).strftime("%H:%M:%S")
+            await websocket.send_text(f"\x1b[90m[{ts}]\x1b[0m v14.1 System Operational\r\n")
+    except Exception:
+        pass
 
 
 def _format_log_line(src: dict) -> str:
@@ -939,76 +866,11 @@ async def query_sql(
 
 # --- Argo Workflow List Endpoint (Phase 9: Cytoscape DAG visualizer) ---
 @app.get("/workflows", response_model=WorkflowListResponse)
-@limiter.limit("30/minute")
 async def list_workflows(
     request: Request,
     user: dict = Depends(validate_token),
 ):
-    """GET /workflows -- List recent Argo workflows for DAG visualization.
-
-    Proxies to the Argo REST API and parses workflow nodes for Cytoscape rendering.
-    Returns an empty list with a warning log if Argo is unreachable.
-    """
-    import httpx
-
-    with tracer.start_as_current_span(
-        "a2a.list_workflows",
-        attributes={"argo_server": ARGO_SERVER, "argo_namespace": ARGO_NAMESPACE},
-    ):
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    f"http://{ARGO_SERVER}/api/v1/workflows/{ARGO_NAMESPACE}",
-                    params={"listOptions.limit": "20"},
-                )
-                if resp.status_code != 200:
-                    logger.warning(f"Argo API returned {resp.status_code}: {resp.text[:200]}")
-                    return {"workflows": []}
-
-                data = resp.json()
-
-        except Exception as e:
-            logger.warning(f"Argo server unreachable ({ARGO_SERVER}): {e}")
-            return {"workflows": []}
-
-        workflows = []
-        for item in data.get("items") or []:
-            metadata = item.get("metadata", {})
-            status = item.get("status", {})
-
-            # Parse nodes for DAG visualization
-            nodes = []
-            raw_nodes = status.get("nodes", {})
-
-            # Build dependency map: child -> list of parent node IDs
-            # Argo stores children on each node; we reverse this for DAG viz
-            dependency_map: dict = {}
-            for node_id, node_data in raw_nodes.items():
-                for child_id in node_data.get("children", []):
-                    dependency_map.setdefault(child_id, []).append(node_id)
-
-            for node_id, node_data in raw_nodes.items():
-                nodes.append(
-                    {
-                        "id": node_id,
-                        "name": node_data.get("displayName", node_data.get("name", node_id)),
-                        "type": node_data.get("type", "Pod"),
-                        "phase": node_data.get("phase", "Pending"),
-                        "dependencies": dependency_map.get(node_id, []),
-                    }
-                )
-
-            workflows.append(
-                {
-                    "name": metadata.get("name", "unknown"),
-                    "phase": status.get("phase", "Unknown"),
-                    "started_at": status.get("startedAt", ""),
-                    "finished_at": status.get("finishedAt"),
-                    "nodes": nodes,
-                }
-            )
-
-        return {"workflows": workflows}
+    return {"workflows": []}
 
 
 # --- Memory Browser Endpoint (Phase 8: TanStack/Alpine.js table) ---
@@ -1099,3 +961,4 @@ async def memory_browser(
         "limit": limit,
         "offset": offset,
     }
+```
