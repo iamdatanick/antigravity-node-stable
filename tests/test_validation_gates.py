@@ -98,7 +98,7 @@ class TestVG108DependencySmoke:
         req_path = os.path.join(CLOUD_DIR, "requirements.txt")
         with open(req_path) as f:
             content = f.read()
-        assert "python-etcd3" in content, "python-etcd3 required (not etcd3)"
+        assert "etcd3" in content, "etcd3 package required for state management"
 
 
 class TestVG109AVXGuard:
@@ -126,15 +126,20 @@ class TestComposeHealthchecks:
 
 
 class TestComposeDependsOn:
-    """Boot order: orchestrator waits for all infra to be healthy."""
+    """Boot order: orchestrator waits for critical infra to be healthy."""
 
     def test_orchestrator_depends_on_healthy_infra(self):
         compose_path = os.path.join(CLOUD_DIR, "docker-compose.yml")
         with open(compose_path) as f:
             compose = yaml.safe_load(f)
         deps = compose["services"]["orchestrator"]["depends_on"]
-        for svc in ["etcd", "ceph-demo", "ovms", "openbao"]:
+        # Ceph is intentionally excluded — graceful degradation (ACT-110)
+        for svc in ["etcd", "ovms", "openbao"]:
             assert svc in deps, f"Orchestrator must depend on {svc}"
             assert deps[svc]["condition"] == "service_healthy", (
                 f"Orchestrator must wait for {svc} to be healthy"
             )
+        # Verify ceph-demo is NOT a hard dependency
+        assert "ceph-demo" not in deps, (
+            "ceph-demo must NOT be in depends_on (graceful degradation)"
+        )
