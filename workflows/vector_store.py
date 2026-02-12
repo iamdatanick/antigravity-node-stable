@@ -1,14 +1,17 @@
-
 import chromadb
 from chromadb.config import Settings
 
 class VectorStore:
-    def __init__(self, host="chromadb", port=8000):
-        self.client = chromadb.HttpClient(host=host, port=port)
-        self.collection = self.client.get_or_create_collection("antigravity")
+    def __init__(self):
+        # Professional SRE persistent storage mapping
+        self.client = chromadb.PersistentClient(path="/app/data/chroma")
+        self.collection = self.client.get_or_create_collection("antigravity_docs")
 
-    def add_documents(self, documents: list, ids: list):
-        self.collection.add(documents=documents, ids=ids)
+    async def add_documents(self, chunks, metadatas, ids):
+        self.collection.add(documents=chunks, metadatas=metadatas, ids=ids)
 
-    def query(self, text: str, n_results: int = 3):
-        return self.collection.query(query_texts=[text], n_results=n_results)
+    async def search(self, query, top_k=3):
+        results = self.collection.query(query_texts=[query], n_results=top_k)
+        return results["documents"][0]
+
+vector_store = VectorStore()
