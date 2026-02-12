@@ -1,3 +1,6 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
 receivers:
   otlp:
     protocols:
@@ -5,17 +8,13 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-
 processors:
   batch:
-    timeout: 5s
-    send_batch_size: 1024
-
 exporters:
   debug:
     verbosity: basic
-
 service:
+  extensions: [health_check]
   pipelines:
     traces:
       receivers: [otlp]
