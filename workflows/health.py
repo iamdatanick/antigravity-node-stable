@@ -2,7 +2,6 @@ import asyncio, os, httpx
 async def _check_url(client, name, url, accept_codes=[200]):
     try:
         resp = await client.get(url)
-        # 404 from Ceph is OK (server is up). 473 from OpenBao is OK (reachable).
         return {"name": name, "healthy": resp.status_code in accept_codes}
     except Exception: return {"name": name, "healthy": False}
 
