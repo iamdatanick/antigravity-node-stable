@@ -1,15 +1,17 @@
-import asyncio, os, httpx
+import asyncio, os, httpx, time
 async def _check_url(client, name, url, accept_codes=[200]):
     try:
-        resp = await client.get(url)
+        # Increased timeout to 10s for RGW specifically
+        resp = await client.get(url, timeout=10.0)
         return {"name": name, "healthy": resp.status_code in accept_codes}
     except Exception: return {"name": name, "healthy": False}
 
 async def full_health_check():
-    async with httpx.AsyncClient(timeout=3.0) as client:
+    async with httpx.AsyncClient(timeout=5.0) as client:
         l0 = await asyncio.gather(
             _check_url(client, "etcd", "http://etcd:2379/health"),
-            _check_url(client, "ceph", "http://ceph-demo:8000", accept_codes=[200, 404])
+            # RGW can be slow; allow 404/200/403 (any response is a sign of life)
+            _check_url(client, "ceph", "http://ceph-demo:8000", accept_codes=[200, 404, 403])
         )
         l1 = await _check_url(client, "openbao", "http://openbao:8200/v1/sys/health", accept_codes=[200, 473])
         l2 = await _check_url(client, "ovms", "http://ovms:9001/v2/health/live")

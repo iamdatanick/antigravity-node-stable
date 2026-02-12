@@ -1,127 +1,122 @@
-services:
-  etcd:
-    image: quay.io/coreos/etcd:v3.5.17
-    container_name: etcd
-    command: ["/usr/local/bin/etcd", "--data-dir=/etcd-data", "--name=etcd", "--listen-client-urls=http://0.0.0.0:2379", "--advertise-client-urls=http://etcd:2379"]
-    environment:
-      - ALLOW_NONE_AUTHENTICATION=yes
-    volumes:
-      - ./data/etcd:/etcd-data
-    restart: unless-stopped
+### C:\Users\NickV\OneDrive\Desktop\Antigravity-Node/deployment/cloud-test/docker-compose.yml
+```yaml
+1: services:
+2:   etcd:
+3:     image: quay.io/coreos/etcd:v3.5.17
+4:     container_name: etcd
+5:     command: ["/usr/local/bin/etcd", "--data-dir=/etcd-data", "--name=etcd", "--listen-client-urls=http://0.0.0.0:2379", "--advertise-client-urls=http://etcd:2379"]
+6:     environment:
+7:       - ALLOW_NONE_AUTHENTICATION=yes
+8:     volumes:
+9:       - ./data/etcd:/etcd-data
+10:     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "etcdctl", "endpoint", "health"]
-      interval: 10s
-
-  ceph-demo:
-    image: quay.io/ceph/demo:latest
-    container_name: ceph-demo
-    command: demo
-    environment:
-      - RGW_FRONTEND_PORT=8000
-      - MON_IP=127.0.0.1
-      - CEPH_PUBLIC_NETWORK=0.0.0.0/0
-    volumes:
-      - ./data/ceph:/var/lib/ceph
-      - ./data/ceph_conf:/etc/ceph
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ls", "/"]
-      interval: 15s
-
-  openbao:
-    image: openbao/openbao:2.1.0
-    container_name: openbao
-    command: server -dev -dev-listen-address=0.0.0.0:8200 -dev-root-token-id=root
-    cap_add:
-      - IPC_LOCK
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ls", "/"]
-      interval: 10s
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.95.0
-    container_name: otel-collector
-    command: ["--config=/etc/otel-collector-config.yaml"]
-    volumes:
-      - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml
-    ports:
-      - "13133:13133"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ls", "/"]
-      interval: 10s
-
-  ovms:
-    image: openvino/model_server:2025.4
-    container_name: ovms
-    command: ["--config_path", "/models/model_config.json", "--port", "9000", "--rest_port", "9001"]
-    environment:
-      - ONEDNN_MAX_CPU_ISA=AVX512_CORE
-    volumes:
-      - ./models:/models
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ls", "/"]
-      interval: 10s
-
-  orchestrator:
-    image: us-central1-docker.pkg.dev/agentic1111/antigravity/orchestrator:v14.1
-    container_name: orchestrator
-    environment:
-      - TENANT_ID=system
-      - ETCD_HOST=etcd
-      - ETCD_PORT=2379
-      - S3_ENDPOINT_URL=http://ceph-demo:8000
-      - AWS_ACCESS_KEY_ID=antigravity
-      - AWS_SECRET_ACCESS_KEY=antigravity_secret
-      - AWS_DEFAULT_REGION=us-east-1
-      - OPENBAO_ADDR=http://openbao:8200
-      - OPENBAO_TOKEN=root
-      - OVMS_REST_URL=http://ovms:9001
-      - LITELLM_BASE_URL=http://budget-proxy:4000
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - LOG_LEVEL=INFO
-    ports:
-      - "8080:8080"
-      - "8081:8081"
-    depends_on:
-      etcd: { condition: service_healthy }
-      ceph-demo: { condition: service_started }
-      ovms: { condition: service_healthy }
-      openbao: { condition: service_healthy }
-      budget-proxy: { condition: service_healthy }
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ls", "/"]
-      interval: 10s
-
-  budget-proxy:
-    image: us-central1-docker.pkg.dev/agentic1111/antigravity/budget-proxy:v14.1
-    container_name: budget-proxy
-    environment:
-      - LOCAL_LLM_URL=http://ovms:9001/v1
-      - OPENBAO_ADDR=http://openbao:8200
-      - OPENBAO_TOKEN=root
-      - DAILY_BUDGET_USD=99999
-    depends_on:
-      openbao: { condition: service_healthy }
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ls", "/"]
-      interval: 10s
-
-  ui:
-    image: us-central1-docker.pkg.dev/agentic1111/antigravity/ui:v14.1
-    container_name: ui
-    ports:
-      - "1055:80"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ls", "/"]
-      interval: 10s
-
-networks:
-  default:
-    name: antigravity-net
-    driver: bridge
+      test: ["CMD", "ls", "/var/lib/ceph/bootstrap-osd"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+11:     healthcheck:
+12:       test: ["CMD", "etcdctl", "endpoint", "health"]
+13:       interval: 10s
+14: 
+15:   ceph-demo:
+16:     image: quay.io/ceph/demo:latest
+17:     container_name: ceph-demo
+18:     command: demo
+19:     environment:
+20:       - RGW_FRONTEND_PORT=8000
+21:       - MON_IP=127.0.0.1
+22:       - CEPH_PUBLIC_NETWORK=0.0.0.0/0
+23:     volumes:
+24:       - ./data/ceph:/var/lib/ceph
+25:       - ./data/ceph_conf:/etc/ceph
+26:     restart: unless-stopped
+27:     healthcheck:
+28:       test: ["CMD", "ls", "/"]
+29:       interval: 15s
+30: 
+31:   openbao:
+32:     image: openbao/openbao:2.1.0
+33:     container_name: openbao
+34:     command: server -dev -dev-listen-address=0.0.0.0:8200 -dev-root-token-id=root
+35:     cap_add:
+36:       - IPC_LOCK
+37:     restart: unless-stopped
+38:     healthcheck:
+39:       test: ["CMD", "ls", "/"]
+40:       interval: 10s
+41: 
+42:   otel-collector:
+43:     image: otel/opentelemetry-collector-contrib:0.95.0
+44:     container_name: otel-collector
+45:     command: ["--config=/etc/otel-collector-config.yaml"]
+46:     volumes:
+47:       - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+48:     ports:
+49:       - "13133:13133"
+50:     restart: unless-stopped
+51:     healthcheck:
+52:       test: ["CMD", "ls", "/"]
+53:       interval: 10s
+54: 
+55:   ovms:
+56:     image: openvino/model_server:2025.4
+57:     container_name: ovms
+58:     command: ["--config_path", "/models/model_config.json", "--port", "9000", "--rest_port", "9001"]
+59:     environment:
+60:       - ONEDNN_MAX_CPU_ISA=AVX512_CORE
+61:     volumes:
+62:       - ./models:/models
+63:     restart: unless-stopped
+64:     healthcheck:
+65:       test: ["CMD", "ls", "/"]
+66:       interval: 10s
+67: 
+68:   orchestrator:
+69:     image: us-central1-docker.pkg.dev/agentic1111/antigravity/orchestrator:v14.1
+70:     container_name: orchestrator
+71:     environment:
+72:       - ETCD_HOST=etcd
+73:       - S3_ENDPOINT_URL=http://ceph-demo:8000
+74:       - OPENBAO_ADDR=http://openbao:8200
+75:       - OPENBAO_TOKEN=root
+76:       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+77:     depends_on:
+78:       etcd: { condition: service_healthy }
+79:       openbao: { condition: service_healthy }
+80:     restart: unless-stopped
+81:     healthcheck:
+82:       test: ["CMD", "ls", "/"]
+83:       interval: 10s
+84: 
+85:   budget-proxy:
+86:     image: us-central1-docker.pkg.dev/agentic1111/antigravity/budget-proxy:v14.1
+87:     container_name: budget-proxy
+88:     environment:
+89:       - LOCAL_LLM_URL=http://ovms:9001/v1
+90:       - OPENBAO_ADDR=http://openbao:8200
+91:       - OPENBAO_TOKEN=root
+92:       - DAILY_BUDGET_USD=99999
+93:     depends_on:
+94:       openbao: { condition: service_healthy }
+95:     restart: unless-stopped
+96:     healthcheck:
+97:       test: ["CMD", "ls", "/"]
+98:       interval: 10s
+99: 
+100:   ui:
+101:     image: us-central1-docker.pkg.dev/agentic1111/antigravity/ui:v14.1
+102:     container_name: ui
+103:     ports:
+104:       - "1055:80"
+105:     restart: unless-stopped
+106:     healthcheck:
+107:       test: ["CMD", "ls", "/"]
+108:       interval: 10s
+109: 
+110: networks:
+111:   default:
+112:     name: antigravity-net
+113:     driver: bridge
+```
