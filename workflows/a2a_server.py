@@ -1,5 +1,6 @@
 import asyncio, os, subprocess
 from fastapi import FastAPI, WebSocket
+from fastapi.responses import JSONResponse
 from workflows.health import full_health_check
 from workflows.resilience import get_circuit_states, is_killed, trigger_kill
 
@@ -9,10 +10,11 @@ app = FastAPI(title="Antigravity Node", version="13.1")
 @app.get("/health")
 async def health():
     if is_killed():
-        return {"status": "killed", "message": "Kill switch activated"}
+        return JSONResponse({"status": "killed", "message": "Kill switch activated"}, status_code=503)
     result = await full_health_check()
     result["circuits"] = get_circuit_states()
-    return result
+    status_code = 200 if result.get("status") == "healthy" else 503
+    return JSONResponse(result, status_code=status_code)
 
 
 @app.websocket("/ws/logs")
