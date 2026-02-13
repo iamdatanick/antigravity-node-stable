@@ -43,7 +43,7 @@ def search_vectors(query_embedding: list, collection_name: str = "semantic_memor
             for hit in hits
         ]
     except Exception as e:
-        logger.warning(f"Milvus search failed: {e}")
+        logger.warning(f"Milvus search failed: {e}", exc_info=True)
         return []
 
 
@@ -67,4 +67,4 @@ def store_vector(
         collection.flush()
         logger.info(f"Stored vector: {doc_id}")
     except Exception as e:
-        logger.warning(f"Milvus store failed: {e}")
+        logger.warning(f"Milvus store failed: {e}", exc_info=True)

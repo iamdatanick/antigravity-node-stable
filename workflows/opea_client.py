@@ -32,7 +32,7 @@ async def trigger_rag(goal: str, tenant_id: str, context: str = "") -> dict:
         logger.warning(f"OPEA Gateway returned {e.response.status_code}: {e.response.text}")
         return {"status": "error", "message": str(e)}
     except Exception as e:
-        logger.warning(f"OPEA Gateway unreachable: {e}")
+        logger.warning(f"OPEA Gateway unreachable: {e}", exc_info=True)
         return {"status": "unavailable", "message": str(e)}
 
 
@@ -49,5 +49,5 @@ async def ingest(file_path: str, tenant_id: str = "system") -> dict:
             resp.raise_for_status()
             return resp.json()
     except Exception as e:
-        logger.warning(f"OPEA ingest failed for {file_path}: {e}")
+        logger.warning(f"OPEA ingest failed for {file_path}: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}

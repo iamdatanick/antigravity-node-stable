@@ -33,7 +33,7 @@ async def get_jwks():
                         resp.raise_for_status()
                         _jwks_cache = resp.json()
                 except Exception as e:
-                    logger.warning(f"Failed to fetch JWKS: {e}")
+                    logger.warning(f"Failed to fetch JWKS: {e}", exc_info=True)
                     return None
     return _jwks_cache
 

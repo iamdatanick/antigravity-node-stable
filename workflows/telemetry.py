@@ -28,7 +28,7 @@ def init_telemetry():
             provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
             logger.info(f"OTLP exporter configured: {OTEL_ENDPOINT}")
         except Exception as e:
-            logger.warning(f"Failed to configure OTLP exporter: {e}. Using console exporter.")
+            logger.warning(f"Failed to configure OTLP exporter: {e}. Using console exporter.", exc_info=True)
             provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
     else:
         logger.info("No OTEL_EXPORTER_OTLP_ENDPOINT set. Tracing to console.")

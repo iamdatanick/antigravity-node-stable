@@ -133,7 +133,7 @@ def main():
         grpc_thread.start()
         logger.info("gRPC server started on port 8081")
     except Exception as e:
-        logger.warning(f"gRPC server failed to start: {e}. Continuing without gRPC.")
+        logger.warning(f"gRPC server failed to start: {e}. Continuing without gRPC.", exc_info=True)
 
     # 2. Start God Mode loop in background
     start_god_mode_background()

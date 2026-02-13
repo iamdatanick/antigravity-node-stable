@@ -35,7 +35,7 @@ class SuperBuilderServicer(superbuilder_pb2_grpc.SuperBuilderServicer):
         except RuntimeError as e:
             # If there's already a running event loop (shouldn't happen in ThreadPoolExecutor)
             # fall back to creating a new loop
-            logger.warning(f"asyncio.run() failed, using new event loop: {e}")
+            logger.warning(f"asyncio.run() failed, using new event loop: {e}", exc_info=True)
             loop = asyncio.new_event_loop()
             try:
                 run_id = loop.run_until_complete(submit_workflow(workflow_name, params))
@@ -57,7 +57,7 @@ class SuperBuilderServicer(superbuilder_pb2_grpc.SuperBuilderServicer):
         except RuntimeError as e:
             # If there's already a running event loop (shouldn't happen in ThreadPoolExecutor)
             # fall back to creating a new loop
-            logger.warning(f"asyncio.run() failed, using new event loop: {e}")
+            logger.warning(f"asyncio.run() failed, using new event loop: {e}", exc_info=True)
             loop = asyncio.new_event_loop()
             try:
                 status = loop.run_until_complete(get_workflow_status(run_id))

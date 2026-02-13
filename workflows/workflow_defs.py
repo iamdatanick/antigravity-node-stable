@@ -61,7 +61,7 @@ async def submit_workflow(name: str, params: dict) -> str:
             else:
                 logger.warning(f"Argo submit returned {resp.status_code}: {resp.text}")
     except Exception as e:
-        logger.warning(f"Argo submission failed: {e}. Workflow {run_id} not submitted.")
+        logger.warning(f"Argo submission failed: {e}. Workflow {run_id} not submitted.", exc_info=True)
 
     return run_id
 
@@ -80,5 +80,5 @@ async def get_workflow_status(run_id: str) -> dict:
                     "phase": data.get("status", {}).get("phase", "Unknown"),
                 }
     except Exception as e:
-        logger.warning(f"Failed to get workflow status: {e}")
+        logger.warning(f"Failed to get workflow status: {e}", exc_info=True)
     return {"name": run_id, "phase": "Unknown"}

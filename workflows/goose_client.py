@@ -130,7 +130,7 @@ async def execute_tool_with_correction(tool_name: str, params: dict) -> str:
     try:
         return await execute_tool(tool_name, params)
     except Exception as e:
-        logger.warning(f"Tool {tool_name} failed: {e}. Retrying...")
+        logger.warning(f"Tool {tool_name} failed: {e}. Retrying...", exc_info=True)
         raise
 
 
@@ -153,7 +153,7 @@ def robust_query(query_text: str):
         # Simplified search
         return {"status": "ok", "results": []}
     except Exception as e:
-        logger.warning(f"Milvus query failed: {e}. Triggering self-healing...")
+        logger.warning(f"Milvus query failed: {e}. Triggering self-healing...", exc_info=True)
         # Could trigger Argo workflow to restart Milvus
         time.sleep(10)
         try:
