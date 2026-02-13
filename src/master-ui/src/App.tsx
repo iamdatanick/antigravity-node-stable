@@ -15,28 +15,21 @@ import Settings from "./pages/Settings";
 export default function App() {
   return (
     <ErrorBoundary fallbackTitle="Antigravity Node encountered an error">
-      <Routes>
-        <Route path="/hybrid" element={<HybridChat />} />
-        <Route
-          path="/*"
-          element={
-            <AppShell>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/chat" element={<Chat />} />
-                <Route path="/logs" element={<Logs />} />
-                <Route path="/memory" element={<Memory />} />
-                <Route path="/query" element={<Query />} />
-                <Route path="/workflows" element={<Workflows />} />
-                <Route path="/budget" element={<Budget />} />
-                <Route path="/services" element={<Services />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </AppShell>
-          }
-        />
-      </Routes>
+      <AppShell>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/hybrid" element={<HybridChat />} />
+          <Route path="/logs" element={<Logs />} />
+          <Route path="/memory" element={<Memory />} />
+          <Route path="/query" element={<Query />} />
+          <Route path="/workflows" element={<Workflows />} />
+          <Route path="/budget" element={<Budget />} />
+          <Route path="/services" element={<Services />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AppShell>
     </ErrorBoundary>
   );
 }
