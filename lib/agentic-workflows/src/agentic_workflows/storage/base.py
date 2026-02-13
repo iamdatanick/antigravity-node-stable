@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -148,7 +148,7 @@ class StorageBackend(ABC, Generic[T]):
         """Close the connection."""
         pass
 
-    async def __aenter__(self) -> "StorageBackend[T]":
+    async def __aenter__(self) -> StorageBackend[T]:
         """Async context manager entry."""
         return self
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from threading import Lock
-from typing import Callable
 
 
 class RateLimitExceeded(Exception):
@@ -126,7 +126,9 @@ class RateLimiter:
 
             self._stats.rejected_requests += 1
             if self.on_limit:
-                self.on_limit(f"Rate limit exceeded: {tokens} tokens requested, {self._tokens:.1f} available")
+                self.on_limit(
+                    f"Rate limit exceeded: {tokens} tokens requested, {self._tokens:.1f} available"
+                )
             return False
 
     def _try_acquire_key(self, tokens: int, key: str) -> bool:

@@ -8,8 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability
-from ..protocols.mcp_client import MCPClient, MCPConfig, MCPTransport, MCPRegistry
+from ..protocols.mcp_client import MCPClient, MCPConfig, MCPRegistry, MCPTransport
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig
 
 
 @dataclass
@@ -146,13 +146,15 @@ class MCPSpecialistAgent(SpecialistAgent):
         """
         servers = []
         for name, client in self._clients.items():
-            servers.append({
-                "name": name,
-                "connected": client._connected,
-                "tools": len(client.available_tools),
-                "resources": len(client.available_resources),
-                "endpoint": client.config.endpoint,
-            })
+            servers.append(
+                {
+                    "name": name,
+                    "connected": client._connected,
+                    "tools": len(client.available_tools),
+                    "resources": len(client.available_resources),
+                    "endpoint": client.config.endpoint,
+                }
+            )
         return servers
 
     async def _list_tools(self, server: str | None = None) -> list[dict[str, Any]]:

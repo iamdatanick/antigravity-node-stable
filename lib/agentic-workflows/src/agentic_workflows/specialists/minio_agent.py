@@ -5,10 +5,10 @@ Handles S3-compatible object storage for documents, media, and data assets.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, BinaryIO
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability, SpecialistResult
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig
 
 
 @dataclass
@@ -253,13 +253,15 @@ class MinIOAgent(SpecialistAgent):
         for obj in objects:
             if len(result) >= max_keys:
                 break
-            result.append({
-                "object_name": obj.object_name,
-                "size": obj.size,
-                "last_modified": obj.last_modified.isoformat() if obj.last_modified else None,
-                "etag": obj.etag,
-                "is_dir": obj.is_dir,
-            })
+            result.append(
+                {
+                    "object_name": obj.object_name,
+                    "size": obj.size,
+                    "last_modified": obj.last_modified.isoformat() if obj.last_modified else None,
+                    "etag": obj.etag,
+                    "is_dir": obj.is_dir,
+                }
+            )
 
         return result
 

@@ -18,9 +18,11 @@ Usage:
 
 from __future__ import annotations
 
+import builtins
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +38,10 @@ class PromptArgument:
     """
 
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     required: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to MCP format."""
         result = {"name": self.name}
         if self.description:
@@ -59,9 +61,9 @@ class PromptMessage:
     """
 
     role: str
-    content: Union[str, Dict[str, Any], List[Dict[str, Any]]]
+    content: str | dict[str, Any] | list[dict[str, Any]]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to MCP format."""
         content = self.content
         if isinstance(content, str):
@@ -90,14 +92,14 @@ class Prompt:
     """
 
     name: str
-    description: Optional[str] = None
-    arguments: List[PromptArgument] = field(default_factory=list)
+    description: str | None = None
+    arguments: list[PromptArgument] = field(default_factory=list)
 
     # Template for generating messages
-    template: Optional[str] = None
-    messages: Optional[List[PromptMessage]] = None
+    template: str | None = None
+    messages: list[PromptMessage] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to MCP format."""
         result = {"name": self.name}
         if self.description:
@@ -107,7 +109,7 @@ class Prompt:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Prompt":
+    def from_dict(cls, data: dict[str, Any]) -> Prompt:
         """Create from MCP format."""
         arguments = [
             PromptArgument(
@@ -123,7 +125,7 @@ class Prompt:
             arguments=arguments,
         )
 
-    def generate_messages(self, arguments: Dict[str, Any]) -> List[PromptMessage]:
+    def generate_messages(self, arguments: dict[str, Any]) -> list[PromptMessage]:
         """Generate prompt messages from arguments.
 
         Args:
@@ -160,7 +162,7 @@ class Prompt:
 
 
 # Type for prompt handlers
-PromptHandler = Callable[[str, Dict[str, Any]], List[PromptMessage]]
+PromptHandler = Callable[[str, dict[str, Any]], list[PromptMessage]]
 
 
 class PromptManager:
@@ -189,8 +191,8 @@ class PromptManager:
 
     def __init__(self):
         """Initialize prompt manager."""
-        self._prompts: Dict[str, Prompt] = {}
-        self._handlers: Dict[str, PromptHandler] = {}
+        self._prompts: dict[str, Prompt] = {}
+        self._handlers: dict[str, PromptHandler] = {}
 
     def register(self, prompt: Prompt) -> None:
         """Register a prompt.
@@ -224,7 +226,7 @@ class PromptManager:
         """
         self._handlers[name] = handler
 
-    async def list(self, cursor: Optional[str] = None) -> Dict[str, Any]:
+    async def list(self, cursor: str | None = None) -> dict[str, Any]:
         """List available prompts.
 
         Args:
@@ -242,8 +244,8 @@ class PromptManager:
     async def get(
         self,
         name: str,
-        arguments: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        arguments: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Get prompt messages.
 
         Args:
@@ -278,7 +280,7 @@ class PromptManager:
             "messages": [m.to_dict() for m in messages],
         }
 
-    def get_prompt(self, name: str) -> Optional[Prompt]:
+    def get_prompt(self, name: str) -> Prompt | None:
         """Get a prompt by name.
 
         Args:
@@ -289,7 +291,7 @@ class PromptManager:
         """
         return self._prompts.get(name)
 
-    def list_names(self) -> List[str]:
+    def list_names(self) -> builtins.list[str]:
         """Get list of registered prompt names.
 
         Returns:
@@ -299,7 +301,7 @@ class PromptManager:
 
 
 # Built-in prompts
-BUILTIN_PROMPTS: Dict[str, Prompt] = {
+BUILTIN_PROMPTS: dict[str, Prompt] = {
     "code-review": Prompt(
         name="code-review",
         description="Review code for bugs, security issues, and style",
@@ -323,7 +325,9 @@ Provide specific feedback with line numbers where applicable.""",
         description="Explain code or concept",
         arguments=[
             PromptArgument(name="topic", description="Topic to explain", required=True),
-            PromptArgument(name="level", description="Expertise level (beginner/intermediate/expert)"),
+            PromptArgument(
+                name="level", description="Expertise level (beginner/intermediate/expert)"
+            ),
         ],
         template="Please explain {topic} at a {level} level.",
     ),

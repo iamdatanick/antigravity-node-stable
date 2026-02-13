@@ -7,16 +7,18 @@ Integrates agents with the skill ecosystem by:
 - Managing allowed-tools restrictions
 """
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
 import yaml
-import re
 
 
 @dataclass
 class AgentDefinition:
     """Parsed agent definition from markdown file."""
+
     name: str
     description: str
     model: str
@@ -46,9 +48,7 @@ class AgentSkillLoader:
 
     def __init__(self, skill_registry, agent_paths: list[Path] = None):
         self.skill_registry = skill_registry
-        self.agent_paths = agent_paths or [
-            Path.home() / ".claude" / "agents"
-        ]
+        self.agent_paths = agent_paths or [Path.home() / ".claude" / "agents"]
         self._agents: dict[str, AgentDefinition] = {}
 
     def parse_agent_md(self, path: Path) -> AgentDefinition:
@@ -61,10 +61,10 @@ class AgentSkillLoader:
         Returns:
             Parsed AgentDefinition
         """
-        content = path.read_text(encoding='utf-8')
+        content = path.read_text(encoding="utf-8")
 
         # Extract YAML frontmatter
-        match = re.match(r'^---\n(.*?)\n---\n(.*)$', content, re.DOTALL)
+        match = re.match(r"^---\n(.*?)\n---\n(.*)$", content, re.DOTALL)
         if not match:
             raise ValueError(f"Invalid agent file format: {path}")
 
@@ -72,27 +72,27 @@ class AgentSkillLoader:
         instructions = match.group(2).strip()
 
         # Parse tools - handle both string and list formats
-        tools_raw = frontmatter.get('tools', frontmatter.get('allowed-tools', []))
+        tools_raw = frontmatter.get("tools", frontmatter.get("allowed-tools", []))
         if isinstance(tools_raw, str):
-            tools = [t.strip() for t in tools_raw.split(',')]
+            tools = [t.strip() for t in tools_raw.split(",")]
         else:
             tools = tools_raw
 
         return AgentDefinition(
-            name=frontmatter.get('name', path.stem),
-            description=frontmatter.get('description', ''),
-            model=frontmatter.get('model', 'sonnet'),
+            name=frontmatter.get("name", path.stem),
+            description=frontmatter.get("description", ""),
+            model=frontmatter.get("model", "sonnet"),
             tools=tools,
-            skills=frontmatter.get('skills', []),
-            security_scope=frontmatter.get('security_scope', 'standard'),
-            timeout=frontmatter.get('timeout', 30000),
-            max_iterations=frontmatter.get('max_iterations', 10),
-            recovery=frontmatter.get('recovery', 'retry'),
-            guardrails=frontmatter.get('guardrails', []),
-            triggers=frontmatter.get('triggers', []),
+            skills=frontmatter.get("skills", []),
+            security_scope=frontmatter.get("security_scope", "standard"),
+            timeout=frontmatter.get("timeout", 30000),
+            max_iterations=frontmatter.get("max_iterations", 10),
+            recovery=frontmatter.get("recovery", "retry"),
+            guardrails=frontmatter.get("guardrails", []),
+            triggers=frontmatter.get("triggers", []),
             instructions=instructions,
             source_path=path,
-            metadata=frontmatter
+            metadata=frontmatter,
         )
 
     def discover_agents(self) -> int:
@@ -106,7 +106,7 @@ class AgentSkillLoader:
         for base_path in self.agent_paths:
             if not base_path.exists():
                 continue
-            for md_file in base_path.rglob('*.md'):
+            for md_file in base_path.rglob("*.md"):
                 try:
                     agent = self.parse_agent_md(md_file)
                     self._agents[agent.name] = agent
@@ -115,7 +115,7 @@ class AgentSkillLoader:
                     print(f"Warning: Failed to parse {md_file}: {e}")
         return count
 
-    def get_agent(self, name: str) -> Optional[AgentDefinition]:
+    def get_agent(self, name: str) -> AgentDefinition | None:
         """Get agent by name."""
         return self._agents.get(name)
 
@@ -208,5 +208,5 @@ def create_agent_loader(skill_registry=None) -> AgentSkillLoader:
             Path.home() / ".claude" / "agents" / "code",
             Path.home() / ".claude" / "agents" / "data",
             Path.home() / ".claude" / "agents" / "meta",
-        ]
+        ],
     )

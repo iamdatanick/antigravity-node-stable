@@ -30,15 +30,14 @@ Example:
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, AsyncIterator, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass
@@ -48,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 class ProtocolType(Enum):
     """Supported protocol types."""
+
     A2A = "a2a"
     MCP = "mcp"
     OPENAI_AGENTS = "openai_agents"
@@ -58,6 +58,7 @@ class ProtocolType(Enum):
 
 class MessageRole(Enum):
     """Universal message roles."""
+
     USER = "user"
     ASSISTANT = "assistant"
     AGENT = "agent"
@@ -68,6 +69,7 @@ class MessageRole(Enum):
 @dataclass
 class UniversalMessage:
     """Universal message format for cross-protocol communication."""
+
     role: MessageRole
     content: str
     message_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -84,10 +86,12 @@ class UniversalMessage:
         parts = [{"type": "text", "text": self.content}]
 
         for artifact in self.artifacts:
-            parts.append({
-                "type": "data",
-                "data": artifact,
-            })
+            parts.append(
+                {
+                    "type": "data",
+                    "data": artifact,
+                }
+            )
 
         return {
             "role": "user" if self.role == MessageRole.USER else "agent",
@@ -123,11 +127,13 @@ class UniversalMessage:
 
         if self.tool_results:
             for result in self.tool_results:
-                content.append({
-                    "type": "tool_result",
-                    "tool_use_id": result.get("id", ""),
-                    "content": result.get("content", ""),
-                })
+                content.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": result.get("id", ""),
+                        "content": result.get("content", ""),
+                    }
+                )
 
         return {
             "role": self._map_role_to_claude(),
@@ -157,7 +163,7 @@ class UniversalMessage:
         return mapping.get(self.role, "user")
 
     @classmethod
-    def from_a2a(cls, data: dict[str, Any]) -> "UniversalMessage":
+    def from_a2a(cls, data: dict[str, Any]) -> UniversalMessage:
         """Create from A2A message."""
         role_str = data.get("role", "user")
         role = MessageRole.USER if role_str == "user" else MessageRole.AGENT
@@ -179,7 +185,7 @@ class UniversalMessage:
         )
 
     @classmethod
-    def from_openai(cls, data: dict[str, Any]) -> "UniversalMessage":
+    def from_openai(cls, data: dict[str, Any]) -> UniversalMessage:
         """Create from OpenAI message."""
         role_map = {
             "user": MessageRole.USER,
@@ -196,7 +202,7 @@ class UniversalMessage:
         )
 
     @classmethod
-    def from_claude(cls, data: dict[str, Any]) -> "UniversalMessage":
+    def from_claude(cls, data: dict[str, Any]) -> UniversalMessage:
         """Create from Claude message."""
         role = MessageRole.USER if data.get("role") == "user" else MessageRole.ASSISTANT
 
@@ -223,6 +229,7 @@ class UniversalMessage:
 @dataclass
 class UniversalTool:
     """Universal tool format for cross-protocol use."""
+
     name: str
     description: str
     parameters: dict[str, Any] = field(default_factory=dict)
@@ -267,7 +274,7 @@ class UniversalTool:
         }
 
     @classmethod
-    def from_a2a_skill(cls, skill: dict[str, Any]) -> "UniversalTool":
+    def from_a2a_skill(cls, skill: dict[str, Any]) -> UniversalTool:
         """Create from A2A skill."""
         return cls(
             name=skill.get("id", skill.get("name", "")),
@@ -281,7 +288,7 @@ class UniversalTool:
         )
 
     @classmethod
-    def from_mcp_tool(cls, tool: dict[str, Any]) -> "UniversalTool":
+    def from_mcp_tool(cls, tool: dict[str, Any]) -> UniversalTool:
         """Create from MCP tool."""
         return cls(
             name=tool.get("name", ""),
@@ -290,7 +297,7 @@ class UniversalTool:
         )
 
     @classmethod
-    def from_openai_function(cls, func: dict[str, Any]) -> "UniversalTool":
+    def from_openai_function(cls, func: dict[str, Any]) -> UniversalTool:
         """Create from OpenAI function."""
         func_def = func.get("function", func)
         return cls(
@@ -300,7 +307,7 @@ class UniversalTool:
         )
 
     @classmethod
-    def from_claude_tool(cls, tool: dict[str, Any]) -> "UniversalTool":
+    def from_claude_tool(cls, tool: dict[str, Any]) -> UniversalTool:
         """Create from Claude tool."""
         return cls(
             name=tool.get("name", ""),
@@ -384,10 +391,12 @@ class A2AtoMCPAdapter(ProtocolAdapter):
                         results.append(part.get("text", ""))
 
         return {
-            "content": [{
-                "type": "text",
-                "text": "\n".join(results),
-            }],
+            "content": [
+                {
+                    "type": "text",
+                    "text": "\n".join(results),
+                }
+            ],
         }
 
     def convert_agent_card(
@@ -492,13 +501,15 @@ class MCPtoA2AAdapter(ProtocolAdapter):
                 parts.append({"type": "text", "text": item.get("text", "")})
             elif item.get("type") == "resource":
                 resource = item.get("resource", {})
-                parts.append({
-                    "type": "data",
-                    "data": {
-                        "uri": resource.get("uri"),
-                        "content": resource.get("text"),
-                    },
-                })
+                parts.append(
+                    {
+                        "type": "data",
+                        "data": {
+                            "uri": resource.get("uri"),
+                            "content": resource.get("text"),
+                        },
+                    }
+                )
 
         return {
             "role": "agent",
@@ -562,13 +573,15 @@ class OpenAIAgentsToA2AAdapter(ProtocolAdapter):
         for tool in tools:
             if callable(tool):
                 # Function tool
-                skills.append({
-                    "id": getattr(tool, "__name__", "tool"),
-                    "name": getattr(tool, "__name__", "Tool"),
-                    "description": getattr(tool, "__doc__", "")[:100],
-                    "inputModes": ["text"],
-                    "outputModes": ["text"],
-                })
+                skills.append(
+                    {
+                        "id": getattr(tool, "__name__", "tool"),
+                        "name": getattr(tool, "__name__", "Tool"),
+                        "description": getattr(tool, "__doc__", "")[:100],
+                        "inputModes": ["text"],
+                        "outputModes": ["text"],
+                    }
+                )
             elif isinstance(tool, dict):
                 skills.append(self.convert_tool(tool))
 
@@ -576,13 +589,15 @@ class OpenAIAgentsToA2AAdapter(ProtocolAdapter):
         handoffs = getattr(self._agent, "handoffs", [])
         for handoff in handoffs:
             handoff_name = getattr(handoff, "name", "handoff")
-            skills.append({
-                "id": f"handoff_to_{handoff_name}",
-                "name": f"Handoff to {handoff_name}",
-                "description": f"Transfer conversation to {handoff_name}",
-                "inputModes": ["text"],
-                "outputModes": ["text"],
-            })
+            skills.append(
+                {
+                    "id": f"handoff_to_{handoff_name}",
+                    "name": f"Handoff to {handoff_name}",
+                    "description": f"Transfer conversation to {handoff_name}",
+                    "inputModes": ["text"],
+                    "outputModes": ["text"],
+                }
+            )
 
         return {
             "name": name,
@@ -612,10 +627,12 @@ class OpenAIAgentsToA2AAdapter(ProtocolAdapter):
         return {
             "id": str(uuid.uuid4()),
             "status": {"state": "completed"},
-            "history": [{
-                "role": "agent",
-                "parts": [{"type": "text", "text": str(output)}],
-            }],
+            "history": [
+                {
+                    "role": "agent",
+                    "parts": [{"type": "text", "text": str(output)}],
+                }
+            ],
         }
 
     async def handle_a2a_task(
@@ -806,8 +823,12 @@ class ProtocolBridge:
         self._adapters[(ProtocolType.MCP, ProtocolType.A2A)] = MCPtoA2AAdapter()
         self._adapters[(ProtocolType.OPENAI_AGENTS, ProtocolType.A2A)] = OpenAIAgentsToA2AAdapter()
         self._adapters[(ProtocolType.A2A, ProtocolType.OPENAI_AGENTS)] = A2AtoOpenAIAdapter()
-        self._adapters[(ProtocolType.CLAUDE_TOOLS, ProtocolType.OPENAI_FUNCTIONS)] = ClaudeToOpenAIAdapter()
-        self._adapters[(ProtocolType.OPENAI_FUNCTIONS, ProtocolType.CLAUDE_TOOLS)] = OpenAIToClaudeAdapter()
+        self._adapters[(ProtocolType.CLAUDE_TOOLS, ProtocolType.OPENAI_FUNCTIONS)] = (
+            ClaudeToOpenAIAdapter()
+        )
+        self._adapters[(ProtocolType.OPENAI_FUNCTIONS, ProtocolType.CLAUDE_TOOLS)] = (
+            OpenAIToClaudeAdapter()
+        )
 
     def register_adapter(
         self,

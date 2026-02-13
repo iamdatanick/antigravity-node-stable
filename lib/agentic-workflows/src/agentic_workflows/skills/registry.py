@@ -28,13 +28,13 @@ from __future__ import annotations
 import logging
 import re
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import yaml
-
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class SkillLevel(Enum):
     L4_EXPERT = "L4_expert"
 
     @classmethod
-    def from_string(cls, value: str) -> "SkillLevel":
+    def from_string(cls, value: str) -> SkillLevel:
         """Parse skill level from string.
 
         Args:
@@ -101,7 +101,7 @@ class SkillDomain(Enum):
     CORE = "core"
 
     @classmethod
-    def from_string(cls, value: str) -> "SkillDomain":
+    def from_string(cls, value: str) -> SkillDomain:
         """Parse domain from string.
 
         Args:
@@ -238,7 +238,7 @@ class SkillDefinition:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SkillDefinition":
+    def from_dict(cls, data: dict[str, Any]) -> SkillDefinition:
         """Create from dictionary.
 
         Args:
@@ -307,10 +307,7 @@ class SkillRegistry:
     ]
 
     # Pattern to match YAML frontmatter
-    FRONTMATTER_PATTERN = re.compile(
-        r"^---\s*\n(.*?)\n---\s*\n",
-        re.DOTALL | re.MULTILINE
-    )
+    FRONTMATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL | re.MULTILINE)
 
     def __init__(
         self,
@@ -490,7 +487,7 @@ class SkillRegistry:
             raise ValueError(f"No valid YAML frontmatter in: {path}")
 
         frontmatter_text = match.group(1)
-        markdown_content = content[match.end():].strip()
+        markdown_content = content[match.end() :].strip()
 
         # Parse YAML
         try:
@@ -577,10 +574,7 @@ class SkillRegistry:
             domain_str = domain.lower()
 
         with self._lock:
-            return [
-                skill for skill in self._skills.values()
-                if skill.domain == domain_str
-            ]
+            return [skill for skill in self._skills.values() if skill.domain == domain_str]
 
     def get_skills_by_level(self, level: str | SkillLevel) -> list[SkillDefinition]:
         """Get all skills at a specific level.
@@ -597,10 +591,7 @@ class SkillRegistry:
             level_str = level
 
         with self._lock:
-            return [
-                skill for skill in self._skills.values()
-                if skill.level == level_str
-            ]
+            return [skill for skill in self._skills.values() if skill.level == level_str]
 
     def get_tool_definitions(
         self,
@@ -638,9 +629,9 @@ class SkillRegistry:
 
                 # Apply deferred filter
                 effective_defer = (
-                    self.defer_loading and
-                    skill.defer_loading and
-                    skill.name not in self.always_loaded
+                    self.defer_loading
+                    and skill.defer_loading
+                    and skill.name not in self.always_loaded
                 )
 
                 if not include_deferred and effective_defer:

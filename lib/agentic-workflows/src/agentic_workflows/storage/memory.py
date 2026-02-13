@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import fnmatch
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from .base import StorageBackend, StorageConfig
@@ -71,10 +71,7 @@ class MemoryStorage(StorageBackend[Any]):
             Number of items removed.
         """
         async with self._lock:
-            expired = [
-                key for key, item in self._data.items()
-                if item.is_expired()
-            ]
+            expired = [key for key, item in self._data.items() if item.is_expired()]
             for key in expired:
                 del self._data[key]
             return len(expired)
@@ -173,10 +170,7 @@ class MemoryStorage(StorageBackend[Any]):
 
         async with self._lock:
             # Clean up expired first
-            expired = [
-                key for key, item in self._data.items()
-                if item.is_expired()
-            ]
+            expired = [key for key, item in self._data.items() if item.is_expired()]
             for key in expired:
                 del self._data[key]
 
@@ -197,8 +191,7 @@ class MemoryStorage(StorageBackend[Any]):
         """
         async with self._lock:
             keys_to_delete = [
-                key for key in self._data.keys()
-                if key.startswith(self.config.prefix)
+                key for key in self._data.keys() if key.startswith(self.config.prefix)
             ]
             for key in keys_to_delete:
                 del self._data[key]

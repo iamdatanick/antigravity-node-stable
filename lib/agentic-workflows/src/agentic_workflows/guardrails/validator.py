@@ -15,9 +15,10 @@ from __future__ import annotations
 import logging
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +39,9 @@ class ValidationResult:
     passed: bool
     action: ValidationAction = ValidationAction.ALLOW
     message: str = ""
-    violations: List[str] = field(default_factory=list)
-    modified_text: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    violations: list[str] = field(default_factory=list)
+    modified_text: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __bool__(self) -> bool:
         return self.passed
@@ -53,7 +54,7 @@ class ValidationRule(ABC):
     action: ValidationAction = ValidationAction.BLOCK
 
     @abstractmethod
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
         """Validate text.
 
         Args:
@@ -71,11 +72,13 @@ class MaxLengthRule(ValidationRule):
 
     name = "max_length"
 
-    def __init__(self, max_length: int = 100000, action: ValidationAction = ValidationAction.MODIFY):
+    def __init__(
+        self, max_length: int = 100000, action: ValidationAction = ValidationAction.MODIFY
+    ):
         self.max_length = max_length
         self.action = action
 
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
         if len(text) <= self.max_length:
             return ValidationResult(passed=True)
 
@@ -84,7 +87,7 @@ class MaxLengthRule(ValidationRule):
                 passed=True,
                 action=self.action,
                 message=f"Text truncated from {len(text)} to {self.max_length} characters",
-                modified_text=text[:self.max_length],
+                modified_text=text[: self.max_length],
             )
 
         return ValidationResult(
@@ -102,17 +105,14 @@ class PatternBlockRule(ValidationRule):
 
     def __init__(
         self,
-        patterns: List[str],
+        patterns: list[str],
         case_sensitive: bool = False,
         action: ValidationAction = ValidationAction.BLOCK,
     ):
-        self.patterns = [
-            re.compile(p, 0 if case_sensitive else re.IGNORECASE)
-            for p in patterns
-        ]
+        self.patterns = [re.compile(p, 0 if case_sensitive else re.IGNORECASE) for p in patterns]
         self.action = action
 
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
         violations = []
         for pattern in self.patterns:
             if pattern.search(text):
@@ -136,15 +136,14 @@ class AllowListRule(ValidationRule):
 
     def __init__(
         self,
-        allowed_patterns: List[str],
+        allowed_patterns: list[str],
         case_sensitive: bool = False,
     ):
         self.patterns = [
-            re.compile(p, 0 if case_sensitive else re.IGNORECASE)
-            for p in allowed_patterns
+            re.compile(p, 0 if case_sensitive else re.IGNORECASE) for p in allowed_patterns
         ]
 
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
         for pattern in self.patterns:
             if pattern.search(text):
                 return ValidationResult(passed=True)
@@ -162,14 +161,14 @@ class CustomRule(ValidationRule):
     def __init__(
         self,
         name: str,
-        check_fn: Callable[[str, Optional[Dict]], ValidationResult],
+        check_fn: Callable[[str, dict | None], ValidationResult],
         action: ValidationAction = ValidationAction.BLOCK,
     ):
         self.name = name
         self.check_fn = check_fn
         self.action = action
 
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
         return self.check_fn(text, context)
 
 
@@ -192,7 +191,7 @@ class GuardrailValidator:
         Args:
             fail_fast: Stop on first failure.
         """
-        self.rules: List[ValidationRule] = []
+        self.rules: list[ValidationRule] = []
         self.fail_fast = fail_fast
 
     def add_rule(self, rule: ValidationRule) -> None:
@@ -219,7 +218,7 @@ class GuardrailValidator:
     async def validate(
         self,
         text: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> ValidationResult:
         """Validate text against all rules.
 
@@ -243,7 +242,10 @@ class GuardrailValidator:
                 # Track most severe action
                 if result.action == ValidationAction.BLOCK:
                     final_action = ValidationAction.BLOCK
-                elif result.action == ValidationAction.REVIEW and final_action != ValidationAction.BLOCK:
+                elif (
+                    result.action == ValidationAction.REVIEW
+                    and final_action != ValidationAction.BLOCK
+                ):
                     final_action = ValidationAction.REVIEW
 
                 if self.fail_fast:
@@ -270,7 +272,7 @@ class GuardrailValidator:
     def validate_sync(
         self,
         text: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> ValidationResult:
         """Synchronous validation.
 
@@ -282,9 +284,8 @@ class GuardrailValidator:
             ValidationResult.
         """
         import asyncio
-        return asyncio.get_event_loop().run_until_complete(
-            self.validate(text, context)
-        )
+
+        return asyncio.get_event_loop().run_until_complete(self.validate(text, context))
 
 
 # Pre-built validators
@@ -296,11 +297,15 @@ def create_safe_validator() -> GuardrailValidator:
     """
     validator = GuardrailValidator()
     validator.add_rule(MaxLengthRule(100000))
-    validator.add_rule(PatternBlockRule([
-        r"rm\s+-rf\s+/",
-        r"DROP\s+TABLE",
-        r"DELETE\s+FROM.*WHERE\s+1=1",
-    ]))
+    validator.add_rule(
+        PatternBlockRule(
+            [
+                r"rm\s+-rf\s+/",
+                r"DROP\s+TABLE",
+                r"DELETE\s+FROM.*WHERE\s+1=1",
+            ]
+        )
+    )
     return validator
 
 

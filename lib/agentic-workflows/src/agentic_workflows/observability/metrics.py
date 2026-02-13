@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 
 class Model(Enum):
@@ -295,7 +296,9 @@ class MetricsCollector:
                 "used": current_tokens,
                 "budget": self.budget_tokens,
                 "remaining": (self.budget_tokens - current_tokens) if self.budget_tokens else None,
-                "percent_used": (current_tokens / self.budget_tokens * 100) if self.budget_tokens else None,
+                "percent_used": (current_tokens / self.budget_tokens * 100)
+                if self.budget_tokens
+                else None,
             },
         }
 
@@ -349,7 +352,9 @@ class MetricsCollector:
         budget = self.get_remaining_budget()
         if budget["cost_usd"]["budget"]:
             lines.append("")
-            lines.append(f"Budget: ${budget['cost_usd']['used']:.4f} / ${budget['cost_usd']['budget']:.4f} ({budget['cost_usd']['percent_used']:.1f}%)")
+            lines.append(
+                f"Budget: ${budget['cost_usd']['used']:.4f} / ${budget['cost_usd']['budget']:.4f} ({budget['cost_usd']['percent_used']:.1f}%)"
+            )
 
         return "\n".join(lines)
 

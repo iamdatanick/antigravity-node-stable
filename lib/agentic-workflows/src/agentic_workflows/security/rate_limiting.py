@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from ..storage.redis import RedisStorage, RedisConfig
+from ..storage.redis import RedisConfig, RedisStorage
 
 
 class RateLimitAlgorithm(Enum):
@@ -208,8 +208,14 @@ class RedisRateLimiter(RateLimiter):
         """
 
         result = await client.eval(
-            script, 1, full_key,
-            now, window_start, self.config.max_requests, cost, self.config.window_seconds
+            script,
+            1,
+            full_key,
+            now,
+            window_start,
+            self.config.max_requests,
+            cost,
+            self.config.window_seconds,
         )
 
         allowed = result[0] == 1
@@ -231,9 +237,7 @@ class RedisRateLimiter(RateLimiter):
         full_key = self._make_key(window_key)
 
         # Increment counter with TTL
-        count = await self._storage.incr_with_ttl(
-            window_key, cost, self.config.window_seconds
-        )
+        count = await self._storage.incr_with_ttl(window_key, cost, self.config.window_seconds)
 
         window_end = (int(now / self.config.window_seconds) + 1) * self.config.window_seconds
         remaining = max(0, self.config.max_requests - count)
@@ -252,7 +256,9 @@ class RedisRateLimiter(RateLimiter):
         now = time.time()
 
         bucket_size = self.config.bucket_size or self.config.max_requests
-        refill_rate = self.config.refill_rate or (self.config.max_requests / self.config.window_seconds)
+        refill_rate = self.config.refill_rate or (
+            self.config.max_requests / self.config.window_seconds
+        )
 
         client = await self._storage._ensure_connected()
 
@@ -289,10 +295,7 @@ class RedisRateLimiter(RateLimiter):
         end
         """
 
-        result = await client.eval(
-            script, 1, full_key,
-            now, bucket_size, refill_rate, cost
-        )
+        result = await client.eval(script, 1, full_key, now, bucket_size, refill_rate, cost)
 
         allowed = result[0] == 1
         remaining = int(result[1])
@@ -331,7 +334,7 @@ class RedisRateLimiter(RateLimiter):
         client = await self._storage._ensure_connected()
 
         # Remove old and count
-        await client.zremrangebyscore(full_key, '-inf', window_start)
+        await client.zremrangebyscore(full_key, "-inf", window_start)
         count = await client.zcard(full_key)
 
         remaining = max(0, self.config.max_requests - count)
@@ -367,10 +370,12 @@ class RedisRateLimiter(RateLimiter):
         now = time.time()
 
         bucket_size = self.config.bucket_size or self.config.max_requests
-        refill_rate = self.config.refill_rate or (self.config.max_requests / self.config.window_seconds)
+        refill_rate = self.config.refill_rate or (
+            self.config.max_requests / self.config.window_seconds
+        )
 
         client = await self._storage._ensure_connected()
-        data = await client.hmget(full_key, 'tokens', 'last_update')
+        data = await client.hmget(full_key, "tokens", "last_update")
 
         tokens = float(data[0]) if data[0] else bucket_size
         last_update = float(data[1]) if data[1] else now
@@ -476,7 +481,9 @@ class MemoryRateLimiter(RateLimiter):
     def _check_token_bucket(self, key: str, cost: int, now: float) -> RateLimitResult:
         """Token bucket check."""
         bucket_size = self.config.bucket_size or self.config.max_requests
-        refill_rate = self.config.refill_rate or (self.config.max_requests / self.config.window_seconds)
+        refill_rate = self.config.refill_rate or (
+            self.config.max_requests / self.config.window_seconds
+        )
 
         if key not in self._buckets:
             self._buckets[key] = {"tokens": bucket_size, "last_update": now}

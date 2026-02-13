@@ -7,26 +7,28 @@ and recovery orchestration for resilient agent workflows.
 
 import asyncio
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Generic
 from functools import wraps
+from typing import Any, TypeVar
 
-
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class CircuitState(Enum):
     """Circuit breaker states"""
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Failing, reject requests
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing, reject requests
     HALF_OPEN = "half_open"  # Testing recovery
 
 
 @dataclass
 class RecoveryConfig:
     """Configuration for recovery behavior"""
+
     # Retry settings
     max_retries: int = 3
     retry_delay_seconds: float = 1.0
@@ -39,7 +41,7 @@ class RecoveryConfig:
     half_open_max_calls: int = 3
 
     # Fallback settings
-    fallback_agents: List[str] = field(default_factory=list)
+    fallback_agents: list[str] = field(default_factory=list)
     fallback_timeout_seconds: float = 60.0
 
     # Escalation settings
@@ -52,12 +54,13 @@ class RecoveryConfig:
 @dataclass
 class RecoveryAttempt:
     """Record of a recovery attempt"""
+
     timestamp: datetime
     strategy: str  # "retry", "fallback", "escalate"
     success: bool
-    error: Optional[str] = None
-    duration_ms: Optional[float] = None
-    metadata: Dict = field(default_factory=dict)
+    error: str | None = None
+    duration_ms: float | None = None
+    metadata: dict = field(default_factory=dict)
 
 
 class CircuitBreaker:
@@ -73,7 +76,7 @@ class CircuitBreaker:
         name: str,
         failure_threshold: int = 5,
         recovery_timeout: float = 30.0,
-        half_open_max_calls: int = 3
+        half_open_max_calls: int = 3,
     ):
         self.name = name
         self.failure_threshold = failure_threshold
@@ -83,7 +86,7 @@ class CircuitBreaker:
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.success_count = 0
-        self.last_failure_time: Optional[datetime] = None
+        self.last_failure_time: datetime | None = None
         self.half_open_calls = 0
 
     def can_execute(self) -> bool:
@@ -124,14 +127,14 @@ class CircuitBreaker:
         elif self.failure_count >= self.failure_threshold:
             self._transition_to_open()
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         """Get circuit breaker status"""
         return {
             "name": self.name,
             "state": self.state.value,
             "failure_count": self.failure_count,
             "success_count": self.success_count,
-            "last_failure": self.last_failure_time.isoformat() if self.last_failure_time else None
+            "last_failure": self.last_failure_time.isoformat() if self.last_failure_time else None,
         }
 
     def _transition_to_open(self):
@@ -161,12 +164,7 @@ class RetryHandler:
     def __init__(self, config: RecoveryConfig):
         self.config = config
 
-    async def execute_with_retry(
-        self,
-        func: Callable,
-        *args,
-        **kwargs
-    ) -> Any:
+    async def execute_with_retry(self, func: Callable, *args, **kwargs) -> Any:
         """Execute function with retry logic"""
         last_error = None
         delay = self.config.retry_delay_seconds
@@ -185,17 +183,12 @@ class RetryHandler:
                     await asyncio.sleep(delay)
                     delay = min(
                         delay * self.config.retry_backoff_multiplier,
-                        self.config.retry_max_delay_seconds
+                        self.config.retry_max_delay_seconds,
                     )
 
         raise last_error
 
-    def execute_with_retry_sync(
-        self,
-        func: Callable,
-        *args,
-        **kwargs
-    ) -> Any:
+    def execute_with_retry_sync(self, func: Callable, *args, **kwargs) -> Any:
         """Execute function with retry logic (synchronous)"""
         last_error = None
         delay = self.config.retry_delay_seconds
@@ -211,7 +204,7 @@ class RetryHandler:
                     time.sleep(delay)
                     delay = min(
                         delay * self.config.retry_backoff_multiplier,
-                        self.config.retry_max_delay_seconds
+                        self.config.retry_max_delay_seconds,
                     )
 
         raise last_error
@@ -222,10 +215,11 @@ class FallbackChain:
     """
     Fallback chain for graceful degradation.
     """
+
     primary: str
-    fallbacks: List[str]
+    fallbacks: list[str]
     current_index: int = 0
-    attempts: List[RecoveryAttempt] = field(default_factory=list)
+    attempts: list[RecoveryAttempt] = field(default_factory=list)
 
     def get_current(self) -> str:
         """Get current agent/service in chain"""
@@ -233,14 +227,13 @@ class FallbackChain:
             return self.primary
         return self.fallbacks[self.current_index - 1]
 
-    def advance(self, error: str = None) -> Optional[str]:
+    def advance(self, error: str = None) -> str | None:
         """Move to next fallback in chain"""
-        self.attempts.append(RecoveryAttempt(
-            timestamp=datetime.utcnow(),
-            strategy="fallback",
-            success=False,
-            error=error
-        ))
+        self.attempts.append(
+            RecoveryAttempt(
+                timestamp=datetime.utcnow(), strategy="fallback", success=False, error=error
+            )
+        )
 
         if self.current_index < len(self.fallbacks):
             self.current_index += 1
@@ -266,10 +259,10 @@ class RecoveryOrchestrator:
 
     def __init__(self, config: RecoveryConfig):
         self.config = config
-        self.circuit_breakers: Dict[str, CircuitBreaker] = {}
+        self.circuit_breakers: dict[str, CircuitBreaker] = {}
         self.retry_handler = RetryHandler(config)
-        self.recovery_history: List[RecoveryAttempt] = []
-        self.escalation_callbacks: List[Callable] = []
+        self.recovery_history: list[RecoveryAttempt] = []
+        self.escalation_callbacks: list[Callable] = []
 
     def get_circuit_breaker(self, name: str) -> CircuitBreaker:
         """Get or create a circuit breaker for a service"""
@@ -278,17 +271,12 @@ class RecoveryOrchestrator:
                 name=name,
                 failure_threshold=self.config.failure_threshold,
                 recovery_timeout=self.config.recovery_timeout_seconds,
-                half_open_max_calls=self.config.half_open_max_calls
+                half_open_max_calls=self.config.half_open_max_calls,
             )
         return self.circuit_breakers[name]
 
     async def execute_with_recovery(
-        self,
-        agent_id: str,
-        func: Callable,
-        fallback_chain: FallbackChain = None,
-        *args,
-        **kwargs
+        self, agent_id: str, func: Callable, fallback_chain: FallbackChain = None, *args, **kwargs
     ) -> Any:
         """
         Execute with full recovery strategy.
@@ -319,12 +307,11 @@ class RecoveryOrchestrator:
             circuit.record_success()
 
             duration = (datetime.utcnow() - start_time).total_seconds() * 1000
-            self.recovery_history.append(RecoveryAttempt(
-                timestamp=start_time,
-                strategy="primary",
-                success=True,
-                duration_ms=duration
-            ))
+            self.recovery_history.append(
+                RecoveryAttempt(
+                    timestamp=start_time, strategy="primary", success=True, duration_ms=duration
+                )
+            )
 
             return result
 
@@ -342,12 +329,11 @@ class RecoveryOrchestrator:
             if self.config.escalate_after_retries:
                 await self._escalate(agent_id, str(e))
 
-            self.recovery_history.append(RecoveryAttempt(
-                timestamp=start_time,
-                strategy="exhausted",
-                success=False,
-                error=str(e)
-            ))
+            self.recovery_history.append(
+                RecoveryAttempt(
+                    timestamp=start_time, strategy="exhausted", success=False, error=str(e)
+                )
+            )
 
             raise
 
@@ -365,7 +351,7 @@ class RecoveryOrchestrator:
             "recovery_history": [
                 {"timestamp": r.timestamp.isoformat(), "strategy": r.strategy, "success": r.success}
                 for r in self.recovery_history[-10:]
-            ]
+            ],
         }
 
         for callback in self.escalation_callbacks:
@@ -377,23 +363,22 @@ class RecoveryOrchestrator:
             except Exception:
                 pass
 
-    def get_health_report(self) -> Dict:
+    def get_health_report(self) -> dict:
         """Get health report for all circuit breakers"""
         return {
             "circuit_breakers": {
-                name: cb.get_status()
-                for name, cb in self.circuit_breakers.items()
+                name: cb.get_status() for name, cb in self.circuit_breakers.items()
             },
             "recent_recoveries": [
                 {
                     "timestamp": r.timestamp.isoformat(),
                     "strategy": r.strategy,
                     "success": r.success,
-                    "error": r.error
+                    "error": r.error,
                 }
                 for r in self.recovery_history[-20:]
             ],
-            "success_rate": self._calculate_success_rate()
+            "success_rate": self._calculate_success_rate(),
         }
 
     def _calculate_success_rate(self) -> float:
@@ -407,19 +392,15 @@ class RecoveryOrchestrator:
 
 # Decorators for easy use
 
-def with_retry(
-    max_retries: int = 3,
-    delay: float = 1.0,
-    backoff: float = 2.0
-):
+
+def with_retry(max_retries: int = 3, delay: float = 1.0, backoff: float = 2.0):
     """Decorator to add retry logic to a function"""
+
     def decorator(func):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             config = RecoveryConfig(
-                max_retries=max_retries,
-                retry_delay_seconds=delay,
-                retry_backoff_multiplier=backoff
+                max_retries=max_retries, retry_delay_seconds=delay, retry_backoff_multiplier=backoff
             )
             handler = RetryHandler(config)
             return await handler.execute_with_retry(func, *args, **kwargs)
@@ -427,9 +408,7 @@ def with_retry(
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             config = RecoveryConfig(
-                max_retries=max_retries,
-                retry_delay_seconds=delay,
-                retry_backoff_multiplier=backoff
+                max_retries=max_retries, retry_delay_seconds=delay, retry_backoff_multiplier=backoff
             )
             handler = RetryHandler(config)
             return handler.execute_with_retry_sync(func, *args, **kwargs)
@@ -441,16 +420,10 @@ def with_retry(
     return decorator
 
 
-def with_circuit_breaker(
-    name: str,
-    failure_threshold: int = 5,
-    recovery_timeout: float = 30.0
-):
+def with_circuit_breaker(name: str, failure_threshold: int = 5, recovery_timeout: float = 30.0):
     """Decorator to add circuit breaker to a function"""
     circuit = CircuitBreaker(
-        name=name,
-        failure_threshold=failure_threshold,
-        recovery_timeout=recovery_timeout
+        name=name, failure_threshold=failure_threshold, recovery_timeout=recovery_timeout
     )
 
     def decorator(func):

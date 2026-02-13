@@ -1,5 +1,5 @@
 import chromadb
-from chromadb.config import Settings
+
 
 class VectorStore:
     def __init__(self):
@@ -13,5 +13,6 @@ class VectorStore:
     async def search(self, query, top_k=3):
         results = self.collection.query(query_texts=[query], n_results=top_k)
         return results["documents"][0]
+
 
 vector_store = VectorStore()

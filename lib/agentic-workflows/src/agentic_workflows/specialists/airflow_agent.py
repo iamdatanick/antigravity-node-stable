@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig
 
 
 @dataclass

@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class LlamaIndexAgent:
 
     name: str
     system_prompt: str = ""
-    tools: List[Any] = field(default_factory=list)
+    tools: list[Any] = field(default_factory=list)
     config: LlamaIndexConfig = field(default_factory=LlamaIndexConfig)
 
 
@@ -59,7 +59,7 @@ class LlamaIndexAdapter:
         )
     """
 
-    def __init__(self, config: Optional[LlamaIndexConfig] = None):
+    def __init__(self, config: LlamaIndexConfig | None = None):
         """Initialize adapter.
 
         Args:
@@ -72,6 +72,7 @@ class LlamaIndexAdapter:
         """Check if LlamaIndex is available."""
         try:
             import llama_index
+
             return True
         except ImportError:
             logger.warning("llama-index package not installed")
@@ -79,8 +80,8 @@ class LlamaIndexAdapter:
 
     def configure(
         self,
-        model: Optional[str] = None,
-        embed_model: Optional[str] = None,
+        model: str | None = None,
+        embed_model: str | None = None,
     ) -> None:
         """Configure LlamaIndex settings.
 
@@ -98,14 +99,17 @@ class LlamaIndexAdapter:
             # Set LLM based on model type
             if "claude" in model.lower():
                 from llama_index.llms.anthropic import Anthropic
+
                 Settings.llm = Anthropic(model=model)
             else:
                 from llama_index.llms.openai import OpenAI
+
                 Settings.llm = OpenAI(model=model)
 
         if embed_model:
             self.config.embed_model = embed_model
             from llama_index.embeddings.openai import OpenAIEmbedding
+
             Settings.embed_model = OpenAIEmbedding(model=embed_model)
 
         Settings.chunk_size = self.config.chunk_size
@@ -113,9 +117,9 @@ class LlamaIndexAdapter:
 
     def load_documents(
         self,
-        path: Union[str, Path],
+        path: str | Path,
         recursive: bool = True,
-    ) -> List[Any]:
+    ) -> list[Any]:
         """Load documents from a directory.
 
         Args:
@@ -138,7 +142,7 @@ class LlamaIndexAdapter:
 
     def create_index(
         self,
-        documents: List[Any],
+        documents: list[Any],
         index_type: str = "vector",
     ) -> Any:
         """Create an index from documents.
@@ -154,9 +158,9 @@ class LlamaIndexAdapter:
             raise RuntimeError("llama-index package not installed")
 
         from llama_index.core import (
-            VectorStoreIndex,
             ListIndex,
             TreeIndex,
+            VectorStoreIndex,
         )
 
         if index_type == "vector":
@@ -221,7 +225,7 @@ class LlamaIndexAdapter:
 
     def create_agent(
         self,
-        tools: List[Any],
+        tools: list[Any],
         system_prompt: str = "",
         verbose: bool = False,
     ) -> Any:

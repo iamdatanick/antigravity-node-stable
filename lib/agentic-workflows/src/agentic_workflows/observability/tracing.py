@@ -5,16 +5,18 @@ from __future__ import annotations
 import threading
 import time
 import uuid
+from collections.abc import Callable, Iterator
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Iterator
+from typing import Any
 
 # Try to import OpenTelemetry
 try:
     from opentelemetry import trace
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+
     OTEL_AVAILABLE = True
 except ImportError:
     OTEL_AVAILABLE = False
@@ -66,10 +68,12 @@ class Span:
 
     def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         """Add an event to the span."""
-        self.events.append(SpanEvent(
-            name=name,
-            attributes=attributes or {},
-        ))
+        self.events.append(
+            SpanEvent(
+                name=name,
+                attributes=attributes or {},
+            )
+        )
 
     def set_attribute(self, key: str, value: Any) -> None:
         """Set a span attribute."""
@@ -333,10 +337,7 @@ class AgentTracer:
                     {"name": e.name, "timestamp": e.timestamp, "attributes": e.attributes}
                     for e in span.events
                 ],
-                "children": [
-                    build_node(child)
-                    for child in children.get(span.span_id, [])
-                ],
+                "children": [build_node(child) for child in children.get(span.span_id, [])],
             }
 
         # Find root spans
@@ -390,10 +391,7 @@ class AgentTracer:
             completed = sum(1 for s in self._spans.values() if s.end_time)
             errors = sum(1 for s in self._spans.values() if s.status == SpanStatus.ERROR)
 
-            durations = [
-                s.duration_ms for s in self._spans.values()
-                if s.duration_ms is not None
-            ]
+            durations = [s.duration_ms for s in self._spans.values() if s.duration_ms is not None]
 
             return {
                 "total_traces": len(self._traces),

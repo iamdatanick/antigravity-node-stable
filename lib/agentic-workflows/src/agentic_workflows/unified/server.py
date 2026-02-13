@@ -39,11 +39,10 @@ import asyncio
 import json
 import logging
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Callable, AsyncIterator, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from agentic_workflows.unified.agent import UnifiedAgent
@@ -54,6 +53,7 @@ logger = logging.getLogger(__name__)
 
 class ServerProtocol(Enum):
     """Supported server protocols."""
+
     A2A = "a2a"
     MCP = "mcp"
     MCP_UI = "mcp_ui"
@@ -64,6 +64,7 @@ class ServerProtocol(Enum):
 @dataclass
 class ServerEndpoint:
     """Configuration for a server endpoint."""
+
     protocol: ServerProtocol
     path: str
     enabled: bool = True
@@ -73,6 +74,7 @@ class ServerEndpoint:
 @dataclass
 class UnifiedServerConfig:
     """Configuration for unified server."""
+
     # Server identity
     name: str = "unified-server"
     version: str = "1.0.0"
@@ -113,7 +115,8 @@ class UnifiedServerConfig:
 @dataclass
 class AgentRegistration:
     """Registration info for an agent on the server."""
-    agent: "UnifiedAgent"
+
+    agent: UnifiedAgent
     path: str
     enabled: bool = True
     protocols: list[ServerProtocol] = field(default_factory=list)
@@ -162,13 +165,13 @@ class UnifiedServer:
         self._sessions: dict[str, dict[str, Any]] = {}
 
         # MCP server (lazy)
-        self._mcp_server: "UnifiedMCPServer | None" = None
+        self._mcp_server: UnifiedMCPServer | None = None
 
     def _get_app(self) -> Any:
         """Get or create FastAPI application."""
         if self._app is None:
             try:
-                from fastapi import FastAPI, Request, Response, HTTPException
+                from fastapi import FastAPI, HTTPException, Request, Response
                 from fastapi.middleware.cors import CORSMiddleware
                 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -263,21 +266,25 @@ class UnifiedServer:
 
                 result = await self._handle_a2a_method(method, params)
 
-                return JSONResponse({
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": result,
-                })
+                return JSONResponse(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": result,
+                    }
+                )
 
             except Exception as e:
-                return JSONResponse({
-                    "jsonrpc": "2.0",
-                    "id": body.get("id") if "body" in dir() else None,
-                    "error": {
-                        "code": -32603,
-                        "message": str(e),
-                    },
-                })
+                return JSONResponse(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": body.get("id") if "body" in dir() else None,
+                        "error": {
+                            "code": -32603,
+                            "message": str(e),
+                        },
+                    }
+                )
 
         # A2A streaming endpoint
         @app.post(f"{self.config.a2a_path}/stream")
@@ -424,7 +431,7 @@ class UnifiedServer:
 
     def _setup_mcp_routes(self) -> None:
         """Setup MCP protocol routes."""
-        from fastapi import Request, WebSocket
+        from fastapi import Request
         from fastapi.responses import JSONResponse
 
         app = self._app
@@ -451,9 +458,11 @@ class UnifiedServer:
             for reg in self._agents.values():
                 if tool_name in reg.agent._tools:
                     result = await reg.agent._execute_tool(tool_name, arguments)
-                    return JSONResponse({
-                        "content": [{"type": "text", "text": str(result)}],
-                    })
+                    return JSONResponse(
+                        {
+                            "content": [{"type": "text", "text": str(result)}],
+                        }
+                    )
 
             return JSONResponse(
                 {"error": f"Tool not found: {tool_name}"},
@@ -469,7 +478,7 @@ class UnifiedServer:
     def _setup_mcp_ui_routes(self) -> None:
         """Setup MCP-UI routes."""
         from fastapi import Request
-        from fastapi.responses import JSONResponse, HTMLResponse
+        from fastapi.responses import HTMLResponse, JSONResponse
 
         app = self._app
 
@@ -478,9 +487,12 @@ class UnifiedServer:
         async def get_ui_resource(resource_id: str):
             """Get UI resource by ID."""
             # Would serve UI resources here
-            return JSONResponse({
-                "error": "Resource not found",
-            }, status_code=404)
+            return JSONResponse(
+                {
+                    "error": "Resource not found",
+                },
+                status_code=404,
+            )
 
         # Widget preview
         @app.get(f"{self.config.mcp_ui_path}/preview/{{widget_type}}")
@@ -509,11 +521,13 @@ class UnifiedServer:
             for reg in self._agents.values():
                 for tool in reg.agent._tools.values():
                     if tool.metadata.get("is_widget"):
-                        widgets.append({
-                            "name": tool.name,
-                            "description": tool.description,
-                            "template": tool.metadata.get("template"),
-                        })
+                        widgets.append(
+                            {
+                                "name": tool.name,
+                                "description": tool.description,
+                                "template": tool.metadata.get("template"),
+                            }
+                        )
             return JSONResponse({"widgets": widgets})
 
         # Apps widget call
@@ -546,10 +560,12 @@ class UnifiedServer:
             """List all registered agents."""
             agents = []
             for name, reg in self._agents.items():
-                agents.append({
-                    "name": name,
-                    "status": reg.agent.get_status(),
-                })
+                agents.append(
+                    {
+                        "name": name,
+                        "status": reg.agent.get_status(),
+                    }
+                )
             return JSONResponse({"agents": agents})
 
         # Get agent
@@ -580,12 +596,14 @@ class UnifiedServer:
             agent = self._agents[agent_name].agent
             result = await agent.run(message, session_id)
 
-            return JSONResponse({
-                "success": result.success,
-                "output": result.output,
-                "error": result.error,
-                "session_id": agent._session_id,
-            })
+            return JSONResponse(
+                {
+                    "success": result.success,
+                    "output": result.output,
+                    "error": result.error,
+                    "session_id": agent._session_id,
+                }
+            )
 
         # List tasks
         @app.get(f"{self.config.api_path}/tasks")
@@ -606,7 +624,8 @@ class UnifiedServer:
 
         return {
             "name": self.config.name,
-            "description": self.config.description or f"Unified server with {len(self._agents)} agents",
+            "description": self.config.description
+            or f"Unified server with {len(self._agents)} agents",
             "url": f"http://{self.config.host}:{self.config.port}",
             "version": self.config.version,
             "protocolVersion": "0.3",
@@ -625,7 +644,7 @@ class UnifiedServer:
 
     def register_agent(
         self,
-        agent: "UnifiedAgent",
+        agent: UnifiedAgent,
         path: str | None = None,
         protocols: list[ServerProtocol] | None = None,
     ) -> None:
@@ -665,7 +684,7 @@ class UnifiedServer:
             return True
         return False
 
-    def get_agent(self, name: str) -> "UnifiedAgent | None":
+    def get_agent(self, name: str) -> UnifiedAgent | None:
         """Get registered agent by name.
 
         Args:
@@ -694,9 +713,7 @@ class UnifiedServer:
             await server.serve()
 
         except ImportError:
-            raise ImportError(
-                "uvicorn not installed. Install with: pip install uvicorn"
-            )
+            raise ImportError("uvicorn not installed. Install with: pip install uvicorn")
 
     def run_sync(self) -> None:
         """Run the server synchronously."""
@@ -717,10 +734,7 @@ class UnifiedServer:
             "version": self.config.version,
             "host": self.config.host,
             "port": self.config.port,
-            "agents": {
-                name: reg.agent.get_status()
-                for name, reg in self._agents.items()
-            },
+            "agents": {name: reg.agent.get_status() for name, reg in self._agents.items()},
             "tasks_count": len(self._tasks),
             "sessions_count": len(self._sessions),
             "protocols": {
@@ -734,7 +748,7 @@ class UnifiedServer:
 
 
 def create_unified_server(
-    agents: list["UnifiedAgent"] | None = None,
+    agents: list[UnifiedAgent] | None = None,
     name: str = "unified-server",
     host: str = "127.0.0.1",
     port: int = 8000,

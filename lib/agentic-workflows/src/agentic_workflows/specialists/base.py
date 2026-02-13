@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
-from ..agents.base import BaseAgent, AgentConfig, AgentState
+from ..agents.base import AgentConfig, AgentState, BaseAgent
 
 
 class SpecialistCapability(Enum):
@@ -254,7 +255,11 @@ class SpecialistAgent(BaseAgent, ABC):
 
         try:
             handler = self._handlers[operation]
-            result = await handler(**kwargs) if asyncio.iscoroutinefunction(handler) else handler(**kwargs)
+            result = (
+                await handler(**kwargs)
+                if asyncio.iscoroutinefunction(handler)
+                else handler(**kwargs)
+            )
 
             return SpecialistResult(
                 success=True,

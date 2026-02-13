@@ -18,9 +18,10 @@ import logging
 import time
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from .widget_types import WidgetState
 
@@ -82,9 +83,7 @@ class StateStore(ABC):
         pass
 
     @abstractmethod
-    async def set(
-        self, session_id: str, state: WidgetState, ttl: int | None = None
-    ) -> None:
+    async def set(self, session_id: str, state: WidgetState, ttl: int | None = None) -> None:
         """Store state with optional TTL.
 
         Args:
@@ -144,7 +143,7 @@ class StateStore(ABC):
         """Close the store and release resources."""
         pass
 
-    async def __aenter__(self) -> "StateStore":
+    async def __aenter__(self) -> StateStore:
         """Async context manager entry."""
         return self
 
@@ -222,9 +221,7 @@ class InMemoryStateStore(StateStore):
 
             return item.state
 
-    async def set(
-        self, session_id: str, state: WidgetState, ttl: int | None = None
-    ) -> None:
+    async def set(self, session_id: str, state: WidgetState, ttl: int | None = None) -> None:
         """Store state with optional TTL."""
         key = self._make_key(session_id)
 
@@ -351,8 +348,7 @@ class RedisStateStore(StateStore):
             import redis.asyncio as redis
         except ImportError:
             raise ImportError(
-                "redis is required for RedisStateStore. "
-                "Install with: pip install redis"
+                "redis is required for RedisStateStore. Install with: pip install redis"
             )
 
         self._client = redis.Redis(
@@ -387,9 +383,7 @@ class RedisStateStore(StateStore):
             logger.warning(f"Failed to deserialize state for {session_id}: {e}")
             return None
 
-    async def set(
-        self, session_id: str, state: WidgetState, ttl: int | None = None
-    ) -> None:
+    async def set(self, session_id: str, state: WidgetState, ttl: int | None = None) -> None:
         """Store state with optional TTL."""
         client = await self._ensure_connected()
         key = self._make_key(session_id)
@@ -509,16 +503,13 @@ class D1StateStore(StateStore):
 
         self._initialized = True
 
-    async def _execute_sql(
-        self, sql: str, params: list | None = None
-    ) -> list[dict] | None:
+    async def _execute_sql(self, sql: str, params: list | None = None) -> list[dict] | None:
         """Execute SQL via D1 REST API."""
         try:
             import httpx
         except ImportError:
             raise ImportError(
-                "httpx is required for D1StateStore REST API. "
-                "Install with: pip install httpx"
+                "httpx is required for D1StateStore REST API. Install with: pip install httpx"
             )
 
         url = (
@@ -576,9 +567,7 @@ class D1StateStore(StateStore):
             metadata=json.loads(result.get("metadata") or "{}"),
         )
 
-    async def set(
-        self, session_id: str, state: WidgetState, ttl: int | None = None
-    ) -> None:
+    async def set(self, session_id: str, state: WidgetState, ttl: int | None = None) -> None:
         """Store state with optional TTL."""
         await self.initialize()
 
@@ -691,9 +680,7 @@ class WidgetSessionManager:
         self._on_create_callbacks: list[Callable[[str, WidgetState], Awaitable[None]]] = []
         self._on_update_callbacks: list[Callable[[str, WidgetState], Awaitable[None]]] = []
 
-    def on_create(
-        self, callback: Callable[[str, WidgetState], Awaitable[None]]
-    ) -> None:
+    def on_create(self, callback: Callable[[str, WidgetState], Awaitable[None]]) -> None:
         """Register callback for session creation.
 
         Args:
@@ -701,9 +688,7 @@ class WidgetSessionManager:
         """
         self._on_create_callbacks.append(callback)
 
-    def on_update(
-        self, callback: Callable[[str, WidgetState], Awaitable[None]]
-    ) -> None:
+    def on_update(self, callback: Callable[[str, WidgetState], Awaitable[None]]) -> None:
         """Register callback for session updates.
 
         Args:
@@ -885,7 +870,7 @@ class WidgetSessionManager:
         """Close the session manager and its store."""
         await self.store.close()
 
-    async def __aenter__(self) -> "WidgetSessionManager":
+    async def __aenter__(self) -> WidgetSessionManager:
         """Async context manager entry."""
         return self
 

@@ -81,119 +81,114 @@ from __future__ import annotations
 # =============================================================================
 # Types
 # =============================================================================
-
 from agentic_workflows.a2a.a2a_types import (
-    # Enums
-    TaskState,
-    MessageRole,
-    PartType,
-    TransportProtocol,
-    SecuritySchemeType,
-    ApiKeyLocation,
     A2AErrorCode,
-    # Message Parts
-    TextPart,
-    FilePart,
-    DataPart,
-    FileContent,
-    MessagePart,
-    parse_message_part,
-    # Security
-    APIKeySecurityScheme,
-    HTTPSecurityScheme,
-    OAuth2SecurityScheme,
-    SecurityScheme,
-    # Core Types
-    AgentSkill,
-    AgentProvider,
-    AgentInterface,
     AgentCapabilities,
     AgentCard,
-    Message,
+    AgentInterface,
+    AgentProvider,
+    # Core Types
+    AgentSkill,
+    ApiKeyLocation,
+    # Security
+    APIKeySecurityScheme,
     Artifact,
-    TaskStatus,
-    Task,
+    ArtifactEvent,
+    DataPart,
+    FileContent,
+    FilePart,
+    HTTPSecurityScheme,
+    JSONRPCError,
     # JSON-RPC
     JSONRPCRequest,
     JSONRPCResponse,
-    JSONRPCError,
+    Message,
+    MessageEvent,
+    MessagePart,
+    MessageRole,
+    OAuth2SecurityScheme,
+    PartType,
+    SecurityScheme,
+    SecuritySchemeType,
+    StreamEvent,
+    Task,
+    # Enums
+    TaskState,
+    TaskStatus,
     # Events
     TaskStatusEvent,
-    MessageEvent,
-    ArtifactEvent,
-    StreamEvent,
+    # Message Parts
+    TextPart,
+    TransportProtocol,
+    parse_message_part,
 )
 
 # =============================================================================
 # Client
 # =============================================================================
-
 from agentic_workflows.a2a.client import (
-    # Configuration
-    ClientConfig,
-    # Interceptors
-    ClientCallInterceptor,
-    LoggingInterceptor,
-    AuthInterceptor,
-    RetryInterceptor,
-    # Consumers
-    EventConsumer,
-    CallbackEventConsumer,
-    QueueEventConsumer,
     # Client
     A2AClient,
+    AuthInterceptor,
+    CallbackEventConsumer,
+    # Interceptors
+    ClientCallInterceptor,
+    # Configuration
+    ClientConfig,
+    # Consumers
+    EventConsumer,
+    LoggingInterceptor,
+    QueueEventConsumer,
+    RetryInterceptor,
     # Utilities
     discover_agent,
     send_task,
 )
 
 # =============================================================================
+# Integration
+# =============================================================================
+from agentic_workflows.a2a.integration import (
+    # Adapter
+    A2AAgentAdapter,
+    # Configuration
+    A2AIntegrationConfig,
+    # Executor
+    AgentAdapterExecutor,
+    # Card Builder
+    AgentCardBuilder,
+    # Factory
+    create_a2a_adapter,
+    create_a2a_server_for_agent,
+    from_a2a_message,
+    from_a2a_task,
+    skill_from_capability,
+    # Skill Conversion
+    skill_from_tool,
+    # Message Conversion
+    to_a2a_message,
+    to_a2a_task,
+)
+
+# =============================================================================
 # Server
 # =============================================================================
-
 from agentic_workflows.a2a.server import (
-    # Context
-    RequestContext,
-    EventQueue,
+    # Server
+    A2AServer,
     # Executor
     AgentExecutor,
+    EventQueue,
+    InMemoryTaskStorage,
+    # Context
+    RequestContext,
     SimpleExecutor,
     # Storage
     TaskStorage,
-    InMemoryTaskStorage,
-    # Server
-    A2AServer,
     # Factory
     create_server,
     create_simple_server,
 )
-
-# =============================================================================
-# Integration
-# =============================================================================
-
-from agentic_workflows.a2a.integration import (
-    # Configuration
-    A2AIntegrationConfig,
-    # Skill Conversion
-    skill_from_tool,
-    skill_from_capability,
-    # Card Builder
-    AgentCardBuilder,
-    # Executor
-    AgentAdapterExecutor,
-    # Adapter
-    A2AAgentAdapter,
-    # Message Conversion
-    to_a2a_message,
-    from_a2a_message,
-    to_a2a_task,
-    from_a2a_task,
-    # Factory
-    create_a2a_adapter,
-    create_a2a_server_for_agent,
-)
-
 
 # =============================================================================
 # Factory Function
@@ -205,7 +200,7 @@ def create_a2a_server(
     description: str,
     handler: callable = None,
     executor: AgentExecutor = None,
-    agent: "BaseAgent" = None,
+    agent: BaseAgent = None,
     skills: list[AgentSkill] = None,
     base_url: str = "",
     organization: str = "Agentic Workflows",
@@ -288,11 +283,10 @@ def create_a2a_server(
         final_executor = SimpleExecutor(handler)
     elif agent is not None:
         from agentic_workflows.a2a.integration import AgentAdapterExecutor
+
         final_executor = AgentAdapterExecutor(agent, streaming=streaming)
     else:
-        raise ValueError(
-            "Must provide one of: handler, executor, or agent"
-        )
+        raise ValueError("Must provide one of: handler, executor, or agent")
 
     # Build agent card
     card = AgentCard(

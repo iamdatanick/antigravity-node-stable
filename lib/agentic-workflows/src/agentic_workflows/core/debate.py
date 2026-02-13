@@ -6,22 +6,20 @@ identify potential issues, and validate reasoning.
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
 
-from .multi_llm import MultiLLMRouter, ModelTier
+from .multi_llm import ModelTier, MultiLLMRouter
 
 
 class DebateOutcome(Enum):
     """Possible outcomes of a debate."""
 
-    CONSENSUS = "consensus"           # All positions agree
-    SYNTHESIS = "synthesis"           # Combined best of all positions
-    ORIGINAL_WINS = "original_wins"   # Original approach is best
+    CONSENSUS = "consensus"  # All positions agree
+    SYNTHESIS = "synthesis"  # Combined best of all positions
+    ORIGINAL_WINS = "original_wins"  # Original approach is best
     CHALLENGER_WINS = "challenger_wins"  # Alternative is better
-    UNDECIDED = "undecided"           # No clear winner
+    UNDECIDED = "undecided"  # No clear winner
 
 
 @dataclass
@@ -389,8 +387,7 @@ Provide:
     ) -> Position:
         """Generate a perspective from a specific viewpoint."""
         positions_summary = "\n".join(
-            f"- {p.stance}: {p.reasoning[:200]}..."
-            for p in existing_positions
+            f"- {p.stance}: {p.reasoning[:200]}..." for p in existing_positions
         )
 
         prompt = f"""Evaluate this approach from a {perspective} perspective.
@@ -429,7 +426,7 @@ Provide your stance, reasoning, strengths, weaknesses, and confidence.
     ) -> DebateResult:
         """Synthesize positions and determine outcome."""
         positions_text = "\n\n".join(
-            f"POSITION {i+1}:\nStance: {p.stance}\nReasoning: {p.reasoning}\n"
+            f"POSITION {i + 1}:\nStance: {p.stance}\nReasoning: {p.reasoning}\n"
             f"Confidence: {p.confidence}"
             for i, p in enumerate(positions)
         )

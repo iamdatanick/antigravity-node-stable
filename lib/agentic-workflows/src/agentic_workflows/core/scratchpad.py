@@ -6,7 +6,6 @@ interactions and can be serialized for agent handoffs.
 
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -16,23 +15,23 @@ from typing import Any
 class ThoughtType(Enum):
     """Types of thoughts in the scratchpad."""
 
-    GOAL = "goal"                       # Current goal/objective
-    SUBGOAL = "subgoal"                 # Decomposed sub-goal
-    OBSERVATION = "observation"         # Observed fact
-    HYPOTHESIS = "hypothesis"           # Working hypothesis
-    QUESTION = "question"               # Open question
-    CONSTRAINT = "constraint"           # Known constraint
-    ASSUMPTION = "assumption"           # Working assumption
-    DECISION = "decision"               # Decision made
-    PLAN = "plan"                       # Planned action
-    PROGRESS = "progress"               # Progress update
-    BLOCKER = "blocker"                 # Blocking issue
-    INSIGHT = "insight"                 # New insight
-    TODO = "todo"                       # Action item
-    DONE = "done"                       # Completed item
-    NOTE = "note"                       # General note
-    WARNING = "warning"                 # Warning/concern
-    CONTEXT = "context"                 # Important context
+    GOAL = "goal"  # Current goal/objective
+    SUBGOAL = "subgoal"  # Decomposed sub-goal
+    OBSERVATION = "observation"  # Observed fact
+    HYPOTHESIS = "hypothesis"  # Working hypothesis
+    QUESTION = "question"  # Open question
+    CONSTRAINT = "constraint"  # Known constraint
+    ASSUMPTION = "assumption"  # Working assumption
+    DECISION = "decision"  # Decision made
+    PLAN = "plan"  # Planned action
+    PROGRESS = "progress"  # Progress update
+    BLOCKER = "blocker"  # Blocking issue
+    INSIGHT = "insight"  # New insight
+    TODO = "todo"  # Action item
+    DONE = "done"  # Completed item
+    NOTE = "note"  # General note
+    WARNING = "warning"  # Warning/concern
+    CONTEXT = "context"  # Important context
 
 
 @dataclass
@@ -269,8 +268,11 @@ class Scratchpad:
     def get_unresolved(self) -> list[ScratchpadEntry]:
         """Get all unresolved entries (questions, blockers, todos)."""
         return [
-            e for e in self._entries.values()
-            if not e.resolved and e.thought_type in (
+            e
+            for e in self._entries.values()
+            if not e.resolved
+            and e.thought_type
+            in (
                 ThoughtType.QUESTION,
                 ThoughtType.BLOCKER,
                 ThoughtType.TODO,
@@ -280,9 +282,9 @@ class Scratchpad:
     def get_active_goals(self) -> list[ScratchpadEntry]:
         """Get active goals and subgoals."""
         return [
-            e for e in self._entries.values()
-            if e.thought_type in (ThoughtType.GOAL, ThoughtType.SUBGOAL)
-            and "active" in e.tags
+            e
+            for e in self._entries.values()
+            if e.thought_type in (ThoughtType.GOAL, ThoughtType.SUBGOAL) and "active" in e.tags
         ]
 
     def get_children(self, parent_id: str) -> list[ScratchpadEntry]:
@@ -388,7 +390,9 @@ class Scratchpad:
                 status = "✓" if entry.resolved else "○"
                 line = f"\n{status} [{entry.id}] {entry.content}"
                 if entry.metadata:
-                    meta = ", ".join(f"{k}={v}" for k, v in entry.metadata.items() if k not in ("step_number",))
+                    meta = ", ".join(
+                        f"{k}={v}" for k, v in entry.metadata.items() if k not in ("step_number",)
+                    )
                     if meta:
                         line += f" ({meta})"
 

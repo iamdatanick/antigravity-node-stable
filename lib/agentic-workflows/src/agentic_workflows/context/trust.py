@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 from agentic_workflows.context.graph import ContextGraph, ContextNode, NodeType
 from agentic_workflows.context.provenance import Provenance, SourceType
@@ -15,10 +16,10 @@ from agentic_workflows.context.provenance import Provenance, SourceType
 class TrustPolicy(Enum):
     """Trust propagation policies."""
 
-    MINIMUM = "minimum"      # Use minimum parent trust
-    AVERAGE = "average"      # Use average parent trust
-    MAXIMUM = "maximum"      # Use maximum parent trust
-    WEIGHTED = "weighted"    # Use weighted average
+    MINIMUM = "minimum"  # Use minimum parent trust
+    AVERAGE = "average"  # Use average parent trust
+    MAXIMUM = "maximum"  # Use maximum parent trust
+    WEIGHTED = "weighted"  # Use weighted average
 
 
 @dataclass
@@ -270,12 +271,14 @@ class TrustCalculator:
                             weights.append(0)
                     total_weight = sum(weights)
                     if total_weight > 0:
-                        inherited = sum(s * w for s, w in zip(parent_scores, weights)) / total_weight
+                        inherited = (
+                            sum(s * w for s, w in zip(parent_scores, weights)) / total_weight
+                        )
                     else:
                         inherited = sum(parent_scores) / len(parent_scores)
 
                 # Apply hop decay
-                inherited *= (1 - self.config.hop_decay_factor)
+                inherited *= 1 - self.config.hop_decay_factor
                 scores[node.id] = max(self.config.min_trust, inherited)
 
         return scores

@@ -20,28 +20,32 @@ Third-Party Integrations:
 """
 
 from __future__ import annotations
+
 import asyncio
+import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Any, Optional, Callable, Union
-import json
+from typing import Any, Dict, List, Optional, Union
 
 # SDK imports
 try:
     from anthropic import AsyncAnthropic
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
 from pydantic import BaseModel, Field
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLASSIFICATION PATTERNS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class ClassificationResult(BaseModel):
     """Classification result"""
+
     label: str
     confidence: float
     reasoning: str = ""
@@ -54,27 +58,26 @@ class Classifier:
 
     Based on claude-cookbooks/capabilities/classification
     """
-    categories: List[str]
+
+    categories: list[str]
     model: str = "claude-haiku-3-20240307"  # Use Haiku for fast classification
     multi_label: bool = False
 
-    async def classify(self, text: str) -> Union[ClassificationResult, List[ClassificationResult]]:
+    async def classify(self, text: str) -> ClassificationResult | list[ClassificationResult]:
         """Classify text into categories"""
         if not ANTHROPIC_AVAILABLE:
             return ClassificationResult(label=self.categories[0], confidence=0.5)
 
         client = AsyncAnthropic()
 
-        prompt = f"""Classify the following text into {"one or more of" if self.multi_label else "one of"} these categories: {', '.join(self.categories)}
+        prompt = f"""Classify the following text into {"one or more of" if self.multi_label else "one of"} these categories: {", ".join(self.categories)}
 
 Text: {text}
 
 Return JSON: {{"label": "category", "confidence": 0.0-1.0, "reasoning": "explanation"}}"""
 
         response = await client.messages.create(
-            model=self.model,
-            max_tokens=500,
-            messages=[{"role": "user", "content": prompt}]
+            model=self.model, max_tokens=500, messages=[{"role": "user", "content": prompt}]
         )
 
         try:
@@ -82,12 +85,10 @@ Return JSON: {{"label": "category", "confidence": 0.0-1.0, "reasoning": "explana
             return ClassificationResult(**result)
         except:
             return ClassificationResult(
-                label=self.categories[0],
-                confidence=0.5,
-                reasoning=response.content[0].text
+                label=self.categories[0], confidence=0.5, reasoning=response.content[0].text
             )
 
-    async def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
+    async def batch_classify(self, texts: list[str]) -> list[ClassificationResult]:
         """Classify multiple texts"""
         tasks = [self.classify(text) for text in texts]
         return await asyncio.gather(*tasks)
@@ -98,20 +99,17 @@ class SentimentAnalyzer(Classifier):
 
     def __init__(self):
         super().__init__(
-            categories=["positive", "negative", "neutral", "mixed"],
-            model="claude-haiku-3-20240307"
+            categories=["positive", "negative", "neutral", "mixed"], model="claude-haiku-3-20240307"
         )
 
 
 class IntentClassifier(Classifier):
     """Intent classification for customer service"""
 
-    def __init__(self, intents: List[str] = None):
+    def __init__(self, intents: list[str] = None):
         super().__init__(
-            categories=intents or [
-                "question", "complaint", "feedback",
-                "request", "greeting", "other"
-            ]
+            categories=intents
+            or ["question", "complaint", "feedback", "request", "greeting", "other"]
         )
 
 
@@ -119,18 +117,21 @@ class IntentClassifier(Classifier):
 # RAG PATTERNS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class RetrievedDocument(BaseModel):
     """Retrieved document"""
+
     content: str
     source: str
     score: float = 0.0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class RAGResponse(BaseModel):
     """RAG response"""
+
     answer: str
-    sources: List[str]
+    sources: list[str]
     confidence: float
 
 
@@ -144,13 +145,14 @@ class VectorStore:
     - Cloudflare Vectorize
     - In-memory (for testing)
     """
+
     name: str = "base"
 
-    async def upsert(self, documents: List[Dict[str, Any]]) -> int:
+    async def upsert(self, documents: list[dict[str, Any]]) -> int:
         """Upsert documents to store"""
         raise NotImplementedError
 
-    async def query(self, vector: List[float], top_k: int = 5) -> List[RetrievedDocument]:
+    async def query(self, vector: list[float], top_k: int = 5) -> list[RetrievedDocument]:
         """Query similar documents"""
         raise NotImplementedError
 
@@ -162,17 +164,18 @@ class PineconeStore(VectorStore):
 
     Based on claude-cookbooks/third_party/Pinecone
     """
+
     name: str = "pinecone"
     api_key: str = ""
     environment: str = ""
     index_name: str = ""
 
-    async def upsert(self, documents: List[Dict[str, Any]]) -> int:
+    async def upsert(self, documents: list[dict[str, Any]]) -> int:
         """Upsert to Pinecone"""
         # Would use pinecone-client
         return len(documents)
 
-    async def query(self, vector: List[float], top_k: int = 5) -> List[RetrievedDocument]:
+    async def query(self, vector: list[float], top_k: int = 5) -> list[RetrievedDocument]:
         """Query Pinecone"""
         # Would use pinecone-client
         return []
@@ -185,26 +188,29 @@ class CloudflareVectorize(VectorStore):
 
     Uses our deployed MCP endpoint.
     """
+
     name: str = "cloudflare-vectorize"
     endpoint: str = "https://agentic-workflows-mcp.nick-9a6.workers.dev"
 
-    async def upsert(self, documents: List[Dict[str, Any]]) -> int:
+    async def upsert(self, documents: list[dict[str, Any]]) -> int:
         """Upsert via MCP"""
         import httpx
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{self.endpoint}/tools",
-                json={"tool": "vectorize_upsert", "args": {"vectors": documents}}
+                json={"tool": "vectorize_upsert", "args": {"vectors": documents}},
             )
             return len(documents)
 
-    async def query(self, vector: List[float], top_k: int = 5) -> List[RetrievedDocument]:
+    async def query(self, vector: list[float], top_k: int = 5) -> list[RetrievedDocument]:
         """Query via MCP"""
         import httpx
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{self.endpoint}/tools",
-                json={"tool": "vectorize_query", "args": {"vector": vector, "top_k": top_k}}
+                json={"tool": "vectorize_query", "args": {"vector": vector, "top_k": top_k}},
             )
             data = response.json()
             return [RetrievedDocument(**doc) for doc in data.get("matches", [])]
@@ -220,23 +226,24 @@ class Embedder:
     - Cloudflare Workers AI
     - OpenAI
     """
+
     provider: str = "cloudflare"  # cloudflare, voyage, openai
     model: str = "@cf/baai/bge-base-en-v1.5"
     endpoint: str = "https://agentic-workflows-mcp.nick-9a6.workers.dev"
 
-    async def embed(self, text: str) -> List[float]:
+    async def embed(self, text: str) -> list[float]:
         """Generate embedding for text"""
         if self.provider == "cloudflare":
             import httpx
+
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.endpoint}/tools",
-                    json={"tool": "ai_embed", "args": {"text": text}}
+                    f"{self.endpoint}/tools", json={"tool": "ai_embed", "args": {"text": text}}
                 )
                 return response.json().get("embedding", [])
         return []
 
-    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts"""
         tasks = [self.embed(text) for text in texts]
         return await asyncio.gather(*tasks)
@@ -249,12 +256,13 @@ class RAGPipeline:
 
     Based on claude-cookbooks/capabilities/rag
     """
+
     vector_store: VectorStore
     embedder: Embedder
     model: str = "claude-sonnet-4-20250514"
     top_k: int = 5
 
-    async def index(self, documents: List[Dict[str, str]]) -> int:
+    async def index(self, documents: list[dict[str, str]]) -> int:
         """Index documents for retrieval"""
         # Generate embeddings
         texts = [doc.get("content", "") for doc in documents]
@@ -263,11 +271,13 @@ class RAGPipeline:
         # Prepare for upsert
         vectors = []
         for doc, embedding in zip(documents, embeddings):
-            vectors.append({
-                "id": doc.get("id", str(hash(doc.get("content", "")))),
-                "values": embedding,
-                "metadata": doc
-            })
+            vectors.append(
+                {
+                    "id": doc.get("id", str(hash(doc.get("content", "")))),
+                    "values": embedding,
+                    "metadata": doc,
+                }
+            )
 
         # Upsert to store
         return await self.vector_store.upsert(vectors)
@@ -284,32 +294,31 @@ class RAGPipeline:
         docs = await self.vector_store.query(query_embedding, self.top_k)
 
         # 3. Build context
-        context = "\n\n".join([
-            f"[Source: {doc.source}]\n{doc.content}"
-            for doc in docs
-        ])
+        context = "\n\n".join([f"[Source: {doc.source}]\n{doc.content}" for doc in docs])
 
         # 4. Generate answer
         client = AsyncAnthropic()
         response = await client.messages.create(
             model=self.model,
             max_tokens=2000,
-            messages=[{
-                "role": "user",
-                "content": f"""Answer based on these sources:
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""Answer based on these sources:
 
 {context}
 
 Question: {question}
 
-Provide your answer and cite sources."""
-            }]
+Provide your answer and cite sources.""",
+                }
+            ],
         )
 
         return RAGResponse(
             answer=response.content[0].text,
             sources=[doc.source for doc in docs],
-            confidence=0.8 if docs else 0.3
+            confidence=0.8 if docs else 0.3,
         )
 
 
@@ -317,8 +326,10 @@ Provide your answer and cite sources."""
 # SUMMARIZATION PATTERNS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class SummaryStyle(str, Enum):
     """Summary styles"""
+
     BRIEF = "brief"
     DETAILED = "detailed"
     BULLET = "bullet"
@@ -332,6 +343,7 @@ class Summarizer:
 
     Based on claude-cookbooks/capabilities/summarization
     """
+
     model: str = "claude-sonnet-4-20250514"
     style: SummaryStyle = SummaryStyle.BRIEF
     max_length: int = 500
@@ -354,26 +366,27 @@ class Summarizer:
         response = await client.messages.create(
             model=self.model,
             max_tokens=self.max_length,
-            messages=[{
-                "role": "user",
-                "content": f"""{style_instructions[style]}
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""{style_instructions[style]}
 
 Text to summarize:
-{text}"""
-            }]
+{text}""",
+                }
+            ],
         )
         return response.content[0].text
 
-    async def summarize_chain(self, documents: List[str]) -> str:
+    async def summarize_chain(self, documents: list[str]) -> str:
         """Summarize multiple documents using map-reduce"""
         # Map: Summarize each document
-        summaries = await asyncio.gather(*[
-            self.summarize(doc, SummaryStyle.BRIEF)
-            for doc in documents
-        ])
+        summaries = await asyncio.gather(
+            *[self.summarize(doc, SummaryStyle.BRIEF) for doc in documents]
+        )
 
         # Reduce: Combine summaries
-        combined = "\n\n".join([f"Document {i+1}: {s}" for i, s in enumerate(summaries)])
+        combined = "\n\n".join([f"Document {i + 1}: {s}" for i, s in enumerate(summaries)])
         return await self.summarize(combined, SummaryStyle.DETAILED)
 
 
@@ -381,13 +394,15 @@ Text to summarize:
 # TOOL USE PATTERNS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class ToolCallResult(BaseModel):
     """Tool call result"""
+
     tool: str
-    args: Dict[str, Any]
+    args: dict[str, Any]
     result: Any
     success: bool = True
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -419,10 +434,10 @@ class Calculator:
                 right = eval_expr(node.right)
                 return operators[type(node.op)](left, right)
             else:
-                raise ValueError(f"Unsupported operation")
+                raise ValueError("Unsupported operation")
 
         try:
-            tree = ast.parse(expression, mode='eval')
+            tree = ast.parse(expression, mode="eval")
             return eval_expr(tree.body)
         except:
             return 0.0
@@ -435,9 +450,10 @@ class SQLTool:
 
     Based on claude-cookbooks/misc/sql_queries
     """
+
     connection_string: str = ""
 
-    async def query(self, sql: str) -> List[Dict[str, Any]]:
+    async def query(self, sql: str) -> list[dict[str, Any]]:
         """Execute SQL query"""
         # Would use asyncpg, aiomysql, or similar
         return []
@@ -451,15 +467,17 @@ class SQLTool:
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1000,
-            messages=[{
-                "role": "user",
-                "content": f"""Given this database schema:
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""Given this database schema:
 {schema}
 
 Generate a SQL query to answer: {question}
 
-Return only the SQL query, no explanation."""
-            }]
+Return only the SQL query, no explanation.""",
+                }
+            ],
         )
         return response.content[0].text
 
@@ -471,31 +489,34 @@ class CustomerServiceAgent:
 
     Based on claude-cookbooks/tool_use/customer_service_agent
     """
+
     model: str = "claude-sonnet-4-20250514"
-    tools: Dict[str, Callable] = field(default_factory=dict)
+    tools: dict[str, Callable] = field(default_factory=dict)
 
     def __post_init__(self):
         # Default tools
-        self.tools.update({
-            "lookup_order": self._lookup_order,
-            "check_inventory": self._check_inventory,
-            "create_ticket": self._create_ticket,
-            "refund_order": self._refund_order,
-        })
+        self.tools.update(
+            {
+                "lookup_order": self._lookup_order,
+                "check_inventory": self._check_inventory,
+                "create_ticket": self._create_ticket,
+                "refund_order": self._refund_order,
+            }
+        )
 
-    async def _lookup_order(self, order_id: str) -> Dict[str, Any]:
+    async def _lookup_order(self, order_id: str) -> dict[str, Any]:
         """Look up order details"""
         return {"order_id": order_id, "status": "shipped", "items": []}
 
-    async def _check_inventory(self, product_id: str) -> Dict[str, Any]:
+    async def _check_inventory(self, product_id: str) -> dict[str, Any]:
         """Check product inventory"""
         return {"product_id": product_id, "in_stock": True, "quantity": 100}
 
-    async def _create_ticket(self, issue: str, priority: str) -> Dict[str, Any]:
+    async def _create_ticket(self, issue: str, priority: str) -> dict[str, Any]:
         """Create support ticket"""
         return {"ticket_id": "TKT-001", "status": "open"}
 
-    async def _refund_order(self, order_id: str, reason: str) -> Dict[str, Any]:
+    async def _refund_order(self, order_id: str, reason: str) -> dict[str, Any]:
         """Process refund"""
         return {"refund_id": "REF-001", "status": "processing"}
 
@@ -509,7 +530,7 @@ class CustomerServiceAgent:
             {
                 "name": name,
                 "description": func.__doc__ or name,
-                "input_schema": {"type": "object", "properties": {}}
+                "input_schema": {"type": "object", "properties": {}},
             }
             for name, func in self.tools.items()
         ]
@@ -519,15 +540,15 @@ class CustomerServiceAgent:
             model=self.model,
             max_tokens=2000,
             tools=tool_defs,
-            messages=[{"role": "user", "content": message}]
+            messages=[{"role": "user", "content": message}],
         )
 
         # Process response and execute tools if needed
         result_text = ""
         for block in response.content:
-            if hasattr(block, 'text'):
+            if hasattr(block, "text"):
                 result_text += block.text
-            elif hasattr(block, 'type') and block.type == 'tool_use':
+            elif hasattr(block, "type") and block.type == "tool_use":
                 # Execute tool
                 tool_name = block.name
                 if tool_name in self.tools:
@@ -541,6 +562,7 @@ class CustomerServiceAgent:
 # MULTIMODAL PATTERNS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class VisionAnalyzer:
     """
@@ -548,6 +570,7 @@ class VisionAnalyzer:
 
     Based on claude-cookbooks/multimodal
     """
+
     model: str = "claude-sonnet-4-20250514"
 
     async def analyze_image(self, image_path: str, prompt: str = "Describe this image") -> str:
@@ -569,7 +592,7 @@ class VisionAnalyzer:
             ".jpeg": "image/jpeg",
             ".png": "image/png",
             ".gif": "image/gif",
-            ".webp": "image/webp"
+            ".webp": "image/webp",
         }
         media_type = media_types.get(suffix, "image/jpeg")
 
@@ -577,39 +600,41 @@ class VisionAnalyzer:
         response = await client.messages.create(
             model=self.model,
             max_tokens=2000,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64_image
-                        }
-                    },
-                    {"type": "text", "text": prompt}
-                ]
-            }]
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": base64_image,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
         )
         return response.content[0].text
 
-    async def extract_chart_data(self, image_path: str) -> Dict[str, Any]:
+    async def extract_chart_data(self, image_path: str) -> dict[str, Any]:
         """Extract data from charts/graphs"""
         result = await self.analyze_image(
             image_path,
-            "Extract all data from this chart/graph. Return as JSON with labels, values, and any relevant metadata."
+            "Extract all data from this chart/graph. Return as JSON with labels, values, and any relevant metadata.",
         )
         try:
             return json.loads(result)
         except:
             return {"raw": result}
 
-    async def transcribe_form(self, image_path: str) -> Dict[str, Any]:
+    async def transcribe_form(self, image_path: str) -> dict[str, Any]:
         """Extract form fields and values"""
         result = await self.analyze_image(
             image_path,
-            "Extract all form fields and their values from this image. Return as JSON object."
+            "Extract all form fields and their values from this image. Return as JSON object.",
         )
         try:
             return json.loads(result)
@@ -624,6 +649,7 @@ class ImageGenerator:
 
     Based on claude-cookbooks/misc/illustrated_responses
     """
+
     sd_endpoint: str = ""
 
     async def generate(self, prompt: str) -> bytes:
@@ -636,10 +662,12 @@ class ImageGenerator:
             enhancement = await client.messages.create(
                 model="claude-haiku-3-20240307",
                 max_tokens=500,
-                messages=[{
-                    "role": "user",
-                    "content": f"Enhance this image prompt for Stable Diffusion: {prompt}"
-                }]
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Enhance this image prompt for Stable Diffusion: {prompt}",
+                    }
+                ],
             )
             enhanced_prompt = enhancement.content[0].text
         else:
@@ -647,16 +675,14 @@ class ImageGenerator:
 
         # Generate with Stable Diffusion
         async with httpx.AsyncClient() as http_client:
-            response = await http_client.post(
-                self.sd_endpoint,
-                json={"prompt": enhanced_prompt}
-            )
+            response = await http_client.post(self.sd_endpoint, json={"prompt": enhanced_prompt})
             return response.content
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADVANCED PATTERNS
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class JSONMode:
@@ -665,10 +691,11 @@ class JSONMode:
 
     Based on claude-cookbooks/misc/json_mode
     """
-    model: str = "claude-sonnet-4-20250514"
-    schema: Dict[str, Any] = field(default_factory=dict)
 
-    async def generate(self, prompt: str) -> Dict[str, Any]:
+    model: str = "claude-sonnet-4-20250514"
+    schema: dict[str, Any] = field(default_factory=dict)
+
+    async def generate(self, prompt: str) -> dict[str, Any]:
         """Generate JSON response"""
         if not ANTHROPIC_AVAILABLE:
             return {}
@@ -679,15 +706,17 @@ class JSONMode:
         response = await client.messages.create(
             model=self.model,
             max_tokens=2000,
-            messages=[{
-                "role": "user",
-                "content": f"""{prompt}
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""{prompt}
 
 Return your response as valid JSON matching this schema:
 {schema_str}
 
-Respond with ONLY the JSON, no explanation."""
-            }]
+Respond with ONLY the JSON, no explanation.""",
+                }
+            ],
         )
 
         try:
@@ -703,13 +732,20 @@ class ModerationFilter:
 
     Based on claude-cookbooks/misc/moderation_filter
     """
-    categories: List[str] = field(default_factory=lambda: [
-        "violence", "hate_speech", "sexual_content",
-        "harassment", "self_harm", "illegal_activity"
-    ])
+
+    categories: list[str] = field(
+        default_factory=lambda: [
+            "violence",
+            "hate_speech",
+            "sexual_content",
+            "harassment",
+            "self_harm",
+            "illegal_activity",
+        ]
+    )
     threshold: float = 0.7
 
-    async def check(self, content: str) -> Dict[str, Any]:
+    async def check(self, content: str) -> dict[str, Any]:
         """Check content for policy violations"""
         if not ANTHROPIC_AVAILABLE:
             return {"flagged": False, "categories": {}}
@@ -718,15 +754,17 @@ class ModerationFilter:
         response = await client.messages.create(
             model="claude-haiku-3-20240307",
             max_tokens=500,
-            messages=[{
-                "role": "user",
-                "content": f"""Analyze this content for policy violations.
-Categories to check: {', '.join(self.categories)}
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""Analyze this content for policy violations.
+Categories to check: {", ".join(self.categories)}
 
 Content: {content}
 
-Return JSON: {{"flagged": bool, "categories": {{"category": score}}, "reason": "explanation"}}"""
-            }]
+Return JSON: {{"flagged": bool, "categories": {{"category": score}}, "reason": "explanation"}}""",
+                }
+            ],
         )
 
         try:
@@ -743,10 +781,11 @@ class PromptCache:
 
     Based on claude-cookbooks/misc/prompt_caching
     """
-    cache: Dict[str, str] = field(default_factory=dict)
+
+    cache: dict[str, str] = field(default_factory=dict)
     ttl_seconds: int = 3600
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         """Get cached response"""
         return self.cache.get(key)
 
@@ -769,9 +808,7 @@ class PromptCache:
         # Call API
         client = AsyncAnthropic()
         response = await client.messages.create(
-            model=model,
-            max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}]
+            model=model, max_tokens=2000, messages=[{"role": "user", "content": prompt}]
         )
 
         result = response.content[0].text
@@ -789,12 +826,14 @@ class PDFProcessor:
 
     Based on claude-cookbooks/misc/pdf_upload
     """
+
     model: str = "claude-sonnet-4-20250514"
 
     async def extract_text(self, pdf_path: str) -> str:
         """Extract text from PDF"""
         try:
             import pdfplumber
+
             text = ""
             with pdfplumber.open(pdf_path) as pdf:
                 for page in pdf.pages:
@@ -814,10 +853,12 @@ class PDFProcessor:
         response = await client.messages.create(
             model=self.model,
             max_tokens=2000,
-            messages=[{
-                "role": "user",
-                "content": f"Summarize this document:\n\n{text[:50000]}"  # Limit for context
-            }]
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Summarize this document:\n\n{text[:50000]}",  # Limit for context
+                }
+            ],
         )
         return response.content[0].text
 
@@ -832,14 +873,16 @@ class PDFProcessor:
         response = await client.messages.create(
             model=self.model,
             max_tokens=2000,
-            messages=[{
-                "role": "user",
-                "content": f"""Based on this document:
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""Based on this document:
 
 {text[:50000]}
 
-Answer this question: {question}"""
-            }]
+Answer this question: {question}""",
+                }
+            ],
         )
         return response.content[0].text
 
@@ -851,17 +894,18 @@ class AutomatedEvaluator:
 
     Based on claude-cookbooks/misc/building_evals
     """
-    model: str = "claude-sonnet-4-20250514"
-    criteria: List[str] = field(default_factory=lambda: [
-        "accuracy", "relevance", "completeness", "clarity"
-    ])
 
-    async def evaluate(self, prompt: str, response: str, reference: str = None) -> Dict[str, Any]:
+    model: str = "claude-sonnet-4-20250514"
+    criteria: list[str] = field(
+        default_factory=lambda: ["accuracy", "relevance", "completeness", "clarity"]
+    )
+
+    async def evaluate(self, prompt: str, response: str, reference: str = None) -> dict[str, Any]:
         """Evaluate a prompt/response pair"""
         if not ANTHROPIC_AVAILABLE:
             return {"score": 0.5, "criteria": {}}
 
-        eval_prompt = f"""Evaluate this AI response on these criteria: {', '.join(self.criteria)}
+        eval_prompt = f"""Evaluate this AI response on these criteria: {", ".join(self.criteria)}
 
 Prompt: {prompt}
 Response: {response}
@@ -871,9 +915,7 @@ Return JSON: {{"overall_score": 0.0-1.0, "criteria": {{"criterion": score}}, "fe
 
         client = AsyncAnthropic()
         result = await client.messages.create(
-            model=self.model,
-            max_tokens=1000,
-            messages=[{"role": "user", "content": eval_prompt}]
+            model=self.model, max_tokens=1000, messages=[{"role": "user", "content": eval_prompt}]
         )
 
         try:
@@ -886,6 +928,7 @@ Return JSON: {{"overall_score": 0.0-1.0, "criteria": {{"criterion": score}}, "fe
 # WEB INTEGRATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class WikipediaSearch:
     """
@@ -894,7 +937,7 @@ class WikipediaSearch:
     Based on claude-cookbooks/third_party/Wikipedia
     """
 
-    async def search(self, query: str, limit: int = 5) -> List[Dict[str, str]]:
+    async def search(self, query: str, limit: int = 5) -> list[dict[str, str]]:
         """Search Wikipedia"""
         import httpx
 
@@ -906,8 +949,8 @@ class WikipediaSearch:
                     "list": "search",
                     "srsearch": query,
                     "srlimit": limit,
-                    "format": "json"
-                }
+                    "format": "json",
+                },
             )
             data = response.json()
             return data.get("query", {}).get("search", [])
@@ -924,8 +967,8 @@ class WikipediaSearch:
                     "titles": title,
                     "prop": "extracts",
                     "explaintext": True,
-                    "format": "json"
-                }
+                    "format": "json",
+                },
             )
             data = response.json()
             pages = data.get("query", {}).get("pages", {})
@@ -941,6 +984,7 @@ class WebPageReader:
 
     Based on claude-cookbooks/misc/read_web_pages
     """
+
     model: str = "claude-haiku-3-20240307"  # Use Haiku for web reading
 
     async def fetch(self, url: str) -> str:
@@ -957,13 +1001,14 @@ class WebPageReader:
 
         # Simple extraction - in production use BeautifulSoup or similar
         import re
+
         # Remove scripts and styles
-        html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL)
-        html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL)
+        html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
+        html = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL)
         # Remove tags
-        text = re.sub(r'<[^>]+>', ' ', html)
+        text = re.sub(r"<[^>]+>", " ", html)
         # Clean whitespace
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r"\s+", " ", text).strip()
         return text
 
     async def summarize_url(self, url: str) -> str:
@@ -977,10 +1022,12 @@ class WebPageReader:
         response = await client.messages.create(
             model=self.model,
             max_tokens=1000,
-            messages=[{
-                "role": "user",
-                "content": f"Summarize this web page content:\n\n{content[:20000]}"
-            }]
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Summarize this web page content:\n\n{content[:20000]}",
+                }
+            ],
         )
         return response.content[0].text
 

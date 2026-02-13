@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +29,10 @@ class OpenAIAgentConfig:
     model: str = "gpt-4o"
     max_tokens: int = 4096
     temperature: float = 0.7
-    top_p: Optional[float] = None
+    top_p: float | None = None
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
-    stop: Optional[List[str]] = None
+    stop: list[str] | None = None
 
 
 @dataclass
@@ -49,7 +49,7 @@ class OpenAIAgent:
 
     name: str
     instructions: str = ""
-    tools: List[Dict[str, Any]] = field(default_factory=list)
+    tools: list[dict[str, Any]] = field(default_factory=list)
     config: OpenAIAgentConfig = field(default_factory=OpenAIAgentConfig)
 
 
@@ -59,9 +59,9 @@ class OpenAIResult:
 
     content: str = ""
     role: str = "assistant"
-    finish_reason: Optional[str] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    usage: Optional[Dict[str, int]] = None
+    finish_reason: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    usage: dict[str, int] | None = None
     model: str = ""
 
 
@@ -76,7 +76,7 @@ class OpenAISDK:
         ])
     """
 
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, api_key: str | None = None, base_url: str | None = None):
         """Initialize SDK.
 
         Args:
@@ -107,8 +107,8 @@ class OpenAISDK:
     async def run(
         self,
         agent: OpenAIAgent,
-        messages: List[Dict[str, Any]],
-        context: Optional[Dict[str, Any]] = None,
+        messages: list[dict[str, Any]],
+        context: dict[str, Any] | None = None,
     ) -> OpenAIResult:
         """Run agent with messages.
 
@@ -127,6 +127,7 @@ class OpenAISDK:
         system_content = agent.instructions
         if context:
             import json
+
             system_content = f"{system_content}\n\nContext:\n{json.dumps(context, indent=2)}"
 
         full_messages.append({"role": "system", "content": system_content})
@@ -191,7 +192,7 @@ class OpenAISDK:
             logger.error(f"OpenAI API error: {e}")
             raise
 
-    def _convert_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _convert_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert Claude tool format to OpenAI format.
 
         Args:
@@ -202,20 +203,22 @@ class OpenAISDK:
         """
         converted = []
         for tool in tools:
-            converted.append({
-                "type": "function",
-                "function": {
-                    "name": tool.get("name", ""),
-                    "description": tool.get("description", ""),
-                    "parameters": tool.get("input_schema", {}),
-                },
-            })
+            converted.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.get("name", ""),
+                        "description": tool.get("description", ""),
+                        "parameters": tool.get("input_schema", {}),
+                    },
+                }
+            )
         return converted
 
     async def stream(
         self,
         agent: OpenAIAgent,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
     ):
         """Stream response from agent.
 

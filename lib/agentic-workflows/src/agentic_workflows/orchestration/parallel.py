@@ -6,9 +6,10 @@ import asyncio
 import concurrent.futures
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -136,9 +137,7 @@ class ParallelExecutor:
         errors: dict[str, str] = {}
         self._cancel_event.clear()
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=self.max_workers
-        ) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # Submit all tasks
             future_to_task: dict[concurrent.futures.Future, ParallelTask] = {}
 
@@ -183,7 +182,9 @@ class ParallelExecutor:
 
         # Count results
         completed = sum(1 for t in self._tasks.values() if t.state == TaskState.COMPLETED)
-        failed = sum(1 for t in self._tasks.values() if t.state in (TaskState.FAILED, TaskState.TIMEOUT))
+        failed = sum(
+            1 for t in self._tasks.values() if t.state in (TaskState.FAILED, TaskState.TIMEOUT)
+        )
 
         return ParallelResult(
             success=failed == 0,
@@ -220,9 +221,7 @@ class ParallelExecutor:
             task.state = TaskState.RUNNING
             task.started_at = time.time()
 
-            async_task = asyncio.create_task(
-                self._execute_task_async(task, semaphore)
-            )
+            async_task = asyncio.create_task(self._execute_task_async(task, semaphore))
             async_tasks[async_task] = task
 
         # Wait for completion
@@ -271,7 +270,8 @@ class ParallelExecutor:
 
         completed = sum(1 for t in self._tasks.values() if t.state == TaskState.COMPLETED)
         failed = sum(
-            1 for t in self._tasks.values()
+            1
+            for t in self._tasks.values()
             if t.state in (TaskState.FAILED, TaskState.TIMEOUT, TaskState.CANCELLED)
         )
 

@@ -32,52 +32,54 @@ Quick Start:
 Version: 5.0.0
 """
 
-from agentic_workflows.skills.registry import (
-    # Core classes
-    SkillRegistry,
-    SkillDefinition,
-    SkillLevel,
-    SkillDomain,
-    # Global registry functions
-    get_registry,
-    set_registry,
-    discover_default_skills,
-    register_skill,
+from agentic_workflows.skills.phuc_mcp_skills import (
+    AI_SKILL,
+    ATTRIBUTION_SKILL,
+    CAMPAIGN_SKILL,
+    # Skill instances
+    D1_SKILL,
+    INJECTION_DEFENSE_SKILL,
+    # Config
+    MCP_ENDPOINT,
+    PII_DETECTOR_SKILL,
+    R2_SKILL,
+    REPORTING_SKILL,
+    SCOPE_VALIDATOR_SKILL,
+    # Registry
+    SKILLS,
+    VECTORIZE_SKILL,
+    WORKERS_SKILL,
+    # Classes
+    MCPSkill,
+    SkillInfo,
+    SkillManager,
+    # Models
+    ToolCall,
+    ToolResult,
+    get_all_tools,
+    get_analytics_skills,
+    get_cloudflare_skills,
+    get_security_skills,
+    # Helpers
+    get_skills_by_domain,
 )
 
 # PHUC MCP Skills
 from agentic_workflows.skills.phuc_mcp_skills import (
     # Enums
     SkillDomain as MCPSkillDomain,
-    # Models
-    ToolCall,
-    ToolResult,
-    SkillInfo,
-    # Classes
-    MCPSkill,
-    SkillManager,
-    # Skill instances
-    D1_SKILL,
-    R2_SKILL,
-    WORKERS_SKILL,
-    VECTORIZE_SKILL,
-    AI_SKILL,
-    ATTRIBUTION_SKILL,
-    CAMPAIGN_SKILL,
-    REPORTING_SKILL,
-    INJECTION_DEFENSE_SKILL,
-    SCOPE_VALIDATOR_SKILL,
-    PII_DETECTOR_SKILL,
-    # Registry
-    SKILLS,
-    # Helpers
-    get_skills_by_domain,
-    get_cloudflare_skills,
-    get_analytics_skills,
-    get_security_skills,
-    get_all_tools,
-    # Config
-    MCP_ENDPOINT,
+)
+from agentic_workflows.skills.registry import (
+    SkillDefinition,
+    SkillDomain,
+    SkillLevel,
+    # Core classes
+    SkillRegistry,
+    discover_default_skills,
+    # Global registry functions
+    get_registry,
+    register_skill,
+    set_registry,
 )
 
 __all__ = [

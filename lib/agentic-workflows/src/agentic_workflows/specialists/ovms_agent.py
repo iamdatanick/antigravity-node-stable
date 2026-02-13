@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig
 
 
 @dataclass
@@ -58,6 +58,7 @@ class OVMSAgent(SpecialistAgent):
     async def _connect(self) -> None:
         """Connect to OVMS."""
         import aiohttp
+
         self._session = aiohttp.ClientSession()
 
     async def _disconnect(self) -> None:
@@ -207,9 +208,11 @@ class OVMSAgent(SpecialistAgent):
                 config = await resp.json()
                 models = []
                 for model_config in config.get("model_config_list", []):
-                    models.append({
-                        "name": model_config.get("config", {}).get("name"),
-                        "base_path": model_config.get("config", {}).get("base_path"),
-                    })
+                    models.append(
+                        {
+                            "name": model_config.get("config", {}).get("name"),
+                            "base_path": model_config.get("config", {}).get("base_path"),
+                        }
+                    )
                 return models
             return []

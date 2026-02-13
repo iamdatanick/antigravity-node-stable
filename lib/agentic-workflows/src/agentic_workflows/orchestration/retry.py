@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import random
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -17,9 +18,7 @@ class RetryExhausted(Exception):
     def __init__(self, attempts: int, last_exception: Exception):
         self.attempts = attempts
         self.last_exception = last_exception
-        super().__init__(
-            f"Retry exhausted after {attempts} attempts. Last error: {last_exception}"
-        )
+        super().__init__(f"Retry exhausted after {attempts} attempts. Last error: {last_exception}")
 
 
 @dataclass
@@ -132,16 +131,12 @@ class Retrier:
                 last_exception = e
 
                 # Check fatal exceptions
-                if self.config.fatal_exceptions and isinstance(
-                    e, self.config.fatal_exceptions
-                ):
+                if self.config.fatal_exceptions and isinstance(e, self.config.fatal_exceptions):
                     self._stats.failed_calls += 1
                     raise
 
                 # Check if should retry
-                if self.config.retry_exceptions and not isinstance(
-                    e, self.config.retry_exceptions
-                ):
+                if self.config.retry_exceptions and not isinstance(e, self.config.retry_exceptions):
                     self._stats.failed_calls += 1
                     raise
 
@@ -198,15 +193,11 @@ class Retrier:
             except Exception as e:
                 last_exception = e
 
-                if self.config.fatal_exceptions and isinstance(
-                    e, self.config.fatal_exceptions
-                ):
+                if self.config.fatal_exceptions and isinstance(e, self.config.fatal_exceptions):
                     self._stats.failed_calls += 1
                     raise
 
-                if self.config.retry_exceptions and not isinstance(
-                    e, self.config.retry_exceptions
-                ):
+                if self.config.retry_exceptions and not isinstance(e, self.config.retry_exceptions):
                     self._stats.failed_calls += 1
                     raise
 
@@ -241,9 +232,7 @@ class Retrier:
             Delay in seconds.
         """
         # Exponential backoff
-        delay = self.config.base_delay * (
-            self.config.backoff_multiplier ** (attempt - 1)
-        )
+        delay = self.config.base_delay * (self.config.backoff_multiplier ** (attempt - 1))
 
         # Cap at max delay
         delay = min(delay, self.config.max_delay)
@@ -297,12 +286,16 @@ def retry(
 
     def decorator(func: Callable) -> Callable:
         if asyncio.iscoroutinefunction(func):
+
             async def async_wrapper(*args, **kwargs):
                 return await retrier.call_async(lambda: func(*args, **kwargs))
+
             return async_wrapper
         else:
+
             def sync_wrapper(*args, **kwargs):
                 return retrier.call(lambda: func(*args, **kwargs))
+
             return sync_wrapper
 
     return decorator

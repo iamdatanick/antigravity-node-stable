@@ -1,4 +1,5 @@
 """Tests for AsyncDAGEngine (CG-102)."""
+
 import os
 from unittest.mock import MagicMock, patch
 
@@ -16,13 +17,16 @@ class TestAsyncDAGEngine:
 
     def test_engine_init(self):
         """Engine should initialize with etcd and S3 config from env."""
-        with patch.dict(os.environ, {
-            "ETCD_HOST": "localhost",
-            "ETCD_PORT": "2379",
-            "S3_ENDPOINT_URL": "http://localhost:8000",
-            "AWS_ACCESS_KEY_ID": "test",
-            "AWS_SECRET_ACCESS_KEY": "test",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ETCD_HOST": "localhost",
+                "ETCD_PORT": "2379",
+                "S3_ENDPOINT_URL": "http://localhost:8000",
+                "AWS_ACCESS_KEY_ID": "test",
+                "AWS_SECRET_ACCESS_KEY": "test",
+            },
+        ):
             from src.orchestrator.engine import AsyncDAGEngine
 
             engine = AsyncDAGEngine()
@@ -33,13 +37,16 @@ class TestAsyncDAGEngine:
     @pytest.mark.asyncio
     async def test_submit_task(self):
         """Engine should accept task submissions."""
-        with patch.dict(os.environ, {
-            "ETCD_HOST": "localhost",
-            "ETCD_PORT": "2379",
-            "S3_ENDPOINT_URL": "http://localhost:8000",
-            "AWS_ACCESS_KEY_ID": "test",
-            "AWS_SECRET_ACCESS_KEY": "test",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ETCD_HOST": "localhost",
+                "ETCD_PORT": "2379",
+                "S3_ENDPOINT_URL": "http://localhost:8000",
+                "AWS_ACCESS_KEY_ID": "test",
+                "AWS_SECRET_ACCESS_KEY": "test",
+            },
+        ):
             from src.orchestrator.engine import AsyncDAGEngine
 
             engine = AsyncDAGEngine()
@@ -57,13 +64,16 @@ class TestAsyncDAGEngine:
     @pytest.mark.asyncio
     async def test_get_task_status(self):
         """Engine should return task status from etcd."""
-        with patch.dict(os.environ, {
-            "ETCD_HOST": "localhost",
-            "ETCD_PORT": "2379",
-            "S3_ENDPOINT_URL": "http://localhost:8000",
-            "AWS_ACCESS_KEY_ID": "test",
-            "AWS_SECRET_ACCESS_KEY": "test",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ETCD_HOST": "localhost",
+                "ETCD_PORT": "2379",
+                "S3_ENDPOINT_URL": "http://localhost:8000",
+                "AWS_ACCESS_KEY_ID": "test",
+                "AWS_SECRET_ACCESS_KEY": "test",
+            },
+        ):
             from src.orchestrator.engine import AsyncDAGEngine
 
             engine = AsyncDAGEngine()

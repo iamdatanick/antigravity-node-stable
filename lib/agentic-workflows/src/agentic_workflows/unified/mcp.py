@@ -31,29 +31,28 @@ Example:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Any, Callable, Awaitable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from mcp.server import Server
-    from mcp.types import Tool, TextContent
 
 logger = logging.getLogger(__name__)
 
 
 class MCPCapability(Enum):
     """MCP server capabilities."""
+
     TOOLS = "tools"
     RESOURCES = "resources"
     PROMPTS = "prompts"
-    UI = "ui"                # MCP-UI extension
-    A2A = "a2a"              # A2A compatibility
+    UI = "ui"  # MCP-UI extension
+    A2A = "a2a"  # A2A compatibility
     STREAMING = "streaming"
     SUBSCRIPTIONS = "subscriptions"
 
@@ -61,6 +60,7 @@ class MCPCapability(Enum):
 @dataclass
 class MCPToolDefinition:
     """Tool definition for MCP server."""
+
     name: str
     description: str
     input_schema: dict[str, Any]
@@ -72,6 +72,7 @@ class MCPToolDefinition:
 @dataclass
 class MCPResourceDefinition:
     """Resource definition for MCP server."""
+
     uri: str
     name: str
     description: str
@@ -84,6 +85,7 @@ class MCPResourceDefinition:
 @dataclass
 class MCPPromptDefinition:
     """Prompt template definition for MCP server."""
+
     name: str
     description: str
     arguments: list[dict[str, Any]] = field(default_factory=list)
@@ -93,6 +95,7 @@ class MCPPromptDefinition:
 @dataclass
 class UnifiedMCPConfig:
     """Configuration for unified MCP server."""
+
     name: str = "unified-mcp-server"
     version: str = "1.0.0"
 
@@ -176,17 +179,16 @@ class UnifiedMCPServer:
         # Initialize
         self._initialized = False
 
-    def _get_mcp_server(self) -> "Server":
+    def _get_mcp_server(self) -> Server:
         """Get or create underlying MCP server."""
         if self._server is None:
             try:
                 from mcp.server import Server
+
                 self._server = Server(self.config.name)
                 self._setup_handlers()
             except ImportError:
-                raise ImportError(
-                    "MCP SDK not installed. Install with: pip install mcp"
-                )
+                raise ImportError("MCP SDK not installed. Install with: pip install mcp")
         return self._server
 
     def _setup_handlers(self) -> None:
@@ -207,6 +209,7 @@ class UnifiedMCPServer:
 
         # List resources handler (if enabled)
         if self.config.enable_resources:
+
             @server.list_resources()
             async def list_resources():
                 return self._get_resource_list()
@@ -217,6 +220,7 @@ class UnifiedMCPServer:
 
         # List prompts handler (if enabled)
         if self.config.enable_prompts:
+
             @server.list_prompts()
             async def list_prompts():
                 return self._get_prompt_list()
@@ -257,11 +261,13 @@ class UnifiedMCPServer:
                     _name: str = skill_name,
                 ) -> str:
                     skill_context = registry.load_skill_context(_name)
-                    return json.dumps({
-                        "skill": _name,
-                        "action": action,
-                        "context": skill_context[:5000] if skill_context else None,
-                    })
+                    return json.dumps(
+                        {
+                            "skill": _name,
+                            "action": action,
+                            "context": skill_context[:5000] if skill_context else None,
+                        }
+                    )
 
                 self._tools[tool_def["name"]] = MCPToolDefinition(
                     name=tool_def["name"],
@@ -283,11 +289,13 @@ class UnifiedMCPServer:
 
             tools = []
             for tool_def in self._tools.values():
-                tools.append(Tool(
-                    name=tool_def.name,
-                    description=tool_def.description,
-                    inputSchema=tool_def.input_schema,
-                ))
+                tools.append(
+                    Tool(
+                        name=tool_def.name,
+                        description=tool_def.description,
+                        inputSchema=tool_def.input_schema,
+                    )
+                )
             return tools
 
         except ImportError:
@@ -339,14 +347,16 @@ class UnifiedMCPServer:
             uri = f"ui://{uuid.uuid4()}"
             self._ui_resources[uri] = result
 
-            return [{
-                "type": "resource",
-                "resource": {
-                    "uri": uri,
-                    "mimeType": "application/x-mcp-ui",
-                    "text": json.dumps(result),
-                },
-            }]
+            return [
+                {
+                    "type": "resource",
+                    "resource": {
+                        "uri": uri,
+                        "mimeType": "application/x-mcp-ui",
+                        "text": json.dumps(result),
+                    },
+                }
+            ]
         else:
             return [{"type": "text", "text": str(result)}]
 
@@ -357,21 +367,25 @@ class UnifiedMCPServer:
 
             resources = []
             for res_def in self._resources.values():
-                resources.append(Resource(
-                    uri=res_def.uri,
-                    name=res_def.name,
-                    description=res_def.description,
-                    mimeType=res_def.mime_type,
-                ))
+                resources.append(
+                    Resource(
+                        uri=res_def.uri,
+                        name=res_def.name,
+                        description=res_def.description,
+                        mimeType=res_def.mime_type,
+                    )
+                )
 
             # Add UI resources
             for uri, ui_res in self._ui_resources.items():
-                resources.append(Resource(
-                    uri=uri,
-                    name=ui_res.get("name", "UI Resource"),
-                    description="MCP-UI widget resource",
-                    mimeType="application/x-mcp-ui",
-                ))
+                resources.append(
+                    Resource(
+                        uri=uri,
+                        name=ui_res.get("name", "UI Resource"),
+                        description="MCP-UI widget resource",
+                        mimeType="application/x-mcp-ui",
+                    )
+                )
 
             return resources
 
@@ -391,11 +405,13 @@ class UnifiedMCPServer:
         # Check UI resources
         if uri in self._ui_resources:
             return {
-                "contents": [{
-                    "uri": uri,
-                    "mimeType": "application/x-mcp-ui",
-                    "text": json.dumps(self._ui_resources[uri]),
-                }]
+                "contents": [
+                    {
+                        "uri": uri,
+                        "mimeType": "application/x-mcp-ui",
+                        "text": json.dumps(self._ui_resources[uri]),
+                    }
+                ]
             }
 
         # Check standard resources
@@ -413,11 +429,13 @@ class UnifiedMCPServer:
             content = json.dumps(content)
 
         return {
-            "contents": [{
-                "uri": uri,
-                "mimeType": res_def.mime_type,
-                "text": str(content),
-            }]
+            "contents": [
+                {
+                    "uri": uri,
+                    "mimeType": res_def.mime_type,
+                    "text": str(content),
+                }
+            ]
         }
 
     def _get_prompt_list(self) -> list[dict[str, Any]]:
@@ -427,14 +445,13 @@ class UnifiedMCPServer:
 
             prompts = []
             for prompt_def in self._prompts.values():
-                prompts.append(Prompt(
-                    name=prompt_def.name,
-                    description=prompt_def.description,
-                    arguments=[
-                        PromptArgument(**arg)
-                        for arg in prompt_def.arguments
-                    ],
-                ))
+                prompts.append(
+                    Prompt(
+                        name=prompt_def.name,
+                        description=prompt_def.description,
+                        arguments=[PromptArgument(**arg) for arg in prompt_def.arguments],
+                    )
+                )
             return prompts
 
         except ImportError:
@@ -463,10 +480,12 @@ class UnifiedMCPServer:
             content = content.replace(f"{{{key}}}", str(value))
 
         return {
-            "messages": [{
-                "role": "user",
-                "content": {"type": "text", "text": content},
-            }]
+            "messages": [
+                {
+                    "role": "user",
+                    "content": {"type": "text", "text": content},
+                }
+            ]
         }
 
     def tool(
@@ -489,12 +508,14 @@ class UnifiedMCPServer:
                 '''Greet a person.'''
                 return f"Hello, {name}!"
         """
+
         def decorator(func: Callable) -> Callable:
             tool_name = name or func.__name__
             tool_desc = description or func.__doc__ or ""
 
             # Build input schema from type hints
             import inspect
+
             sig = inspect.signature(func)
             properties = {}
             required = []
@@ -567,6 +588,7 @@ class UnifiedMCPServer:
                     "htmlString": "<h1>Dashboard</h1>",
                 }
         """
+
         def decorator(func: Callable) -> Callable:
             tool_name = name or func.__name__
             tool_desc = description or func.__doc__ or "UI widget tool"
@@ -588,6 +610,7 @@ class UnifiedMCPServer:
 
             # Build input schema
             import inspect
+
             sig = inspect.signature(func)
             properties = {}
             required = []
@@ -636,6 +659,7 @@ class UnifiedMCPServer:
         Returns:
             Decorator function.
         """
+
         def decorator(func: Callable) -> Callable:
             res_name = name or func.__name__
 
@@ -692,6 +716,7 @@ class UnifiedMCPServer:
         Returns:
             Decorator function.
         """
+
         def decorator(func: Callable) -> Callable:
             prompt_name = name or func.__name__
 
@@ -758,11 +783,13 @@ class UnifiedMCPServer:
                     _name: str = skill_name,
                 ) -> str:
                     skill_context = registry.load_skill_context(_name)
-                    return json.dumps({
-                        "skill": _name,
-                        "action": action,
-                        "context": skill_context[:5000] if skill_context else None,
-                    })
+                    return json.dumps(
+                        {
+                            "skill": _name,
+                            "action": action,
+                            "context": skill_context[:5000] if skill_context else None,
+                        }
+                    )
 
                 self._tools[tool_def["name"]] = MCPToolDefinition(
                     name=tool_def["name"],
@@ -785,13 +812,15 @@ class UnifiedMCPServer:
         """
         skills = []
         for tool_def in self._tools.values():
-            skills.append({
-                "id": tool_def.name,
-                "name": tool_def.name.replace("_", " ").title(),
-                "description": tool_def.description,
-                "inputModes": ["text"],
-                "outputModes": ["text"] if not tool_def.is_ui else ["text", "ui"],
-            })
+            skills.append(
+                {
+                    "id": tool_def.name,
+                    "name": tool_def.name.replace("_", " ").title(),
+                    "description": tool_def.description,
+                    "inputModes": ["text"],
+                    "outputModes": ["text"] if not tool_def.is_ui else ["text", "ui"],
+                }
+            )
 
         return {
             "name": self.config.name,
@@ -815,9 +844,9 @@ class UnifiedMCPServer:
     async def run(self) -> None:
         """Run the MCP server using stdio transport."""
         try:
-            from mcp.server.stdio import stdio_server
-            from mcp.server.models import InitializationOptions
             from mcp.server.lowlevel.server import NotificationOptions
+            from mcp.server.models import InitializationOptions
+            from mcp.server.stdio import stdio_server
 
             server = self._get_mcp_server()
             await self._ensure_initialized()
@@ -840,9 +869,7 @@ class UnifiedMCPServer:
                     ),
                 )
         except ImportError:
-            raise ImportError(
-                "MCP SDK not installed. Install with: pip install mcp"
-            )
+            raise ImportError("MCP SDK not installed. Install with: pip install mcp")
 
     def get_stats(self) -> dict[str, Any]:
         """Get server statistics."""

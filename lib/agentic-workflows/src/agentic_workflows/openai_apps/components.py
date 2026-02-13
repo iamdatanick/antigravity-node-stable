@@ -17,10 +17,9 @@ from enum import Enum
 from typing import Any
 
 from .widget_types import (
+    StructuredContent,
     WidgetPayload,
     WidgetTemplate,
-    WidgetMeta,
-    StructuredContent,
 )
 
 

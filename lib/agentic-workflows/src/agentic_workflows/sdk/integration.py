@@ -18,14 +18,14 @@ Usage:
         result = await client.query("Analyze this codebase")
 """
 
-from typing import Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
-import os
+from typing import Any
 
 
 class IntegrationMode(Enum):
     """Integration modes for the SDK."""
+
     FULL = "full"  # All features enabled
     MINIMAL = "minimal"  # Core features only
     SECURITY = "security"  # Security-focused
@@ -35,6 +35,7 @@ class IntegrationMode(Enum):
 @dataclass
 class WorkflowConfig:
     """Configuration for workflow sessions."""
+
     security_scope: int = 2  # Default: Tool Access
     enable_persistence: bool = True
     enable_audit: bool = True
@@ -49,6 +50,7 @@ class WorkflowConfig:
 @dataclass
 class WorkflowSession:
     """Active workflow session with context."""
+
     session_id: str
     config: WorkflowConfig
     context: dict[str, Any] = field(default_factory=dict)
@@ -118,8 +120,8 @@ class AgenticWorkflowsSDK:
             # Pass to ClaudeAgentOptions(**options)
         """
         from .agents import ALL_SDK_AGENTS, EXPERT_PANEL_AGENTS
+        from .hooks import create_scoped_hooks
         from .tools import create_agentic_mcp_server, get_tool_names
-        from .hooks import get_all_hooks, create_scoped_hooks
 
         # Select agents based on mode
         if self.mode == IntegrationMode.MINIMAL:
@@ -155,8 +157,15 @@ class AgenticWorkflowsSDK:
         # Build allowed tools list
         allowed_tools = [
             # Core Claude Code tools
-            "Task", "Read", "Write", "Edit", "Glob", "Grep",
-            "Bash", "WebSearch", "WebFetch",
+            "Task",
+            "Read",
+            "Write",
+            "Edit",
+            "Glob",
+            "Grep",
+            "Bash",
+            "WebSearch",
+            "WebFetch",
         ]
 
         # Add MCP tools
@@ -241,8 +250,9 @@ class AgenticWorkflowsSDK:
             WorkflowSession instance
         """
         import uuid
-        from agentic_workflows.core.scratchpad import Scratchpad
+
         from agentic_workflows.core.context_graph import LearningContextGraph
+        from agentic_workflows.core.scratchpad import Scratchpad
 
         session_id = session_id or str(uuid.uuid4())[:8]
         config = config or WorkflowConfig(security_scope=self.security_scope)
@@ -343,6 +353,7 @@ class AgenticWorkflowsSDK:
 # FACTORY FUNCTIONS
 # =============================================================================
 
+
 def get_agent_definitions() -> dict[str, dict[str, Any]]:
     """Get all agent definitions for SDK registration.
 
@@ -350,6 +361,7 @@ def get_agent_definitions() -> dict[str, dict[str, Any]]:
         Dictionary of agent definitions
     """
     from .agents import ALL_SDK_AGENTS
+
     return dict(ALL_SDK_AGENTS)
 
 
@@ -363,6 +375,7 @@ def get_hooks_config(security_scope: int = 2) -> dict[str, list]:
         Dictionary of hook type to callbacks
     """
     from .hooks import create_scoped_hooks
+
     return create_scoped_hooks(max_scope=security_scope)
 
 
@@ -402,6 +415,7 @@ def get_mcp_server_config() -> dict[str, Any]:
         }
     """
     from .tools import create_agentic_mcp_server
+
     return create_agentic_mcp_server()
 
 
@@ -422,12 +436,16 @@ def create_plugin_config() -> dict[str, Any]:
         "license": "MIT",
         "repository": "https://github.com/agentic-workflows/agentic-workflows",
         "keywords": [
-            "agents", "workflows", "multi-agent", "expert-panel",
-            "security", "orchestration", "mcp", "claude-code"
+            "agents",
+            "workflows",
+            "multi-agent",
+            "expert-panel",
+            "security",
+            "orchestration",
+            "mcp",
+            "claude-code",
         ],
-        "engines": {
-            "claude-code": ">=1.0.0"
-        },
+        "engines": {"claude-code": ">=1.0.0"},
         "main": "src/agentic_workflows/__init__.py",
         "agents": list(ALL_SDK_AGENTS.keys()),
         "tools": [t["name"] for t in ALL_TOOLS],
@@ -439,10 +457,7 @@ def create_plugin_config() -> dict[str, Any]:
             "audit-logging",
             "scope-enforcement",
         ],
-        "mcp_server": {
-            "command": "python",
-            "args": ["-m", "agentic_workflows.mcp_server"]
-        },
+        "mcp_server": {"command": "python", "args": ["-m", "agentic_workflows.mcp_server"]},
         "settings_schema": {
             "type": "object",
             "properties": {
@@ -451,18 +466,18 @@ def create_plugin_config() -> dict[str, Any]:
                     "minimum": 1,
                     "maximum": 4,
                     "default": 2,
-                    "description": "Maximum security scope (1=stateless, 2=tool_access, 3=autonomous, 4=full)"
+                    "description": "Maximum security scope (1=stateless, 2=tool_access, 3=autonomous, 4=full)",
                 },
                 "enable_persistence": {
                     "type": "boolean",
                     "default": True,
-                    "description": "Enable context persistence between sessions"
+                    "description": "Enable context persistence between sessions",
                 },
                 "enable_audit": {
                     "type": "boolean",
                     "default": True,
-                    "description": "Enable audit logging"
+                    "description": "Enable audit logging",
                 },
-            }
-        }
+            },
+        },
     }

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,7 +9,7 @@ from typing import Any
 import yaml
 
 from agentic_workflows.agents.base import AgentConfig, BaseAgent, SimpleAgent
-from agentic_workflows.agents.registry import AgentDefinition, AgentRegistry, get_registry
+from agentic_workflows.agents.registry import AgentRegistry, get_registry
 from agentic_workflows.security.scope_validator import Scope
 
 
@@ -392,7 +391,7 @@ class AgentLoader:
         """
         tools_str = "\n".join(f"  - {t}" for t in (tools or ["Read", "Glob", "Grep"]))
 
-        return f'''---
+        return f"""---
 name: {name}
 description: {description}
 model: {model}
@@ -417,4 +416,4 @@ You are {name}, an AI assistant.
 
 ## Instructions
 Your instructions go here.
-'''
+"""

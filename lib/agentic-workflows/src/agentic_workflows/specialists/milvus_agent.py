@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig
 
 
 @dataclass
@@ -80,6 +80,7 @@ class MilvusAgent(SpecialistAgent):
         """Disconnect from Milvus."""
         try:
             from pymilvus import connections
+
             connections.disconnect("default")
         except Exception:
             pass
@@ -89,6 +90,7 @@ class MilvusAgent(SpecialistAgent):
         """Check Milvus health."""
         try:
             from pymilvus import utility
+
             return utility.get_server_version() is not None
         except Exception:
             return False
@@ -179,11 +181,13 @@ class MilvusAgent(SpecialistAgent):
         for hits in results:
             query_results = []
             for hit in hits:
-                query_results.append({
-                    "id": hit.id,
-                    "distance": hit.distance,
-                    "entity": hit.entity.to_dict() if hasattr(hit, "entity") else {},
-                })
+                query_results.append(
+                    {
+                        "id": hit.id,
+                        "distance": hit.distance,
+                        "entity": hit.entity.to_dict() if hasattr(hit, "entity") else {},
+                    }
+                )
             output.append(query_results)
 
         return output
@@ -272,7 +276,7 @@ class MilvusAgent(SpecialistAgent):
         Returns:
             Creation result.
         """
-        from pymilvus import Collection, CollectionSchema, FieldSchema, DataType, utility
+        from pymilvus import Collection, CollectionSchema, DataType, FieldSchema, utility
 
         if utility.has_collection(name):
             return {"collection": name, "created": False, "exists": True}
@@ -285,11 +289,13 @@ class MilvusAgent(SpecialistAgent):
         if extra_fields:
             for field in extra_fields:
                 dtype = getattr(DataType, field.get("dtype", "VARCHAR"))
-                fields.append(FieldSchema(
-                    name=field["name"],
-                    dtype=dtype,
-                    max_length=field.get("max_length", 256),
-                ))
+                fields.append(
+                    FieldSchema(
+                        name=field["name"],
+                        dtype=dtype,
+                        max_length=field.get("max_length", 256),
+                    )
+                )
 
         schema = CollectionSchema(fields=fields, description=description)
         Collection(name=name, schema=schema)
@@ -299,6 +305,7 @@ class MilvusAgent(SpecialistAgent):
     async def _list_collections(self) -> list[str]:
         """List all collections."""
         from pymilvus import utility
+
         return utility.list_collections()
 
     async def _create_index(

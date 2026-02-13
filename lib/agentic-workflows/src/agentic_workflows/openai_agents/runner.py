@@ -21,17 +21,16 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable, Generic, TypeVar
+from typing import Any, TypeVar
 
 from agentic_workflows.openai_agents.agent import OpenAIAgent
 from agentic_workflows.openai_agents.agent_types import (
     HandoffRequest,
     Message,
-    OutputType,
     RunConfig,
     RunResult,
-    RunResultStreaming,
     ToolCall,
 )
 
@@ -240,9 +239,7 @@ class Runner:
             Output text chunks.
         """
         run_config = config or agent.config.default_run_config or self.default_config
-        stream_config = RunConfig(
-            **{k: v for k, v in vars(run_config).items() if k != "stream"}
-        )
+        stream_config = RunConfig(**{k: v for k, v in vars(run_config).items() if k != "stream"})
         stream_config.stream = True
 
         # Initialize
@@ -344,9 +341,7 @@ class Runner:
             trace_id=ctx.trace_id,
         )
 
-    async def _run_loop_streamed(
-        self, ctx: RunContext
-    ) -> AsyncIterator[str]:
+    async def _run_loop_streamed(self, ctx: RunContext) -> AsyncIterator[str]:
         """Execute agent loop with streaming.
 
         Args:
@@ -467,11 +462,13 @@ class Runner:
 
         if message.tool_calls:
             for tc in message.tool_calls:
-                result["tool_calls"].append({
-                    "id": tc.id,
-                    "name": tc.function.name,
-                    "arguments": json.loads(tc.function.arguments),
-                })
+                result["tool_calls"].append(
+                    {
+                        "id": tc.id,
+                        "name": tc.function.name,
+                        "arguments": json.loads(tc.function.arguments),
+                    }
+                )
 
         return result
 
@@ -495,11 +492,13 @@ class Runner:
             if block.type == "text":
                 result["content"] += block.text
             elif block.type == "tool_use":
-                result["tool_calls"].append({
-                    "id": block.id,
-                    "name": block.name,
-                    "arguments": block.input,
-                })
+                result["tool_calls"].append(
+                    {
+                        "id": block.id,
+                        "name": block.name,
+                        "arguments": block.input,
+                    }
+                )
 
         return result
 
@@ -547,9 +546,7 @@ class Runner:
             "finish_reason": "stop",
         }
 
-    async def _call_llm_streamed(
-        self, ctx: RunContext
-    ) -> AsyncIterator[str]:
+    async def _call_llm_streamed(self, ctx: RunContext) -> AsyncIterator[str]:
         """Call LLM with streaming.
 
         Args:
@@ -570,9 +567,7 @@ class Runner:
             # Process complete response
             await self._process_response(ctx, response)
 
-    async def _process_response(
-        self, ctx: RunContext, response: dict[str, Any]
-    ) -> None:
+    async def _process_response(self, ctx: RunContext, response: dict[str, Any]) -> None:
         """Process LLM response.
 
         Args:
@@ -679,11 +674,13 @@ class Runner:
 
         if target_agent is None:
             logger.error(f"Handoff target not found: {target_name}")
-            ctx.messages.append(Message(
-                role="tool",
-                content=f"Error: Agent {target_name} not found",
-                name=f"handoff_to_{target_name}",
-            ))
+            ctx.messages.append(
+                Message(
+                    role="tool",
+                    content=f"Error: Agent {target_name} not found",
+                    name=f"handoff_to_{target_name}",
+                )
+            )
             return
 
         # Create handoff request

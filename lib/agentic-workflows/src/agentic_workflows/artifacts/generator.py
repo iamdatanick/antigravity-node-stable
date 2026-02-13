@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 
 class ArtifactType(Enum):
@@ -170,6 +170,7 @@ class Artifact:
         content = self.content
         if isinstance(content, bytes):
             import base64
+
             content = base64.b64encode(content).decode()
 
         return {
@@ -192,6 +193,7 @@ class Artifact:
         # Decode binary content
         if artifact_type == ArtifactType.BINARY or artifact_type == ArtifactType.IMAGE:
             import base64
+
             if isinstance(content, str):
                 content = base64.b64decode(content)
 

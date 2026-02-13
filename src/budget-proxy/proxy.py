@@ -1,7 +1,8 @@
 import os
+from datetime import UTC, datetime
+
 import httpx
-from datetime import datetime, UTC
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 app = FastAPI()
@@ -40,23 +41,23 @@ def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> fl
     """Estimate cost in USD for given token usage."""
     if model.startswith("local"):
         return 0.0
-    
+
     # Get pricing, fall back to gpt-4o-mini if unknown
     input_cost, output_cost = COST_TABLE.get(model, COST_TABLE["gpt-4o-mini"])
-    
+
     total_cost = (prompt_tokens / 1000.0) * input_cost + (completion_tokens / 1000.0) * output_cost
     return total_cost
 
 
 async def _route_model(model: str):
     """Route model request to appropriate provider.
-    
+
     Returns: (base_url, headers, model_name)
     """
     # Local models
     if model.startswith("local/"):
         return (LOCAL_LLM_URL, {}, model.replace("local/", ""))
-    
+
     # Anthropic Claude models
     if "claude" in model.lower():
         if not ANTHROPIC_API_KEY:
@@ -69,7 +70,7 @@ async def _route_model(model: str):
             },
             model,
         )
-    
+
     # OpenAI models
     if OPENAI_API_KEY:
         return (
@@ -77,7 +78,7 @@ async def _route_model(model: str):
             {"Authorization": f"Bearer {OPENAI_API_KEY}"},
             model,
         )
-    
+
     # Fall back to local if no API key
     return (LOCAL_LLM_URL, {}, model)
 
@@ -110,22 +111,22 @@ async def budget_history():
 async def chat_completions(request: Request):
     """Chat completions proxy with budget enforcement."""
     global _daily_spend
-    
+
     _reset_if_new_day()
-    
+
     # Check budget
     if _daily_spend >= DAILY_BUDGET_USD:
         raise HTTPException(
             status_code=429,
             detail=f"Daily budget of ${DAILY_BUDGET_USD} exceeded. Current spend: ${_daily_spend:.2f}",
         )
-    
+
     body = await request.json()
     model = body.get("model", "gpt-4o")
-    
+
     # Route to appropriate provider
     base_url, headers, routed_model = await _route_model(model)
-    
+
     # Make request
     async with httpx.AsyncClient() as client:
         try:
@@ -136,21 +137,21 @@ async def chat_completions(request: Request):
                 headers=headers,
                 timeout=60.0,
             )
-            
+
             # Track spend if successful
             if resp.status_code == 200:
                 resp_data = resp.json()
                 usage = resp_data.get("usage", {})
                 prompt_tokens = usage.get("prompt_tokens", 0)
                 completion_tokens = usage.get("completion_tokens", 0)
-                
+
                 cost = _estimate_cost(model, prompt_tokens, completion_tokens)
                 _daily_spend += cost
-                
+
                 # Track hourly spend
                 hour = datetime.now(UTC).hour
                 _hourly_spend[hour] += cost
-            
+
             return JSONResponse(status_code=resp.status_code, content=resp.json())
         except httpx.HTTPStatusError as e:
             return JSONResponse(status_code=e.response.status_code, content=e.response.json())
@@ -164,14 +165,15 @@ async def list_models():
     models = []
     for model_name in COST_TABLE:
         if model_name != "local":
-            models.append({
-                "id": model_name,
-                "object": "model",
-                "owned_by": "budget-proxy",
-            })
-    
+            models.append(
+                {
+                    "id": model_name,
+                    "object": "model",
+                    "owned_by": "budget-proxy",
+                }
+            )
+
     return {
         "object": "list",
         "data": models,
     }
-

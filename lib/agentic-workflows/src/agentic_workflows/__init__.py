@@ -20,105 +20,92 @@ This package provides:
 
 __version__ = "5.1.0"
 
-from agentic_workflows.security import (
-    PromptInjectionDefense,
-    ScopeValidator,
-    RateLimiter,
-    KillSwitch,
-    ThreatLevel,
-    Scope,
+# PHUC Platform modules
+# OpenAI Apps SDK Integration
+# A2A Protocol Integration
+# New unified modules
+from agentic_workflows import a2a, guardrails, hooks, integrations, mcp, openai_apps, phuc
+from agentic_workflows.artifacts import (
+    Artifact,
+    ArtifactGenerator,
+    ArtifactManager,
+    ArtifactMetadata,
+    ArtifactRef,
+    ArtifactStorage,
+    ArtifactType,
+    FileStorage,
+    MemoryStorage,
 )
-
-from agentic_workflows.orchestration import (
-    CircuitBreaker,
-    Retrier,
-    Supervisor,
-    Pipeline,
-    ParallelExecutor,
-)
-
 from agentic_workflows.context import (
     ContextGraph,
     ContextNode,
     Provenance,
     TrustCalculator,
 )
-
-from agentic_workflows.observability import (
-    MetricsCollector,
-    AgentTracer,
-    AlertManager,
-    Model,
-)
-
 from agentic_workflows.handoffs import (
-    HandoffManager,
     CheckpointManager,
+    HandoffManager,
     RecoveryOrchestrator,
 )
-
-from agentic_workflows.artifacts import (
-    ArtifactGenerator,
-    Artifact,
-    ArtifactType,
-    ArtifactMetadata,
-    ArtifactStorage,
-    MemoryStorage,
-    FileStorage,
-    ArtifactManager,
-    ArtifactRef,
+from agentic_workflows.observability import (
+    AgentTracer,
+    AlertManager,
+    MetricsCollector,
+    Model,
 )
-
-# PHUC Platform modules
-from agentic_workflows import phuc
-
-# OpenAI Apps SDK Integration
-from agentic_workflows import openai_apps
-
-# A2A Protocol Integration
-from agentic_workflows import a2a
-
-# New unified modules
-from agentic_workflows import guardrails
-from agentic_workflows import hooks
-from agentic_workflows import integrations
-from agentic_workflows import mcp
+from agentic_workflows.orchestration import (
+    CircuitBreaker,
+    ParallelExecutor,
+    Pipeline,
+    Retrier,
+    Supervisor,
+)
+from agentic_workflows.security import (
+    KillSwitch,
+    PromptInjectionDefense,
+    RateLimiter,
+    Scope,
+    ScopeValidator,
+    ThreatLevel,
+)
 
 # Skills module
 from agentic_workflows.skills import (
-    SkillRegistry,
-    SkillDefinition,
-    SkillLevel,
-    SkillDomain,
-    get_registry as get_skill_registry,
-    discover_default_skills,
+    MCP_ENDPOINT,
+    SKILLS,
     # PHUC MCP Skills
     MCPSkill,
+    SkillDefinition,
+    SkillDomain,
+    SkillLevel,
     SkillManager,
-    SKILLS,
-    get_cloudflare_skills,
-    get_analytics_skills,
-    get_security_skills,
+    SkillRegistry,
+    discover_default_skills,
     get_all_tools,
-    MCP_ENDPOINT,
+    get_analytics_skills,
+    get_cloudflare_skills,
+    get_security_skills,
+)
+from agentic_workflows.skills import (
+    get_registry as get_skill_registry,
 )
 
 # Workers module
 from agentic_workflows.workers import (
-    WorkerType,
-    WorkerStatus,
-    WorkerResult,
-    WorkerInfo,
-    WorkerPoolStatus,
-    CloudflareWorker,
-    WorkerPool,
-    D1_WORKER,
-    R2_WORKER,
     AI_WORKER,
     ANALYTICS_WORKER,
-    SECURITY_WORKER,
     CAMARA_WORKER,
+    D1_WORKER,
+    R2_WORKER,
+    SECURITY_WORKER,
     WORKERS,
+    CloudflareWorker,
+    WorkerInfo,
+    WorkerPool,
+    WorkerPoolStatus,
+    WorkerResult,
+    WorkerStatus,
+    WorkerType,
 )
 
 # Pipeline Agents and Orchestrator use lazy imports to avoid circular dependencies
@@ -141,20 +128,26 @@ _lazy_imports = {
     "PhucPipeline": ("agentic_workflows.orchestration.phuc_orchestrator", "PhucPipeline"),
     "SecurityGate": ("agentic_workflows.orchestration.phuc_orchestrator", "SecurityGate"),
     "PipelineResult": ("agentic_workflows.orchestration.phuc_orchestrator", "PipelineResult"),
-    "create_orchestrator": ("agentic_workflows.orchestration.phuc_orchestrator", "create_orchestrator"),
+    "create_orchestrator": (
+        "agentic_workflows.orchestration.phuc_orchestrator",
+        "create_orchestrator",
+    ),
 }
 
 _lazy_cache = {}
+
 
 def __getattr__(name):
     if name in _lazy_imports:
         if name not in _lazy_cache:
             module_name, attr_name = _lazy_imports[name]
             import importlib
+
             module = importlib.import_module(module_name)
             _lazy_cache[name] = getattr(module, attr_name)
         return _lazy_cache[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # Security

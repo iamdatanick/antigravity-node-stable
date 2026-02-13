@@ -13,31 +13,30 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 
-from .multi_llm import MultiLLMRouter, ModelTier, LLMResponse
-from .context_graph import LearningContextGraph, LearningInsight
-from .scratchpad import Scratchpad, ThoughtType, ScratchpadEntry
-from .debate import DebateSystem, DebateResult, DebateOutcome
 from .artifact import (
-    ArtifactBuilder,
     AgentArtifact,
-    ArtifactType,
-    serialize_for_handoff,
+    ArtifactBuilder,
     create_handoff_prompt,
 )
+from .context_graph import LearningContextGraph, LearningInsight
+from .debate import DebateOutcome, DebateResult, DebateSystem
+from .multi_llm import LLMResponse, ModelTier, MultiLLMRouter
+from .scratchpad import Scratchpad, ThoughtType
 
 
 class TaskComplexity(Enum):
     """Complexity levels for task routing."""
 
-    TRIVIAL = "trivial"       # Simple lookup or formatting
-    SIMPLE = "simple"         # Single-step task
-    MODERATE = "moderate"     # Multi-step with some reasoning
-    COMPLEX = "complex"       # Requires planning and iteration
-    EXPERT = "expert"         # Requires deep expertise and validation
+    TRIVIAL = "trivial"  # Simple lookup or formatting
+    SIMPLE = "simple"  # Single-step task
+    MODERATE = "moderate"  # Multi-step with some reasoning
+    COMPLEX = "complex"  # Requires planning and iteration
+    EXPERT = "expert"  # Requires deep expertise and validation
 
 
 @dataclass
@@ -127,10 +126,14 @@ class AgenticOrchestrator:
         self.session_id = str(uuid.uuid4())[:8]
 
         # Initialize components
-        self.llm_router = MultiLLMRouter(
-            anthropic_api_key=self.config.anthropic_api_key,
-            enable_hierarchical_review=self.config.enable_hierarchical_review,
-        ) if self.config.anthropic_api_key else None
+        self.llm_router = (
+            MultiLLMRouter(
+                anthropic_api_key=self.config.anthropic_api_key,
+                enable_hierarchical_review=self.config.enable_hierarchical_review,
+            )
+            if self.config.anthropic_api_key
+            else None
+        )
 
         self.context_graph = LearningContextGraph(
             max_nodes=self.config.max_context_nodes,
@@ -211,11 +214,13 @@ class AgenticOrchestrator:
                 ThoughtType.OBSERVATION,
                 f"Task complexity assessed as: {complexity.value}",
             )
-            steps.append(ExecutionStep(
-                step_id=f"{task_id}_complexity",
-                step_type="complexity_analysis",
-                content=f"Complexity: {complexity.value}",
-            ))
+            steps.append(
+                ExecutionStep(
+                    step_id=f"{task_id}_complexity",
+                    step_type="complexity_analysis",
+                    content=f"Complexity: {complexity.value}",
+                )
+            )
 
             # Step 2: Retrieve relevant insights
             insights = []
@@ -240,13 +245,15 @@ class AgenticOrchestrator:
             approach = await self._generate_approach(task, context, complexity, insights)
             self.scratchpad.add_plan(
                 f"Approach: {approach['summary']}",
-                steps=approach.get('steps', []),
+                steps=approach.get("steps", []),
             )
-            steps.append(ExecutionStep(
-                step_id=f"{task_id}_approach",
-                step_type="approach_generation",
-                content=approach['summary'],
-            ))
+            steps.append(
+                ExecutionStep(
+                    step_id=f"{task_id}_approach",
+                    step_type="approach_generation",
+                    content=approach["summary"],
+                )
+            )
 
             # Step 4: Debate approach if complex enough
             debate_result = None
@@ -256,7 +263,7 @@ class AgenticOrchestrator:
             ):
                 debate_result = await self._debate_approach(
                     task,
-                    approach['summary'],
+                    approach["summary"],
                     context,
                 )
                 self.scratchpad.add(
@@ -264,16 +271,18 @@ class AgenticOrchestrator:
                     f"Debate outcome: {debate_result.outcome.value}",
                     metadata={"confidence": debate_result.confidence},
                 )
-                steps.append(ExecutionStep(
-                    step_id=f"{task_id}_debate",
-                    step_type="self_debate",
-                    content=f"Outcome: {debate_result.outcome.value}",
-                    result=debate_result.to_dict(),
-                ))
+                steps.append(
+                    ExecutionStep(
+                        step_id=f"{task_id}_debate",
+                        step_type="self_debate",
+                        content=f"Outcome: {debate_result.outcome.value}",
+                        result=debate_result.to_dict(),
+                    )
+                )
 
                 # Adjust approach if needed
                 if debate_result.outcome == DebateOutcome.SYNTHESIS:
-                    approach['summary'] = debate_result.synthesized_approach or approach['summary']
+                    approach["summary"] = debate_result.synthesized_approach or approach["summary"]
                     self.scratchpad.add(
                         ThoughtType.PLAN,
                         f"Revised approach: {approach['summary']}",
@@ -295,13 +304,15 @@ class AgenticOrchestrator:
             total_tokens += response.total_tokens
             model_tiers_used.add(response.model)
 
-            steps.append(ExecutionStep(
-                step_id=f"{task_id}_execution",
-                step_type="llm_execution",
-                content=response.content[:500],
-                model_used=response.model,
-                tokens_used=response.total_tokens,
-            ))
+            steps.append(
+                ExecutionStep(
+                    step_id=f"{task_id}_execution",
+                    step_type="llm_execution",
+                    content=response.content[:500],
+                    model_used=response.model,
+                    tokens_used=response.total_tokens,
+                )
+            )
 
             # Step 6: Hierarchical review if needed
             if (
@@ -317,12 +328,14 @@ class AgenticOrchestrator:
                     response = reviewed
                     model_tiers_used.add(reviewed.model)
                     total_tokens += reviewed.total_tokens
-                    steps.append(ExecutionStep(
-                        step_id=f"{task_id}_review",
-                        step_type="hierarchical_review",
-                        content="Response reviewed by higher-tier model",
-                        model_used=reviewed.model,
-                    ))
+                    steps.append(
+                        ExecutionStep(
+                            step_id=f"{task_id}_review",
+                            step_type="hierarchical_review",
+                            content="Response reviewed by higher-tier model",
+                            model_used=reviewed.model,
+                        )
+                    )
 
             # Mark goal complete
             self.scratchpad.complete_todo(goal_entry.id, "Task completed successfully")
@@ -433,8 +446,7 @@ Respond with just the complexity level (e.g., "MODERATE")."""
         insights_text = ""
         if insights:
             insights_text = "\n\nRELEVANT PAST INSIGHTS:\n" + "\n".join(
-                f"- {i.content} (confidence: {i.confidence:.2f})"
-                for i in insights[:5]
+                f"- {i.content} (confidence: {i.confidence:.2f})" for i in insights[:5]
             )
 
         prompt = f"""Generate an approach for this task.
@@ -525,10 +537,10 @@ STEPS:
 {scratchpad_str}
 
 APPROACH TO FOLLOW:
-{approach['summary']}
+{approach["summary"]}
 
 STEPS:
-{chr(10).join(f"{i+1}. {s}" for i, s in enumerate(approach.get('steps', [])))}
+{chr(10).join(f"{i + 1}. {s}" for i, s in enumerate(approach.get("steps", [])))}
 
 Execute the task thoroughly and provide a complete response."""
 
@@ -665,7 +677,7 @@ Be concise."""
         yield f"[Approach: {approach['summary']}]\n\n"
 
         # Stream execution
-        system = f"""Execute this task following this approach: {approach['summary']}"""
+        system = f"""Execute this task following this approach: {approach["summary"]}"""
 
         async for chunk in self.llm_router.stream(
             messages=[{"role": "user", "content": f"TASK: {task}\n\n{context or ''}"}],
@@ -698,7 +710,9 @@ Be concise."""
             scratchpad=self.scratchpad,
             context_graph=self.context_graph,
             next_steps=[e.content for e in unresolved if e.thought_type == ThoughtType.TODO][:5],
-            open_questions=[e.content for e in unresolved if e.thought_type == ThoughtType.QUESTION][:5],
+            open_questions=[
+                e.content for e in unresolved if e.thought_type == ThoughtType.QUESTION
+            ][:5],
             warnings=[e.content for e in self.scratchpad.get_by_type(ThoughtType.WARNING)][:3],
         )
 

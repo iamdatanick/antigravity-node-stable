@@ -5,23 +5,26 @@ Manages transitions between agents including delegation, collaboration,
 succession, and human escalation with trust transfer and accountability.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any
 from uuid import uuid4
 
 
 class HandoffType(Enum):
     """Types of agent handoff"""
-    DELEGATION = "delegation"       # Parent-child, wait for result
-    COLLABORATION = "collaboration" # Peer-to-peer, shared context
-    SUCCESSION = "succession"       # Complete transfer of responsibility
-    ESCALATION = "escalation"       # To human or higher authority
+
+    DELEGATION = "delegation"  # Parent-child, wait for result
+    COLLABORATION = "collaboration"  # Peer-to-peer, shared context
+    SUCCESSION = "succession"  # Complete transfer of responsibility
+    ESCALATION = "escalation"  # To human or higher authority
 
 
 class HandoffStatus(Enum):
     """Status of a handoff"""
+
     PENDING = "pending"
     ACCEPTED = "accepted"
     IN_PROGRESS = "in_progress"
@@ -34,37 +37,41 @@ class HandoffStatus(Enum):
 @dataclass
 class TrustTransfer:
     """Trust transfer semantics for handoff"""
+
     inherit_permissions: bool = False  # Receiving agent inherits sender's permissions
-    trust_level: float = 0.7          # Trust level for transferred context
-    verify_context: bool = True       # Receiving agent should verify context
+    trust_level: float = 0.7  # Trust level for transferred context
+    verify_context: bool = True  # Receiving agent should verify context
     can_delegate_further: bool = False  # Can receiving agent delegate to others
-    max_delegation_depth: int = 3     # Maximum delegation chain depth
+    max_delegation_depth: int = 3  # Maximum delegation chain depth
 
 
 @dataclass
 class Accountability:
     """Accountability assignment for handoff"""
-    outcome_owner: str          # Agent responsible for outcome
-    decision_maker: str         # Agent that made the decision
-    approver: Optional[str]     # Human who approved (if applicable)
-    audit_required: bool = True # Whether audit trail is required
+
+    outcome_owner: str  # Agent responsible for outcome
+    decision_maker: str  # Agent that made the decision
+    approver: str | None  # Human who approved (if applicable)
+    audit_required: bool = True  # Whether audit trail is required
 
 
 @dataclass
 class HandoffContext:
     """Context transferred during handoff"""
+
     task_description: str
-    task_state: Dict[str, Any]
-    relevant_context: List[Dict[str, Any]]
-    trace_context: Dict[str, str]  # trace_id, span_id for continuity
-    scratchpad: Optional[str] = None
-    constraints: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    task_state: dict[str, Any]
+    relevant_context: list[dict[str, Any]]
+    trace_context: dict[str, str]  # trace_id, span_id for continuity
+    scratchpad: str | None = None
+    constraints: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class HandoffRequest:
     """A request to hand off work to another agent"""
+
     handoff_id: str
     handoff_type: HandoffType
     from_agent: str
@@ -78,21 +85,22 @@ class HandoffRequest:
     status: HandoffStatus = HandoffStatus.PENDING
 
     # Response fields (filled after acceptance)
-    accepted_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    result: Optional[Any] = None
-    error: Optional[str] = None
+    accepted_at: datetime | None = None
+    completed_at: datetime | None = None
+    result: Any | None = None
+    error: str | None = None
 
 
 @dataclass
 class HandoffEvent:
     """Event in the handoff lifecycle"""
+
     timestamp: datetime
     event_type: str
     handoff_id: str
     from_agent: str
     to_agent: str
-    details: Dict[str, Any]
+    details: dict[str, Any]
 
 
 class HandoffManager:
@@ -108,11 +116,11 @@ class HandoffManager:
     """
 
     def __init__(self):
-        self.active_handoffs: Dict[str, HandoffRequest] = {}
-        self.completed_handoffs: List[HandoffRequest] = []
-        self.events: List[HandoffEvent] = []
-        self.handlers: Dict[str, Callable] = {}
-        self.human_approval_callback: Optional[Callable] = None
+        self.active_handoffs: dict[str, HandoffRequest] = {}
+        self.completed_handoffs: list[HandoffRequest] = []
+        self.events: list[HandoffEvent] = []
+        self.handlers: dict[str, Callable] = {}
+        self.human_approval_callback: Callable | None = None
 
     def create_handoff(
         self,
@@ -120,12 +128,12 @@ class HandoffManager:
         from_agent: str,
         to_agent: str,
         task_description: str,
-        task_state: Dict[str, Any],
-        trace_context: Dict[str, str],
+        task_state: dict[str, Any],
+        trace_context: dict[str, str],
         reason: str,
-        relevant_context: List[Dict[str, Any]] = None,
+        relevant_context: list[dict[str, Any]] = None,
         trust_transfer: TrustTransfer = None,
-        timeout_seconds: int = 300
+        timeout_seconds: int = 300,
     ) -> HandoffRequest:
         """Create a new handoff request"""
 
@@ -135,7 +143,7 @@ class HandoffManager:
             task_description=task_description,
             task_state=task_state,
             relevant_context=relevant_context or [],
-            trace_context=trace_context
+            trace_context=trace_context,
         )
 
         # Default trust transfer
@@ -146,24 +154,21 @@ class HandoffManager:
         if handoff_type == HandoffType.DELEGATION:
             accountability = Accountability(
                 outcome_owner=from_agent,  # Delegator owns outcome
-                decision_maker=from_agent
+                decision_maker=from_agent,
             )
         elif handoff_type == HandoffType.SUCCESSION:
             accountability = Accountability(
                 outcome_owner=to_agent,  # Successor owns outcome
-                decision_maker=from_agent
+                decision_maker=from_agent,
             )
         elif handoff_type == HandoffType.ESCALATION:
             accountability = Accountability(
                 outcome_owner=to_agent,  # Escalation target owns outcome
                 decision_maker=from_agent,
-                audit_required=True
+                audit_required=True,
             )
         else:  # COLLABORATION
-            accountability = Accountability(
-                outcome_owner="shared",
-                decision_maker=from_agent
-            )
+            accountability = Accountability(outcome_owner="shared", decision_maker=from_agent)
 
         handoff = HandoffRequest(
             handoff_id=handoff_id,
@@ -175,7 +180,7 @@ class HandoffManager:
             accountability=accountability,
             reason=reason,
             created_at=datetime.utcnow(),
-            timeout_seconds=timeout_seconds
+            timeout_seconds=timeout_seconds,
         )
 
         self.active_handoffs[handoff_id] = handoff
@@ -205,12 +210,7 @@ class HandoffManager:
         self._emit_event("handoff_started", handoff)
         return True
 
-    def complete_handoff(
-        self,
-        handoff_id: str,
-        result: Any,
-        success: bool = True
-    ) -> bool:
+    def complete_handoff(self, handoff_id: str, result: Any, success: bool = True) -> bool:
         """Complete a handoff with result"""
         handoff = self.active_handoffs.get(handoff_id)
         if not handoff:
@@ -252,10 +252,10 @@ class HandoffManager:
         self,
         from_agent: str,
         task_description: str,
-        context: Dict[str, Any],
-        trace_context: Dict[str, str],
+        context: dict[str, Any],
+        trace_context: dict[str, str],
         reason: str,
-        urgency: str = "normal"
+        urgency: str = "normal",
     ) -> HandoffRequest:
         """Create an escalation to human review"""
 
@@ -268,10 +268,8 @@ class HandoffManager:
             trace_context=trace_context,
             reason=reason,
             trust_transfer=TrustTransfer(
-                inherit_permissions=False,
-                verify_context=True,
-                can_delegate_further=True
-            )
+                inherit_permissions=False, verify_context=True, can_delegate_further=True
+            ),
         )
 
         # Add urgency metadata
@@ -289,9 +287,9 @@ class HandoffManager:
         from_agent: str,
         to_agent: str,
         task_description: str,
-        task_state: Dict[str, Any],
-        trace_context: Dict[str, str],
-        reason: str = "specialized expertise required"
+        task_state: dict[str, Any],
+        trace_context: dict[str, str],
+        reason: str = "specialized expertise required",
     ) -> HandoffRequest:
         """Create a delegation handoff (parent-child)"""
 
@@ -307,17 +305,17 @@ class HandoffManager:
                 inherit_permissions=True,
                 trust_level=0.8,
                 can_delegate_further=True,
-                max_delegation_depth=3
-            )
+                max_delegation_depth=3,
+            ),
         )
 
     def collaborate(
         self,
         from_agent: str,
         to_agent: str,
-        shared_context: Dict[str, Any],
-        trace_context: Dict[str, str],
-        collaboration_goal: str
+        shared_context: dict[str, Any],
+        trace_context: dict[str, str],
+        collaboration_goal: str,
     ) -> HandoffRequest:
         """Create a collaboration handoff (peer-to-peer)"""
 
@@ -330,19 +328,17 @@ class HandoffManager:
             trace_context=trace_context,
             reason="peer collaboration",
             trust_transfer=TrustTransfer(
-                inherit_permissions=False,
-                trust_level=0.7,
-                can_delegate_further=False
-            )
+                inherit_permissions=False, trust_level=0.7, can_delegate_further=False
+            ),
         )
 
     def succeed(
         self,
         from_agent: str,
         to_agent: str,
-        complete_state: Dict[str, Any],
-        trace_context: Dict[str, str],
-        reason: str = "handoff of full responsibility"
+        complete_state: dict[str, Any],
+        trace_context: dict[str, str],
+        reason: str = "handoff of full responsibility",
     ) -> HandoffRequest:
         """Create a succession handoff (complete transfer)"""
 
@@ -355,27 +351,25 @@ class HandoffManager:
             trace_context=trace_context,
             reason=reason,
             trust_transfer=TrustTransfer(
-                inherit_permissions=True,
-                trust_level=0.9,
-                can_delegate_further=True
-            )
+                inherit_permissions=True, trust_level=0.9, can_delegate_further=True
+            ),
         )
 
-    def get_handoff(self, handoff_id: str) -> Optional[HandoffRequest]:
+    def get_handoff(self, handoff_id: str) -> HandoffRequest | None:
         """Get handoff by ID"""
         return self.active_handoffs.get(handoff_id) or next(
-            (h for h in self.completed_handoffs if h.handoff_id == handoff_id),
-            None
+            (h for h in self.completed_handoffs if h.handoff_id == handoff_id), None
         )
 
-    def get_active_for_agent(self, agent_id: str) -> List[HandoffRequest]:
+    def get_active_for_agent(self, agent_id: str) -> list[HandoffRequest]:
         """Get active handoffs involving an agent"""
         return [
-            h for h in self.active_handoffs.values()
+            h
+            for h in self.active_handoffs.values()
             if h.from_agent == agent_id or h.to_agent == agent_id
         ]
 
-    def get_trace_context(self, handoff_id: str) -> Optional[Dict[str, str]]:
+    def get_trace_context(self, handoff_id: str) -> dict[str, str] | None:
         """Get trace context for continuity"""
         handoff = self.get_handoff(handoff_id)
         if handoff:
@@ -386,40 +380,46 @@ class HandoffManager:
         """Set callback for human escalations"""
         self.human_approval_callback = callback
 
-    def get_audit_trail(self, handoff_id: str = None) -> List[HandoffEvent]:
+    def get_audit_trail(self, handoff_id: str = None) -> list[HandoffEvent]:
         """Get audit trail of events"""
         if handoff_id:
             return [e for e in self.events if e.handoff_id == handoff_id]
         return self.events
 
-    def get_accountability_chain(self, handoff_id: str) -> List[Dict]:
+    def get_accountability_chain(self, handoff_id: str) -> list[dict]:
         """Get the chain of accountability for a handoff"""
         handoff = self.get_handoff(handoff_id)
         if not handoff:
             return []
 
-        chain = [{
-            "agent": handoff.from_agent,
-            "role": "initiator",
-            "timestamp": handoff.created_at.isoformat()
-        }]
+        chain = [
+            {
+                "agent": handoff.from_agent,
+                "role": "initiator",
+                "timestamp": handoff.created_at.isoformat(),
+            }
+        ]
 
         if handoff.accountability.approver:
-            chain.append({
-                "agent": handoff.accountability.approver,
-                "role": "approver",
-                "timestamp": handoff.accepted_at.isoformat() if handoff.accepted_at else None
-            })
+            chain.append(
+                {
+                    "agent": handoff.accountability.approver,
+                    "role": "approver",
+                    "timestamp": handoff.accepted_at.isoformat() if handoff.accepted_at else None,
+                }
+            )
 
-        chain.append({
-            "agent": handoff.to_agent,
-            "role": "executor" if handoff.to_agent != "human" else "human_reviewer",
-            "timestamp": handoff.completed_at.isoformat() if handoff.completed_at else None
-        })
+        chain.append(
+            {
+                "agent": handoff.to_agent,
+                "role": "executor" if handoff.to_agent != "human" else "human_reviewer",
+                "timestamp": handoff.completed_at.isoformat() if handoff.completed_at else None,
+            }
+        )
 
         return chain
 
-    def _emit_event(self, event_type: str, handoff: HandoffRequest, details: Dict = None):
+    def _emit_event(self, event_type: str, handoff: HandoffRequest, details: dict = None):
         """Emit a handoff event"""
         event = HandoffEvent(
             timestamp=datetime.utcnow(),
@@ -427,21 +427,22 @@ class HandoffManager:
             handoff_id=handoff.handoff_id,
             from_agent=handoff.from_agent,
             to_agent=handoff.to_agent,
-            details=details or {}
+            details=details or {},
         )
         self.events.append(event)
 
 
 # Convenience functions
 
+
 def create_delegation(
     manager: HandoffManager,
     from_agent: str,
     to_agent: str,
     task: str,
-    context: Dict,
+    context: dict,
     trace_id: str,
-    span_id: str
+    span_id: str,
 ) -> str:
     """Quick delegation helper"""
     handoff = manager.delegate(
@@ -449,17 +450,13 @@ def create_delegation(
         to_agent=to_agent,
         task_description=task,
         task_state=context,
-        trace_context={"trace_id": trace_id, "span_id": span_id}
+        trace_context={"trace_id": trace_id, "span_id": span_id},
     )
     return handoff.handoff_id
 
 
 def escalate_to_human(
-    manager: HandoffManager,
-    agent_id: str,
-    reason: str,
-    context: Dict,
-    trace_id: str
+    manager: HandoffManager, agent_id: str, reason: str, context: dict, trace_id: str
 ) -> str:
     """Quick human escalation helper"""
     handoff = manager.escalate_to_human(
@@ -468,6 +465,6 @@ def escalate_to_human(
         context=context,
         trace_context={"trace_id": trace_id, "span_id": f"span-{uuid4().hex[:8]}"},
         reason=reason,
-        urgency="high"
+        urgency="high",
     )
     return handoff.handoff_id

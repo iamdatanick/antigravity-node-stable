@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig
 
 
 @dataclass
@@ -276,7 +276,9 @@ class CloudflareAgent(SpecialistAgent):
                 if package_id and package.get("id") != package_id:
                     continue
 
-                rules_url = f"{self._base_url}/zones/{zone}/firewall/waf/packages/{package['id']}/rules"
+                rules_url = (
+                    f"{self._base_url}/zones/{zone}/firewall/waf/packages/{package['id']}/rules"
+                )
                 async with self._session.get(rules_url) as rules_resp:
                     rules_result = await rules_resp.json()
                     all_rules.extend(rules_result.get("result", []))

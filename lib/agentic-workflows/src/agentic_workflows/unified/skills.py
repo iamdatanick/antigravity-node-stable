@@ -30,14 +30,15 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Iterator, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from agentic_workflows.skills import SkillRegistry, SkillDefinition
     from agentic_workflows.openai_skills import OpenAISkillRegistry, SkillManifest
+    from agentic_workflows.skills import SkillDefinition, SkillRegistry
 
 
 logger = logging.getLogger(__name__)
@@ -45,19 +46,21 @@ logger = logging.getLogger(__name__)
 
 class SkillFormat(Enum):
     """Supported skill definition formats."""
-    ANTHROPIC = "anthropic"      # SKILL.md with YAML frontmatter
-    OPENAI_CODEX = "openai"      # OpenAI Codex/Skills format
-    MCP_TOOL = "mcp"             # MCP tool definitions
-    A2A_SKILL = "a2a"            # A2A protocol skills
-    UNIFIED = "unified"          # Internal unified format
+
+    ANTHROPIC = "anthropic"  # SKILL.md with YAML frontmatter
+    OPENAI_CODEX = "openai"  # OpenAI Codex/Skills format
+    MCP_TOOL = "mcp"  # MCP tool definitions
+    A2A_SKILL = "a2a"  # A2A protocol skills
+    UNIFIED = "unified"  # Internal unified format
 
 
 class ToolFormat(Enum):
     """Target tool output formats."""
-    CLAUDE_API = "claude"        # Claude Messages API tool format
-    OPENAI_API = "openai"        # OpenAI function calling format
-    MCP_TOOL = "mcp"             # MCP Tool type
-    A2A_SKILL = "a2a"            # A2A AgentSkill format
+
+    CLAUDE_API = "claude"  # Claude Messages API tool format
+    OPENAI_API = "openai"  # OpenAI function calling format
+    MCP_TOOL = "mcp"  # MCP Tool type
+    A2A_SKILL = "a2a"  # A2A AgentSkill format
 
 
 @dataclass
@@ -82,6 +85,7 @@ class UnifiedSkill:
         raw_content: Full skill content (loaded on demand).
         metadata: Additional format-specific metadata.
     """
+
     name: str
     description: str
     format: SkillFormat = SkillFormat.UNIFIED
@@ -235,6 +239,7 @@ class UnifiedSkill:
 @dataclass
 class SearchResult:
     """Result from unified skill search."""
+
     skill: UnifiedSkill
     score: float = 0.0
     matched_fields: list[str] = field(default_factory=list)
@@ -251,6 +256,7 @@ class SearchResult:
 @dataclass
 class UnifiedSkillConfig:
     """Configuration for the unified skill registry."""
+
     # Discovery paths
     anthropic_paths: list[Path] = field(default_factory=list)
     openai_paths: list[Path] = field(default_factory=list)
@@ -323,18 +329,20 @@ class UnifiedSkillRegistry:
         if self.config.auto_discover:
             self.discover_all()
 
-    def _get_anthropic_registry(self) -> "SkillRegistry":
+    def _get_anthropic_registry(self) -> SkillRegistry:
         """Get or create Anthropic skill registry."""
         if self._anthropic_registry is None:
             try:
                 from agentic_workflows.skills import SkillRegistry, get_registry
+
                 self._anthropic_registry = get_registry()
             except ImportError:
                 from agentic_workflows.skills.registry import SkillRegistry
+
                 self._anthropic_registry = SkillRegistry()
         return self._anthropic_registry
 
-    def _get_openai_registry(self) -> "OpenAISkillRegistry":
+    def _get_openai_registry(self) -> OpenAISkillRegistry:
         """Get or create OpenAI skill registry."""
         if self._openai_registry is None:
             try:
@@ -342,15 +350,15 @@ class UnifiedSkillRegistry:
                     OpenAISkillRegistry,
                     get_openai_skill_registry,
                 )
+
                 self._openai_registry = get_openai_skill_registry()
             except ImportError:
                 from agentic_workflows.openai_skills.registry import (
                     OpenAISkillRegistry,
                     RegistryConfig,
                 )
-                self._openai_registry = OpenAISkillRegistry(
-                    RegistryConfig(auto_index=False)
-                )
+
+                self._openai_registry = OpenAISkillRegistry(RegistryConfig(auto_index=False))
         return self._openai_registry
 
     def discover_all(self, force: bool = False) -> int:
@@ -443,7 +451,7 @@ class UnifiedSkillRegistry:
             logger.warning(f"Failed to discover OpenAI skills: {e}")
             return 0
 
-    def _from_anthropic_skill(self, skill_def: "SkillDefinition") -> UnifiedSkill:
+    def _from_anthropic_skill(self, skill_def: SkillDefinition) -> UnifiedSkill:
         """Convert Anthropic SkillDefinition to UnifiedSkill."""
         return UnifiedSkill(
             name=skill_def.name,
@@ -469,7 +477,7 @@ class UnifiedSkillRegistry:
             _anthropic_skill=skill_def,
         )
 
-    def _from_openai_manifest(self, manifest: "SkillManifest") -> UnifiedSkill:
+    def _from_openai_manifest(self, manifest: SkillManifest) -> UnifiedSkill:
         """Convert OpenAI SkillManifest to UnifiedSkill."""
         return UnifiedSkill(
             name=manifest.name,
@@ -559,9 +567,7 @@ class UnifiedSkillRegistry:
 
             for tag in skill.tags:
                 if tag in self._by_tag:
-                    self._by_tag[tag] = [
-                        n for n in self._by_tag[tag] if n != name
-                    ]
+                    self._by_tag[tag] = [n for n in self._by_tag[tag] if n != name]
 
             self._invalidate_cache()
             return True
@@ -666,16 +672,16 @@ class UnifiedSkillRegistry:
                     continue
 
                 # Calculate score
-                score, matched = self._calculate_score(
-                    skill, query_lower, query_words
-                )
+                score, matched = self._calculate_score(skill, query_lower, query_words)
 
                 if score > 0:
-                    results.append(SearchResult(
-                        skill=skill,
-                        score=score,
-                        matched_fields=matched,
-                    ))
+                    results.append(
+                        SearchResult(
+                            skill=skill,
+                            score=score,
+                            matched_fields=matched,
+                        )
+                    )
 
         # Sort by score
         results.sort(key=lambda r: r.score, reverse=True)
@@ -749,6 +755,7 @@ class UnifiedSkillRegistry:
     def _get_cached(self, key: str) -> list[SearchResult] | None:
         """Get cached search results."""
         import time
+
         if key not in self._cache:
             return None
         timestamp, results = self._cache[key]
@@ -760,6 +767,7 @@ class UnifiedSkillRegistry:
     def _set_cached(self, key: str, results: list[SearchResult]) -> None:
         """Cache search results."""
         import time
+
         self._cache[key] = (time.time(), results)
 
     def _invalidate_cache(self) -> None:
@@ -882,14 +890,8 @@ class UnifiedSkillRegistry:
     def get_stats(self) -> dict[str, Any]:
         """Get registry statistics."""
         with self._lock:
-            by_format = {
-                fmt.value: len(names)
-                for fmt, names in self._by_format.items()
-            }
-            by_domain = {
-                domain: len(names)
-                for domain, names in self._by_domain.items()
-            }
+            by_format = {fmt.value: len(names) for fmt, names in self._by_format.items()}
+            by_domain = {domain: len(names) for domain, names in self._by_domain.items()}
 
             return {
                 "total_skills": len(self._skills),
@@ -897,9 +899,7 @@ class UnifiedSkillRegistry:
                 "by_domain": by_domain,
                 "domains": list(self._by_domain.keys()),
                 "tags": list(self._by_tag.keys()),
-                "deferred_count": sum(
-                    1 for s in self._skills.values() if s.defer_loading
-                ),
+                "deferred_count": sum(1 for s in self._skills.values() if s.defer_loading),
                 "cache_entries": len(self._cache),
             }
 

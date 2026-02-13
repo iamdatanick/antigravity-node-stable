@@ -213,7 +213,7 @@ async def webhook_endpoint(
     # Parse payload
     body_bytes = await request.body()
     payload = WebhookPayload.model_validate_json(body_bytes)
-    
+
     # Validate signature if secret is configured
     if WEBHOOK_SECRET:
         if not x_webhook_signature:
@@ -223,13 +223,9 @@ async def webhook_endpoint(
         signature = x_webhook_signature
         if signature.startswith("sha256="):
             signature = signature[7:]
-        
+
         # Calculate expected signature from raw body
-        expected_sig = hmac.new(
-            WEBHOOK_SECRET.encode(),
-            body_bytes,
-            hashlib.sha256
-        ).hexdigest()
+        expected_sig = hmac.new(WEBHOOK_SECRET.encode(), body_bytes, hashlib.sha256).hexdigest()
 
         if not hmac.compare_digest(signature, expected_sig):
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
@@ -340,7 +336,7 @@ async def inference_endpoint(request: InferenceRequest):
     """OVMS inference endpoint."""
     try:
         result = await run_inference(request.model_name, request.input_data)
-        
+
         # Pass through the status from run_inference
         return InferenceResponse(
             status=result.get("status", "success"),
@@ -380,4 +376,3 @@ async def admin_circuits():
 async def admin_kill_switch():
     """Emergency stop — halts all orchestrator operations."""
     return trigger_kill()
-

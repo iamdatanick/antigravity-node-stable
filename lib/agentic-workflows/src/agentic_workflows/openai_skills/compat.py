@@ -41,26 +41,23 @@ import yaml
 from agentic_workflows.openai_skills.skill_types import (
     ResourceType,
     SkillCategory,
-    SkillInstruction,
     SkillManifest,
     SkillMetadata,
-    SkillResource,
     SkillTool,
-    SkillTrigger,
 )
-
 
 logger = logging.getLogger(__name__)
 
 
 class SkillFormat(Enum):
     """Supported skill format types."""
+
     ANTHROPIC_SKILL_MD = "anthropic_skill_md"  # SKILL.md with YAML frontmatter
-    OPENAI_CODEX = "openai_codex"              # instructions/ + scripts/ folders
-    AGENTSKILLS_IO = "agentskills_io"          # agentskills.io standard
-    AGENTIC_WORKFLOWS = "agentic_workflows"    # agentic_workflows.skills format
-    CLAUDE_COMMANDS = "claude_commands"        # .claude/commands format
-    GENERIC_MARKDOWN = "generic_markdown"      # Plain markdown instructions
+    OPENAI_CODEX = "openai_codex"  # instructions/ + scripts/ folders
+    AGENTSKILLS_IO = "agentskills_io"  # agentskills.io standard
+    AGENTIC_WORKFLOWS = "agentic_workflows"  # agentic_workflows.skills format
+    CLAUDE_COMMANDS = "claude_commands"  # .claude/commands format
+    GENERIC_MARKDOWN = "generic_markdown"  # Plain markdown instructions
 
 
 @dataclass
@@ -76,6 +73,7 @@ class ConversionResult:
         errors: List of conversion errors.
         warnings: List of conversion warnings.
     """
+
     success: bool
     source_format: SkillFormat
     target_format: SkillFormat
@@ -665,9 +663,7 @@ class CrossPlatformDiscovery:
                         seen_names.add(manifest.name)
                         self._manifests[manifest.name] = manifest
                     else:
-                        logger.debug(
-                            f"Skipping duplicate: {manifest.name} from {platform}"
-                        )
+                        logger.debug(f"Skipping duplicate: {manifest.name} from {platform}")
             except Exception as e:
                 logger.warning(f"Error scanning {platform}: {e}")
 
@@ -754,6 +750,7 @@ class CrossPlatformDiscovery:
 
 
 # Convenience functions
+
 
 def detect_format(path: Path) -> SkillFormat | None:
     """Detect skill format from path.

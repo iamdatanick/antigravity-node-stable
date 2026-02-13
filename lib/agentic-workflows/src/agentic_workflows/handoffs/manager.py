@@ -13,9 +13,10 @@ import logging
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +27,10 @@ HANDOFF_SCHEMA_VERSION = "1.1.0"
 class HandoffType(Enum):
     """Types of handoffs."""
 
-    DELEGATION = "delegation"      # Assign subtask to specialist
+    DELEGATION = "delegation"  # Assign subtask to specialist
     COLLABORATION = "collaboration"  # Joint work on task
-    SUCCESSION = "succession"      # Complete transfer of ownership
-    ESCALATION = "escalation"      # Escalate to human or higher authority
+    SUCCESSION = "succession"  # Complete transfer of ownership
+    ESCALATION = "escalation"  # Escalate to human or higher authority
 
 
 class HandoffStatus(Enum):
@@ -95,12 +96,14 @@ class HandoffContext:
 
     def add_message(self, role: str, content: str, agent_id: str = "", **metadata) -> None:
         """Add a message to the conversation history."""
-        self.conversation_history.append(ConversationMessage(
-            role=role,
-            content=content,
-            agent_id=agent_id,
-            metadata=metadata,
-        ))
+        self.conversation_history.append(
+            ConversationMessage(
+                role=role,
+                content=content,
+                agent_id=agent_id,
+                metadata=metadata,
+            )
+        )
 
     def get_recent_messages(self, limit: int = 10) -> list[ConversationMessage]:
         """Get the most recent messages."""
@@ -118,7 +121,9 @@ class HandoffContext:
             errors.append("task_description is required")
 
         if self.schema_version != HANDOFF_SCHEMA_VERSION:
-            errors.append(f"schema_version mismatch: {self.schema_version} != {HANDOFF_SCHEMA_VERSION}")
+            errors.append(
+                f"schema_version mismatch: {self.schema_version} != {HANDOFF_SCHEMA_VERSION}"
+            )
 
         if not self.trace_id:
             errors.append("trace_id is required for distributed tracing")
@@ -150,7 +155,7 @@ class HandoffContext:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "HandoffContext":
+    def from_dict(cls, data: dict[str, Any]) -> HandoffContext:
         """Deserialize context from dictionary."""
         history = [
             ConversationMessage(
@@ -478,7 +483,11 @@ class HandoffManager:
         """
         with self._lock:
             handoff = self._handoffs.get(handoff_id)
-            if handoff and handoff.status in (HandoffStatus.PENDING, HandoffStatus.ACCEPTED, HandoffStatus.IN_PROGRESS):
+            if handoff and handoff.status in (
+                HandoffStatus.PENDING,
+                HandoffStatus.ACCEPTED,
+                HandoffStatus.IN_PROGRESS,
+            ):
                 handoff.status = HandoffStatus.FAILED
                 handoff.error = error
                 handoff.completed_at = time.time()
@@ -518,7 +527,8 @@ class HandoffManager:
             List of human escalations.
         """
         return [
-            h for h in self._handoffs.values()
+            h
+            for h in self._handoffs.values()
             if h.is_to_human and h.status in (HandoffStatus.PENDING, HandoffStatus.ACCEPTED)
         ]
 
@@ -601,8 +611,7 @@ class HandoffManager:
 
             completed = [h for h in self._handoffs.values() if h.duration_seconds]
             avg_duration = (
-                sum(h.duration_seconds for h in completed) / len(completed)
-                if completed else 0
+                sum(h.duration_seconds for h in completed) / len(completed) if completed else 0
             )
 
             return {
@@ -752,7 +761,8 @@ class HandoffManager:
                     handoff.context.conversation_history = handoff.context.get_recent_messages(5)
                 # Clear non-essential metadata
                 handoff.context.metadata = {
-                    k: v for k, v in handoff.context.metadata.items()
+                    k: v
+                    for k, v in handoff.context.metadata.items()
                     if k in ("priority", "trace_id", "critical")
                 }
                 handoff.status = HandoffStatus.PENDING
@@ -926,9 +936,7 @@ Original Background:
                 last_error = e
                 failure_type = HandoffFailureType.UNKNOWN
 
-            logger.warning(
-                f"Handoff {handoff_id} failed (attempt {attempts + 1}): {last_error}"
-            )
+            logger.warning(f"Handoff {handoff_id} failed (attempt {attempts + 1}): {last_error}")
 
             # Attempt repair
             repaired, msg = self.repair_handoff(handoff_id, failure_type)

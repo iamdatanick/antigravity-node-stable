@@ -6,13 +6,11 @@ Reference: https://modelcontextprotocol.io/specification/2025-11-25
 
 from __future__ import annotations
 
-import asyncio
-import json
 import uuid
-from contextlib import asynccontextmanager
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 
 import httpx
 
@@ -382,7 +380,9 @@ class MCPClient:
             result = response.json()
 
             if "error" in result:
-                raise RuntimeError(f"Tool call failed: {result['error'].get('message', 'Unknown error')}")
+                raise RuntimeError(
+                    f"Tool call failed: {result['error'].get('message', 'Unknown error')}"
+                )
 
             return result.get("result")
 

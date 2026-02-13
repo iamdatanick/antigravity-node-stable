@@ -15,59 +15,37 @@ existing openai_apps widgets.
 
 from __future__ import annotations
 
-import asyncio
 import functools
 import json
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable, TypeVar, ParamSpec, overload
+from typing import Any, ParamSpec, TypeVar
 
 from mcp.server import Server
+from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp.server.lowlevel.server import NotificationOptions
 from mcp.types import (
-    Tool,
-    TextContent,
     Resource,
-    CallToolResult,
+    TextContent,
+    Tool,
 )
 
-from .ui_types import (
-    UIResource,
-    UIResourceContent,
-    UIMetadata,
-    MimeType,
-    ContentType,
-    FrameSize,
-    UIActionType,
-    UIActionResult,
-    UIStructuredContent,
-)
-from .resource import (
-    create_ui_resource,
-    RawHtmlResource,
-    ExternalUrlResource,
-    RemoteDomResource,
-    wrap_html_with_adapters,
-    get_apps_sdk_adapter_script,
-)
 from .actions import (
     UIActionHandler,
-    UIActionHandlerConfig,
     create_action_handler,
 )
-from .components import (
-    create_component_html,
-    create_component_resource,
-    ButtonConfig,
-    InputConfig,
-    SelectConfig,
-    TableConfig,
-    ChartConfig,
-    ListConfig,
-    CardConfig,
+from .resource import (
+    RawHtmlResource,
+    wrap_html_with_adapters,
+)
+from .ui_types import (
+    MimeType,
+    UIResource,
+    UIResourceContent,
+    UIStructuredContent,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,6 +70,7 @@ class UIToolRegistration:
         return_type: Expected return type (resource, structured, auto).
         enable_apps_sdk: Enable Apps SDK adapter for responses.
     """
+
     name: str
     handler: UIToolHandler
     description: str = ""
@@ -112,6 +91,7 @@ class UIResourceTemplate:
         html: HTML content.
         mime_type: Content MIME type.
     """
+
     uri: str
     name: str
     description: str = ""
@@ -173,16 +153,22 @@ class MCPUIServer:
             tools = []
 
             for name, reg in self._ui_tools.items():
-                schema = reg.input_schema.copy() if reg.input_schema else {
-                    "type": "object",
-                    "properties": {},
-                }
+                schema = (
+                    reg.input_schema.copy()
+                    if reg.input_schema
+                    else {
+                        "type": "object",
+                        "properties": {},
+                    }
+                )
 
-                tools.append(Tool(
-                    name=name,
-                    description=reg.description or f"UI Tool: {name}",
-                    inputSchema=schema,
-                ))
+                tools.append(
+                    Tool(
+                        name=name,
+                        description=reg.description or f"UI Tool: {name}",
+                        inputSchema=schema,
+                    )
+                )
 
             return tools
 
@@ -190,10 +176,12 @@ class MCPUIServer:
         async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             """Execute a UI tool."""
             if name not in self._ui_tools:
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({"error": f"Unknown tool: {name}"}),
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps({"error": f"Unknown tool: {name}"}),
+                    )
+                ]
 
             reg = self._ui_tools[name]
 
@@ -204,25 +192,31 @@ class MCPUIServer:
                 # Convert result to response format
                 response = self._format_tool_response(result, reg)
 
-                return [TextContent(
-                    type="text",
-                    text=json.dumps(response, indent=2),
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(response, indent=2),
+                    )
+                ]
 
             except Exception as e:
                 logger.exception(f"UI tool error: {name}")
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({
-                        "error": str(e),
-                        "type": "resource",
-                        "resource": {
-                            "uri": f"ui://error/{uuid.uuid4().hex[:8]}",
-                            "mimeType": "text/html",
-                            "text": f"<p style='color: red;'>Error: {str(e)}</p>",
-                        },
-                    }),
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "error": str(e),
+                                "type": "resource",
+                                "resource": {
+                                    "uri": f"ui://error/{uuid.uuid4().hex[:8]}",
+                                    "mimeType": "text/html",
+                                    "text": f"<p style='color: red;'>Error: {str(e)}</p>",
+                                },
+                            }
+                        ),
+                    )
+                ]
 
         @self.server.list_resources()
         async def list_resources() -> list[Resource]:
@@ -230,12 +224,14 @@ class MCPUIServer:
             resources = []
 
             for uri, template in self._templates.items():
-                resources.append(Resource(
-                    uri=template.uri,
-                    name=template.name,
-                    description=template.description,
-                    mimeType=template.mime_type,
-                ))
+                resources.append(
+                    Resource(
+                        uri=template.uri,
+                        name=template.name,
+                        description=template.description,
+                        mimeType=template.mime_type,
+                    )
+                )
 
             return resources
 
@@ -276,9 +272,7 @@ class MCPUIServer:
             if "html" in result or "content" in result:
                 html = result.get("html") or result.get("content", "")
                 if reg.enable_apps_sdk and self.enable_apps_sdk:
-                    html = wrap_html_with_adapters(html, {
-                        "appsSdk": {"enabled": True}
-                    })
+                    html = wrap_html_with_adapters(html, {"appsSdk": {"enabled": True}})
 
                 uri = result.get("uri") or f"ui://response/{uuid.uuid4().hex[:8]}"
                 return {
@@ -348,7 +342,9 @@ class MCPUIServer:
             input_schema=input_schema or {},
             template_uri=template_uri,
             return_type=return_type,
-            enable_apps_sdk=enable_apps_sdk if enable_apps_sdk is not None else self.enable_apps_sdk,
+            enable_apps_sdk=enable_apps_sdk
+            if enable_apps_sdk is not None
+            else self.enable_apps_sdk,
         )
         logger.info(f"Registered UI tool: {name}")
 
@@ -379,6 +375,7 @@ class MCPUIServer:
             ...     products = await get_products(category)
             ...     return create_product_list_ui(products)
         """
+
         def decorator(handler: UIToolHandler) -> UIToolHandler:
             tool_name = name or handler.__name__
             self.register_ui_tool(
@@ -390,6 +387,7 @@ class MCPUIServer:
                 enable_apps_sdk=enable_apps_sdk,
             )
             return handler
+
         return decorator
 
     def register_template(
@@ -509,6 +507,7 @@ def ui_tool(
         ...     handler=search_products,
         ... )
     """
+
     def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
         # Store metadata on function for later registration
         func._ui_tool_metadata = {  # type: ignore
@@ -518,6 +517,7 @@ def ui_tool(
             "enable_apps_sdk": enable_apps_sdk,
         }
         return func
+
     return decorator
 
 
@@ -580,13 +580,15 @@ class OpenAIAppsWidgetAdapter:
             if not uri:
                 uri = f"ui://widget/{uuid.uuid4().hex[:8]}"
 
-            content_json = json.dumps({
-                **widget_data,
-                "_meta": {
-                    **meta,
-                    "mcp-ui/template": template,
-                },
-            })
+            content_json = json.dumps(
+                {
+                    **widget_data,
+                    "_meta": {
+                        **meta,
+                        "mcp-ui/template": template,
+                    },
+                }
+            )
 
             return UIResource(
                 uri=uri,
@@ -719,6 +721,7 @@ document.getElementById('widget-root').innerHTML = renderer(widgetData);
             >>> adapted = adapter.adapt_widget_handler(products, "widget://list-view")
             >>> server.register_ui_tool("products", adapted)
         """
+
         @functools.wraps(handler)
         async def adapted_handler(**kwargs: Any) -> UIResource:
             result = await handler(**kwargs)

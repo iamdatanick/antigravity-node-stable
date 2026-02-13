@@ -124,7 +124,10 @@ class Provenance:
             # Check hash continuity
             if prev_output_hash and entry.input_hash:
                 if prev_output_hash != entry.input_hash:
-                    return False, f"Hash mismatch at entry {i}: expected {prev_output_hash}, got {entry.input_hash}"
+                    return (
+                        False,
+                        f"Hash mismatch at entry {i}: expected {prev_output_hash}, got {entry.input_hash}",
+                    )
 
             # Check timestamp ordering
             if i > 0 and entry.timestamp < self.chain[i - 1].timestamp:
@@ -300,7 +303,9 @@ class ProvenanceChain:
             return self._records.get(data_id)
         return None
 
-    def find_by_source(self, source_type: SourceType, identifier: str | None = None) -> list[Provenance]:
+    def find_by_source(
+        self, source_type: SourceType, identifier: str | None = None
+    ) -> list[Provenance]:
         """Find all provenance records from a source.
 
         Args:
@@ -325,10 +330,7 @@ class ProvenanceChain:
         Returns:
             Dict of data_id to (is_valid, error_message).
         """
-        return {
-            data_id: prov.verify_chain()
-            for data_id, prov in self._records.items()
-        }
+        return {data_id: prov.verify_chain() for data_id, prov in self._records.items()}
 
     def _compute_hash(self, content: Any) -> str:
         """Compute hash of content."""
@@ -364,22 +366,21 @@ class ProvenanceChain:
         ]
 
         for i, entry in enumerate(prov.chain):
-            lineage.append({
-                "step": i + 1,
-                "source": entry.source.full_identifier,
-                "action": entry.action,
-                "description": entry.description,
-                "timestamp": entry.timestamp,
-            })
+            lineage.append(
+                {
+                    "step": i + 1,
+                    "source": entry.source.full_identifier,
+                    "action": entry.action,
+                    "description": entry.description,
+                    "timestamp": entry.timestamp,
+                }
+            )
 
         return lineage
 
     def export(self) -> dict[str, Any]:
         """Export all provenance records."""
-        return {
-            data_id: prov.to_dict()
-            for data_id, prov in self._records.items()
-        }
+        return {data_id: prov.to_dict() for data_id, prov in self._records.items()}
 
     def import_records(self, data: dict[str, Any]) -> int:
         """Import provenance records.

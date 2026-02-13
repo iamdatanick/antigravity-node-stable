@@ -7,40 +7,39 @@ the agent to learn from experience and make better decisions.
 from __future__ import annotations
 
 import hashlib
-import json
 import time
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Iterator
-from collections import defaultdict
+from typing import Any
 
 
 class EdgeType(Enum):
     """Types of edges in the context graph."""
 
-    DERIVED_FROM = "derived_from"      # Node was derived from another
-    CAUSED = "caused"                   # Action caused outcome
-    SIMILAR_TO = "similar_to"           # Semantic similarity
-    CONTRADICTS = "contradicts"         # Conflicting information
-    SUPPORTS = "supports"               # Supporting evidence
-    SUPERSEDES = "supersedes"           # New info replaces old
-    REFERENCES = "references"           # References another node
-    FOLLOWED_BY = "followed_by"         # Temporal sequence
+    DERIVED_FROM = "derived_from"  # Node was derived from another
+    CAUSED = "caused"  # Action caused outcome
+    SIMILAR_TO = "similar_to"  # Semantic similarity
+    CONTRADICTS = "contradicts"  # Conflicting information
+    SUPPORTS = "supports"  # Supporting evidence
+    SUPERSEDES = "supersedes"  # New info replaces old
+    REFERENCES = "references"  # References another node
+    FOLLOWED_BY = "followed_by"  # Temporal sequence
 
 
 class NodeType(Enum):
     """Types of nodes in the context graph."""
 
-    TASK = "task"                       # User task/request
-    THOUGHT = "thought"                 # Agent reasoning
-    DECISION = "decision"               # Decision made
-    ACTION = "action"                   # Action taken
-    OUTCOME = "outcome"                 # Result of action
-    OBSERVATION = "observation"         # Observed fact
-    INSIGHT = "insight"                 # Learned insight
-    PATTERN = "pattern"                 # Detected pattern
-    ERROR = "error"                     # Error/failure
-    CORRECTION = "correction"           # Correction of error
+    TASK = "task"  # User task/request
+    THOUGHT = "thought"  # Agent reasoning
+    DECISION = "decision"  # Decision made
+    ACTION = "action"  # Action taken
+    OUTCOME = "outcome"  # Result of action
+    OBSERVATION = "observation"  # Observed fact
+    INSIGHT = "insight"  # Learned insight
+    PATTERN = "pattern"  # Detected pattern
+    ERROR = "error"  # Error/failure
+    CORRECTION = "correction"  # Correction of error
 
 
 @dataclass
@@ -551,7 +550,11 @@ class LearningContextGraph:
         # Score insights by relevance and proven success
         scored = []
         for insight in insights:
-            score = insight.success_rate * insight.confidence * (insight.applications / max(1, insight.evidence_count))
+            score = (
+                insight.success_rate
+                * insight.confidence
+                * (insight.applications / max(1, insight.evidence_count))
+            )
             scored.append((insight, score))
 
         scored.sort(key=lambda x: x[1], reverse=True)
@@ -574,12 +577,14 @@ class LearningContextGraph:
         results = []
         for key, insight in self._insights.items():
             if insight.success_rate >= min_success_rate and insight.evidence_count >= 3:
-                results.append({
-                    "pattern": insight.pattern,
-                    "success_rate": insight.success_rate,
-                    "confidence": insight.confidence,
-                    "applications": insight.applications,
-                })
+                results.append(
+                    {
+                        "pattern": insight.pattern,
+                        "success_rate": insight.success_rate,
+                        "confidence": insight.confidence,
+                        "applications": insight.applications,
+                    }
+                )
 
         results.sort(key=lambda x: x["success_rate"] * x["confidence"], reverse=True)
         return results
@@ -592,10 +597,10 @@ class LearningContextGraph:
             # Combine factors: importance, recency, access count, usefulness
             recency = 1.0 / (1.0 + time.time() - node.last_accessed)
             score = (
-                node.importance * 0.3 +
-                recency * 0.2 +
-                min(1.0, node.access_count / 10) * 0.2 +
-                node.usefulness * 0.3
+                node.importance * 0.3
+                + recency * 0.2
+                + min(1.0, node.access_count / 10) * 0.2
+                + node.usefulness * 0.3
             )
             scored.append((node.id, score))
 
@@ -614,7 +619,9 @@ class LearningContextGraph:
             self._by_type[node.node_type].discard(node_id)
 
             # Remove edges
-            self._edges = [e for e in self._edges if e.source_id != node_id and e.target_id != node_id]
+            self._edges = [
+                e for e in self._edges if e.source_id != node_id and e.target_id != node_id
+            ]
             self._outgoing.pop(node_id, None)
             self._incoming.pop(node_id, None)
 

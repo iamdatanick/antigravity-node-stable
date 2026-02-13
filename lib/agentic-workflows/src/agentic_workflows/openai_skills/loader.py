@@ -29,11 +29,11 @@ Version: 1.0.0
 from __future__ import annotations
 
 import logging
-import os
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import yaml
 
@@ -45,18 +45,13 @@ from agentic_workflows.openai_skills.skill_types import (
     SkillMetadata,
     SkillResource,
     SkillTool,
-    SkillTrigger,
 )
-
 
 logger = logging.getLogger(__name__)
 
 
 # Pattern for YAML frontmatter extraction
-FRONTMATTER_PATTERN = re.compile(
-    r"^---\s*\n(.*?)\n---\s*\n?",
-    re.DOTALL | re.MULTILINE
-)
+FRONTMATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL | re.MULTILINE)
 
 # Pattern for markdown headings
 HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
@@ -72,6 +67,7 @@ class SkillPath:
         recursive: Whether to search subdirectories.
         enabled: Whether this path is active.
     """
+
     path: Path
     category: SkillCategory = SkillCategory.USER
     recursive: bool = True
@@ -96,18 +92,11 @@ class LoaderConfig:
         max_skill_size: Maximum SKILL.md file size in bytes.
         encoding: Text file encoding.
     """
-    claude_user_path: Path = field(
-        default_factory=lambda: Path.home() / ".claude" / "skills"
-    )
-    codex_user_path: Path = field(
-        default_factory=lambda: Path.home() / ".codex" / "skills"
-    )
-    claude_project_path: Path = field(
-        default_factory=lambda: Path(".claude") / "skills"
-    )
-    codex_project_path: Path = field(
-        default_factory=lambda: Path(".codex") / "skills"
-    )
+
+    claude_user_path: Path = field(default_factory=lambda: Path.home() / ".claude" / "skills")
+    codex_user_path: Path = field(default_factory=lambda: Path.home() / ".codex" / "skills")
+    claude_project_path: Path = field(default_factory=lambda: Path(".claude") / "skills")
+    codex_project_path: Path = field(default_factory=lambda: Path(".codex") / "skills")
     additional_paths: list[Path] = field(default_factory=list)
     load_resources: bool = True
     max_skill_size: int = 1024 * 1024  # 1MB
@@ -158,36 +147,46 @@ class SkillLoader:
     def _setup_default_paths(self) -> None:
         """Configure default skill discovery paths."""
         # Claude Code user skills
-        self.skill_paths.append(SkillPath(
-            path=self.config.claude_user_path,
-            category=SkillCategory.USER,
-        ))
+        self.skill_paths.append(
+            SkillPath(
+                path=self.config.claude_user_path,
+                category=SkillCategory.USER,
+            )
+        )
 
         # OpenAI Codex user skills
-        self.skill_paths.append(SkillPath(
-            path=self.config.codex_user_path,
-            category=SkillCategory.USER,
-        ))
+        self.skill_paths.append(
+            SkillPath(
+                path=self.config.codex_user_path,
+                category=SkillCategory.USER,
+            )
+        )
 
         # Project-level Claude skills
         cwd = Path.cwd()
-        self.skill_paths.append(SkillPath(
-            path=cwd / self.config.claude_project_path,
-            category=SkillCategory.PROJECT,
-        ))
+        self.skill_paths.append(
+            SkillPath(
+                path=cwd / self.config.claude_project_path,
+                category=SkillCategory.PROJECT,
+            )
+        )
 
         # Project-level Codex skills
-        self.skill_paths.append(SkillPath(
-            path=cwd / self.config.codex_project_path,
-            category=SkillCategory.PROJECT,
-        ))
+        self.skill_paths.append(
+            SkillPath(
+                path=cwd / self.config.codex_project_path,
+                category=SkillCategory.PROJECT,
+            )
+        )
 
         # Additional configured paths
         for path in self.config.additional_paths:
-            self.skill_paths.append(SkillPath(
-                path=path,
-                category=SkillCategory.USER,
-            ))
+            self.skill_paths.append(
+                SkillPath(
+                    path=path,
+                    category=SkillCategory.USER,
+                )
+            )
 
     def add_path(
         self,
@@ -203,11 +202,13 @@ class SkillLoader:
             recursive: Whether to search subdirectories.
         """
         resolved = Path(path).expanduser().resolve()
-        self.skill_paths.append(SkillPath(
-            path=resolved,
-            category=category,
-            recursive=recursive,
-        ))
+        self.skill_paths.append(
+            SkillPath(
+                path=resolved,
+                category=category,
+                recursive=recursive,
+            )
+        )
         logger.debug(f"Added skill path: {resolved}")
 
     def remove_path(self, path: Path) -> bool:
@@ -254,8 +255,7 @@ class SkillLoader:
                 for manifest in self._scan_directory(skill_path):
                     if manifest.name in self._cached_manifests:
                         logger.warning(
-                            f"Duplicate skill '{manifest.name}' found, "
-                            f"keeping first occurrence"
+                            f"Duplicate skill '{manifest.name}' found, keeping first occurrence"
                         )
                         continue
 
@@ -270,10 +270,7 @@ class SkillLoader:
         logger.info(f"Discovered {len(manifests)} skills from {len(self.skill_paths)} paths")
         return manifests
 
-    def _scan_directory(
-        self,
-        skill_path: SkillPath
-    ) -> Iterator[SkillManifest]:
+    def _scan_directory(self, skill_path: SkillPath) -> Iterator[SkillManifest]:
         """Scan a directory for skill definitions.
 
         Args:
@@ -291,10 +288,7 @@ class SkillLoader:
             # Check for SKILL.md (case-insensitive)
             if md_file.name.upper() == "SKILL.MD":
                 try:
-                    manifest = self._parse_skill_md(
-                        md_file,
-                        skill_path.category
-                    )
+                    manifest = self._parse_skill_md(md_file, skill_path.category)
                     yield manifest
                 except Exception as e:
                     logger.error(f"Failed to parse {md_file}: {e}")
@@ -302,10 +296,7 @@ class SkillLoader:
             # Also check for *.skill.md pattern
             elif md_file.name.lower().endswith(".skill.md"):
                 try:
-                    manifest = self._parse_skill_md(
-                        md_file,
-                        skill_path.category
-                    )
+                    manifest = self._parse_skill_md(md_file, skill_path.category)
                     yield manifest
                 except Exception as e:
                     logger.error(f"Failed to parse {md_file}: {e}")
@@ -318,20 +309,13 @@ class SkillLoader:
             instructions_dir = dir_path / "instructions"
             if instructions_dir.exists() and instructions_dir.is_dir():
                 try:
-                    manifest = self._parse_codex_skill(
-                        dir_path,
-                        skill_path.category
-                    )
+                    manifest = self._parse_codex_skill(dir_path, skill_path.category)
                     if manifest:
                         yield manifest
                 except Exception as e:
                     logger.error(f"Failed to parse Codex skill {dir_path}: {e}")
 
-    def _parse_skill_md(
-        self,
-        path: Path,
-        category: SkillCategory
-    ) -> SkillManifest:
+    def _parse_skill_md(self, path: Path, category: SkillCategory) -> SkillManifest:
         """Parse a SKILL.md file into a manifest.
 
         Args:
@@ -356,7 +340,7 @@ class SkillLoader:
             raise ValueError(f"No valid YAML frontmatter in: {path}")
 
         frontmatter_text = match.group(1)
-        body_content = content[match.end():].strip()
+        body_content = content[match.end() :].strip()
 
         # Parse YAML
         try:
@@ -428,11 +412,7 @@ class SkillLoader:
 
         return manifest
 
-    def _parse_codex_skill(
-        self,
-        path: Path,
-        category: SkillCategory
-    ) -> SkillManifest | None:
+    def _parse_codex_skill(self, path: Path, category: SkillCategory) -> SkillManifest | None:
         """Parse an OpenAI Codex format skill.
 
         Codex skills have an instructions/ folder with markdown files
@@ -458,11 +438,13 @@ class SkillLoader:
                 content = md_file.read_text(encoding=self.config.encoding)
                 combined_content.append(f"# {md_file.stem}\n\n{content}")
 
-                instructions.append(SkillInstruction(
-                    title=md_file.stem,
-                    content=content,
-                    order=idx,
-                ))
+                instructions.append(
+                    SkillInstruction(
+                        title=md_file.stem,
+                        content=content,
+                        order=idx,
+                    )
+                )
             except Exception as e:
                 logger.warning(f"Failed to read {md_file}: {e}")
 
@@ -538,11 +520,7 @@ class SkillLoader:
 
         return resources
 
-    def load_skill(
-        self,
-        name: str,
-        include_resources: bool = True
-    ) -> SkillManifest | None:
+    def load_skill(self, name: str, include_resources: bool = True) -> SkillManifest | None:
         """Load full skill content by name.
 
         This method loads the complete skill including parsed instructions
@@ -576,9 +554,7 @@ class SkillLoader:
                     resource_path = skill_dir / resource.path
                     if resource_path.exists():
                         try:
-                            resource.content = resource_path.read_text(
-                                encoding=resource.encoding
-                            )
+                            resource.content = resource_path.read_text(encoding=resource.encoding)
                         except Exception as e:
                             logger.warning(f"Failed to load resource {resource.path}: {e}")
 
@@ -628,11 +604,13 @@ class SkillLoader:
         if len(parts) < 3:
             # No headings, treat whole content as single instruction
             if content.strip():
-                instructions.append(SkillInstruction(
-                    title="Instructions",
-                    content=content.strip(),
-                    order=0,
-                ))
+                instructions.append(
+                    SkillInstruction(
+                        title="Instructions",
+                        content=content.strip(),
+                        order=0,
+                    )
+                )
             return instructions
 
         # Process heading pairs
@@ -649,11 +627,13 @@ class SkillLoader:
             else:
                 section_content = ""
 
-            instructions.append(SkillInstruction(
-                title=heading_text.strip(),
-                content=section_content,
-                order=current_order,
-            ))
+            instructions.append(
+                SkillInstruction(
+                    title=heading_text.strip(),
+                    content=section_content,
+                    order=current_order,
+                )
+            )
             current_order += 1
 
         return instructions
@@ -789,6 +769,7 @@ class SkillLoader:
 
 
 # Convenience functions
+
 
 def create_default_loader() -> SkillLoader:
     """Create a skill loader with default configuration.

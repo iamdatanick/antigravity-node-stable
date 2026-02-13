@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -174,12 +175,14 @@ class Pipeline:
                     stage.status = StageStatus.FAILED
                     stages_failed += 1
 
-                    stage_results.append({
-                        "name": stage.name,
-                        "status": stage.status.value,
-                        "duration": stage.duration_seconds,
-                        "error": stage.error,
-                    })
+                    stage_results.append(
+                        {
+                            "name": stage.name,
+                            "status": stage.status.value,
+                            "duration": stage.duration_seconds,
+                            "error": stage.error,
+                        }
+                    )
 
                     return PipelineResult(
                         success=False,
@@ -191,12 +194,14 @@ class Pipeline:
                         error=f"Stage '{stage.name}' failed: {e}",
                     )
 
-            stage_results.append({
-                "name": stage.name,
-                "status": stage.status.value,
-                "duration": stage.duration_seconds,
-                "error": stage.error,
-            })
+            stage_results.append(
+                {
+                    "name": stage.name,
+                    "status": stage.status.value,
+                    "duration": stage.duration_seconds,
+                    "error": stage.error,
+                }
+            )
 
         return PipelineResult(
             success=True,
@@ -234,9 +239,7 @@ class Pipeline:
                 else:
                     # Run sync processor in executor
                     loop = asyncio.get_event_loop()
-                    coro = loop.run_in_executor(
-                        None, stage.processor, current_value
-                    )
+                    coro = loop.run_in_executor(None, stage.processor, current_value)
 
                 if stage.timeout_seconds:
                     output = await asyncio.wait_for(coro, timeout=stage.timeout_seconds)
@@ -271,12 +274,14 @@ class Pipeline:
                     stage.status = StageStatus.FAILED
                     stages_failed += 1
 
-                    stage_results.append({
-                        "name": stage.name,
-                        "status": stage.status.value,
-                        "duration": stage.duration_seconds,
-                        "error": stage.error,
-                    })
+                    stage_results.append(
+                        {
+                            "name": stage.name,
+                            "status": stage.status.value,
+                            "duration": stage.duration_seconds,
+                            "error": stage.error,
+                        }
+                    )
 
                     return PipelineResult(
                         success=False,
@@ -298,12 +303,14 @@ class Pipeline:
                     stage.status = StageStatus.FAILED
                     stages_failed += 1
 
-                    stage_results.append({
-                        "name": stage.name,
-                        "status": stage.status.value,
-                        "duration": stage.duration_seconds,
-                        "error": stage.error,
-                    })
+                    stage_results.append(
+                        {
+                            "name": stage.name,
+                            "status": stage.status.value,
+                            "duration": stage.duration_seconds,
+                            "error": stage.error,
+                        }
+                    )
 
                     return PipelineResult(
                         success=False,
@@ -315,12 +322,14 @@ class Pipeline:
                         error=f"Stage '{stage.name}' failed: {e}",
                     )
 
-            stage_results.append({
-                "name": stage.name,
-                "status": stage.status.value,
-                "duration": stage.duration_seconds,
-                "error": stage.error,
-            })
+            stage_results.append(
+                {
+                    "name": stage.name,
+                    "status": stage.status.value,
+                    "duration": stage.duration_seconds,
+                    "error": stage.error,
+                }
+            )
 
         return PipelineResult(
             success=True,

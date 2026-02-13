@@ -14,22 +14,18 @@ Based on the mcp-ui-server package specification.
 
 from __future__ import annotations
 
-import base64
-import json
 import uuid
-from dataclasses import dataclass, field
-from typing import Any, Literal, overload
+from dataclasses import dataclass
+from typing import Any, Literal
 
 from .ui_types import (
-    UIResource,
-    UIResourceContent,
-    UIMetadata,
-    MimeType,
     ContentType,
     FrameSize,
-    UIStructuredContent,
+    MimeType,
+    UIMetadata,
+    UIResource,
+    UIResourceContent,
 )
-
 
 # Metadata key prefix
 UI_METADATA_PREFIX = "mcp-ui/"
@@ -43,6 +39,7 @@ class AppsSdkConfig:
         enabled: Whether the adapter is enabled.
         intent_handling: How to handle intents ('ignore', 'prompt', 'error').
     """
+
     enabled: bool = False
     intent_handling: Literal["ignore", "prompt", "error"] = "prompt"
 
@@ -61,6 +58,7 @@ class AdapterConfig:
     Attributes:
         apps_sdk: Configuration for Apps SDK adapter (ChatGPT compatibility).
     """
+
     apps_sdk: AppsSdkConfig | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -84,6 +82,7 @@ class ResourceContent:
         script: JavaScript for remoteDom type.
         framework: Framework for remoteDom type (react or webcomponents).
     """
+
     type: ContentType
     html_string: str = ""
     iframe_url: str = ""
@@ -91,7 +90,7 @@ class ResourceContent:
     framework: Literal["react", "webcomponents"] = "react"
 
     @classmethod
-    def raw_html(cls, html_string: str) -> "ResourceContent":
+    def raw_html(cls, html_string: str) -> ResourceContent:
         """Create raw HTML content.
 
         Args:
@@ -103,7 +102,7 @@ class ResourceContent:
         return cls(type=ContentType.RAW_HTML, html_string=html_string)
 
     @classmethod
-    def external_url(cls, iframe_url: str) -> "ResourceContent":
+    def external_url(cls, iframe_url: str) -> ResourceContent:
         """Create external URL content.
 
         Args:
@@ -119,7 +118,7 @@ class ResourceContent:
         cls,
         script: str,
         framework: Literal["react", "webcomponents"] = "react",
-    ) -> "ResourceContent":
+    ) -> ResourceContent:
         """Create Remote DOM content.
 
         Args:
@@ -428,12 +427,15 @@ class RawHtmlResource:
 
         # Apply adapters if enabled
         if enable_apps_sdk:
-            html = wrap_html_with_adapters(html, {
-                "appsSdk": {
-                    "enabled": True,
-                    "config": apps_sdk_config or {},
-                }
-            })
+            html = wrap_html_with_adapters(
+                html,
+                {
+                    "appsSdk": {
+                        "enabled": True,
+                        "config": apps_sdk_config or {},
+                    }
+                },
+            )
 
         # Create content
         if encoding == "blob":

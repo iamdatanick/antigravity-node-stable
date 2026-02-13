@@ -1,11 +1,11 @@
 import asyncio
+
 import httpx
-from workflows.resilience import get_circuit_states
 
 
 async def _check_url(client, name, url, accept_codes=(200,), accept_any=False):
     """Check URL endpoint health.
-    
+
     Args:
         client: httpx AsyncClient
         name: Service name
@@ -26,17 +26,14 @@ async def _check_url(client, name, url, accept_codes=(200,), accept_any=False):
 
 async def _check_tcp(name, host, port):
     """Check TCP port health.
-    
+
     Args:
         name: Service name
         host: Hostname
         port: Port number
     """
     try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, port),
-            timeout=5.0
-        )
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=5.0)
         writer.close()
         await writer.wait_closed()
         return {"name": name, "healthy": True, "error": None}

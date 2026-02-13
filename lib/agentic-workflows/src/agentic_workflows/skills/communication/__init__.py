@@ -18,14 +18,17 @@ Based on:
 """
 
 from __future__ import annotations
+
+import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Any, Optional, Callable
-import asyncio
+from typing import Any, Dict, List, Optional
 
 # SDK imports
 try:
     from anthropic import AsyncAnthropic
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
@@ -33,19 +36,21 @@ except ImportError:
 try:
     from mcp import ClientSession
     from mcp.client.sse import sse_client
+
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
 
 from pydantic import BaseModel, Field
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENUMS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class CommunicationChannel(Enum):
     """Communication channels"""
+
     EMAIL = "email"
     WHATSAPP = "whatsapp"
     SLACK = "slack"
@@ -54,6 +59,7 @@ class CommunicationChannel(Enum):
 
 class DocumentType(Enum):
     """Document types"""
+
     XLSX = "xlsx"
     PDF = "pdf"
     DOCX = "docx"
@@ -65,54 +71,61 @@ class DocumentType(Enum):
 # MODELS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class EmailMessage(BaseModel):
     """Email message structure"""
+
     id: str
     from_addr: str = Field(alias="from")
-    to: List[str]
+    to: list[str]
     subject: str
     body: str
     date: str
-    attachments: List[str] = Field(default_factory=list)
-    labels: List[str] = Field(default_factory=list)
+    attachments: list[str] = Field(default_factory=list)
+    labels: list[str] = Field(default_factory=list)
     is_read: bool = False
 
 
 class EmailAction(BaseModel):
     """Email action definition"""
+
     action: str  # send, reply, forward, archive, label, delete
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict)
 
 
 class ResearchQuery(BaseModel):
     """Research query structure"""
+
     query: str
-    subtopics: List[str] = Field(default_factory=list)
+    subtopics: list[str] = Field(default_factory=list)
     depth: int = 2
     max_sources: int = 10
 
 
 class ResearchResult(BaseModel):
     """Research result structure"""
+
     query: str
-    findings: List[Dict[str, Any]]
-    sources: List[str]
+    findings: list[dict[str, Any]]
+    sources: list[str]
     summary: str
     confidence: float
 
 
 class SpreadsheetOperation(BaseModel):
     """Spreadsheet operation"""
+
     operation: str  # read, write, formula, format, chart
     sheet: str = "Sheet1"
     range: str = ""
     data: Any = None
-    formula: Optional[str] = None
+    formula: str | None = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # EMAIL SKILL
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class EmailSkill:
@@ -131,6 +144,7 @@ class EmailSkill:
     - finance-email-labeler: Label financial emails
     - todo-extractor: Extract tasks from emails
     """
+
     name: str = "email"
     description: str = "Email management with AI-powered classification and automation"
 
@@ -141,32 +155,34 @@ class EmailSkill:
     smtp_port: int = 587
 
     # AI client
-    claude: Optional[AsyncAnthropic] = None
+    claude: AsyncAnthropic | None = None
 
-    tools: List[str] = field(default_factory=lambda: [
-        "email_list",
-        "email_read",
-        "email_search",
-        "email_send",
-        "email_reply",
-        "email_forward",
-        "email_archive",
-        "email_label",
-        "email_delete",
-        "email_classify",
-        "email_summarize",
-    ])
+    tools: list[str] = field(
+        default_factory=lambda: [
+            "email_list",
+            "email_read",
+            "email_search",
+            "email_send",
+            "email_reply",
+            "email_forward",
+            "email_archive",
+            "email_label",
+            "email_delete",
+            "email_classify",
+            "email_summarize",
+        ]
+    )
 
     def __post_init__(self):
         if ANTHROPIC_AVAILABLE and self.claude is None:
             self.claude = AsyncAnthropic()
 
-    async def list_emails(self, folder: str = "INBOX", limit: int = 20) -> List[EmailMessage]:
+    async def list_emails(self, folder: str = "INBOX", limit: int = 20) -> list[EmailMessage]:
         """List emails from folder"""
         # Integration point - would connect to IMAP
         return []
 
-    async def search_emails(self, query: str, limit: int = 50) -> List[EmailMessage]:
+    async def search_emails(self, query: str, limit: int = 50) -> list[EmailMessage]:
         """AI-powered semantic email search"""
         if not self.claude:
             return []
@@ -175,15 +191,17 @@ class EmailSkill:
         response = await self.claude.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1000,
-            messages=[{
-                "role": "user",
-                "content": f"Convert this natural language email search to IMAP search criteria: {query}"
-            }]
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Convert this natural language email search to IMAP search criteria: {query}",
+                }
+            ],
         )
         # Execute search and return results
         return []
 
-    async def classify_email(self, email: EmailMessage) -> Dict[str, Any]:
+    async def classify_email(self, email: EmailMessage) -> dict[str, Any]:
         """AI classification of email"""
         if not self.claude:
             return {"category": "general", "priority": "normal"}
@@ -191,10 +209,12 @@ class EmailSkill:
         response = await self.claude.messages.create(
             model="claude-haiku-3-20240307",
             max_tokens=500,
-            messages=[{
-                "role": "user",
-                "content": f"Classify this email:\nSubject: {email.subject}\nFrom: {email.from_addr}\nBody: {email.body[:500]}\n\nProvide: category, priority, sentiment, suggested_actions"
-            }]
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Classify this email:\nSubject: {email.subject}\nFrom: {email.from_addr}\nBody: {email.body[:500]}\n\nProvide: category, priority, sentiment, suggested_actions",
+                }
+            ],
         )
         return {"classification": response.content[0].text}
 
@@ -206,17 +226,19 @@ class EmailSkill:
         response = await self.claude.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2000,
-            messages=[{
-                "role": "user",
-                "content": f"""Draft a reply to this email:
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""Draft a reply to this email:
 
 Original:
 From: {email.from_addr}
 Subject: {email.subject}
 Body: {email.body}
 
-Instructions: {instructions}"""
-            }]
+Instructions: {instructions}""",
+                }
+            ],
         )
         return response.content[0].text
 
@@ -224,6 +246,7 @@ Instructions: {instructions}"""
 # ═══════════════════════════════════════════════════════════════════════════════
 # EXCEL/SPREADSHEET SKILL
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class ExcelSkill:
@@ -242,34 +265,44 @@ class ExcelSkill:
     - openpyxl for Excel manipulation
     - LibreOffice for formula recalculation
     """
+
     name: str = "xlsx"
     description: str = "Comprehensive spreadsheet creation, editing, and analysis"
 
-    tools: List[str] = field(default_factory=lambda: [
-        "xlsx_read",
-        "xlsx_write",
-        "xlsx_formula",
-        "xlsx_format",
-        "xlsx_chart",
-        "xlsx_analyze",
-        "xlsx_merge",
-        "xlsx_convert",
-        "xlsx_recalc",
-    ])
+    tools: list[str] = field(
+        default_factory=lambda: [
+            "xlsx_read",
+            "xlsx_write",
+            "xlsx_formula",
+            "xlsx_format",
+            "xlsx_chart",
+            "xlsx_analyze",
+            "xlsx_merge",
+            "xlsx_convert",
+            "xlsx_recalc",
+        ]
+    )
 
-    async def read_spreadsheet(self, path: str, sheet: str = None) -> Dict[str, Any]:
+    async def read_spreadsheet(self, path: str, sheet: str = None) -> dict[str, Any]:
         """Read spreadsheet data"""
         try:
             import pandas as pd
+
             if sheet:
                 df = pd.read_excel(path, sheet_name=sheet)
             else:
                 df = pd.read_excel(path, sheet_name=None)  # All sheets
-            return {"data": df.to_dict() if isinstance(df, pd.DataFrame) else {k: v.to_dict() for k, v in df.items()}}
+            return {
+                "data": df.to_dict()
+                if isinstance(df, pd.DataFrame)
+                else {k: v.to_dict() for k, v in df.items()}
+            }
         except Exception as e:
             return {"error": str(e)}
 
-    async def write_spreadsheet(self, path: str, data: Dict[str, Any], formulas: Dict[str, str] = None) -> bool:
+    async def write_spreadsheet(
+        self, path: str, data: dict[str, Any], formulas: dict[str, str] = None
+    ) -> bool:
         """Write data to spreadsheet with formulas"""
         try:
             from openpyxl import Workbook
@@ -290,13 +323,14 @@ class ExcelSkill:
 
             wb.save(path)
             return True
-        except Exception as e:
+        except Exception:
             return False
 
-    async def analyze_data(self, path: str) -> Dict[str, Any]:
+    async def analyze_data(self, path: str) -> dict[str, Any]:
         """Analyze spreadsheet data"""
         try:
             import pandas as pd
+
             df = pd.read_excel(path)
             return {
                 "shape": df.shape,
@@ -313,6 +347,7 @@ class ExcelSkill:
 # RESEARCH SKILL
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ResearchSkill:
     """
@@ -325,27 +360,30 @@ class ResearchSkill:
     - Synthesize findings into reports
     - Source citation and verification
     """
+
     name: str = "research"
     description: str = "Multi-agent research with parallel subagents"
 
-    claude: Optional[AsyncAnthropic] = None
+    claude: AsyncAnthropic | None = None
     max_parallel_agents: int = 5
 
-    tools: List[str] = field(default_factory=lambda: [
-        "research_query",
-        "research_subtopic",
-        "research_search",
-        "research_synthesize",
-        "research_cite",
-        "research_verify",
-        "research_export",
-    ])
+    tools: list[str] = field(
+        default_factory=lambda: [
+            "research_query",
+            "research_subtopic",
+            "research_search",
+            "research_synthesize",
+            "research_cite",
+            "research_verify",
+            "research_export",
+        ]
+    )
 
     def __post_init__(self):
         if ANTHROPIC_AVAILABLE and self.claude is None:
             self.claude = AsyncAnthropic()
 
-    async def decompose_query(self, query: str) -> List[str]:
+    async def decompose_query(self, query: str) -> list[str]:
         """Break research query into subtopics"""
         if not self.claude:
             return [query]
@@ -353,19 +391,22 @@ class ResearchSkill:
         response = await self.claude.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1000,
-            messages=[{
-                "role": "user",
-                "content": f"Break this research query into 3-5 subtopics for parallel research:\n{query}\n\nReturn as JSON array of strings."
-            }]
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Break this research query into 3-5 subtopics for parallel research:\n{query}\n\nReturn as JSON array of strings.",
+                }
+            ],
         )
         # Parse subtopics from response
         import json
+
         try:
             return json.loads(response.content[0].text)
         except:
             return [query]
 
-    async def research_subtopic(self, subtopic: str) -> Dict[str, Any]:
+    async def research_subtopic(self, subtopic: str) -> dict[str, Any]:
         """Research a single subtopic"""
         if not self.claude:
             return {"subtopic": subtopic, "findings": []}
@@ -374,10 +415,12 @@ class ResearchSkill:
         response = await self.claude.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2000,
-            messages=[{
-                "role": "user",
-                "content": f"Research this topic and provide key findings with sources:\n{subtopic}"
-            }]
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Research this topic and provide key findings with sources:\n{subtopic}",
+                }
+            ],
         )
         return {
             "subtopic": subtopic,
@@ -390,7 +433,7 @@ class ResearchSkill:
         subtopics = await self.decompose_query(query)
 
         # 2. Research subtopics in parallel
-        tasks = [self.research_subtopic(st) for st in subtopics[:self.max_parallel_agents]]
+        tasks = [self.research_subtopic(st) for st in subtopics[: self.max_parallel_agents]]
         results = await asyncio.gather(*tasks)
 
         # 3. Synthesize findings
@@ -399,27 +442,26 @@ class ResearchSkill:
             synthesis = await self.claude.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=4000,
-                messages=[{
-                    "role": "user",
-                    "content": f"Synthesize these research findings into a comprehensive report:\n\n{findings_text}"
-                }]
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Synthesize these research findings into a comprehensive report:\n\n{findings_text}",
+                    }
+                ],
             )
             summary = synthesis.content[0].text
         else:
             summary = "Research completed"
 
         return ResearchResult(
-            query=query,
-            findings=results,
-            sources=[],
-            summary=summary,
-            confidence=0.8
+            query=query, findings=results, sources=[], summary=summary, confidence=0.8
         )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # WHATSAPP SKILL
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class WhatsAppSkill:
@@ -432,6 +474,7 @@ class WhatsAppSkill:
     - Media message handling
     - Webhook integration for real-time updates
     """
+
     name: str = "whatsapp"
     description: str = "WhatsApp Business API integration"
 
@@ -439,15 +482,17 @@ class WhatsAppSkill:
     phone_number_id: str = ""
     access_token: str = ""
 
-    tools: List[str] = field(default_factory=lambda: [
-        "whatsapp_send",
-        "whatsapp_send_template",
-        "whatsapp_send_media",
-        "whatsapp_mark_read",
-        "whatsapp_get_profile",
-    ])
+    tools: list[str] = field(
+        default_factory=lambda: [
+            "whatsapp_send",
+            "whatsapp_send_template",
+            "whatsapp_send_media",
+            "whatsapp_mark_read",
+            "whatsapp_get_profile",
+        ]
+    )
 
-    async def send_message(self, to: str, message: str) -> Dict[str, Any]:
+    async def send_message(self, to: str, message: str) -> dict[str, Any]:
         """Send WhatsApp message"""
         import httpx
 
@@ -459,12 +504,14 @@ class WhatsAppSkill:
                     "messaging_product": "whatsapp",
                     "to": to,
                     "type": "text",
-                    "text": {"body": message}
-                }
+                    "text": {"body": message},
+                },
             )
             return response.json()
 
-    async def send_template(self, to: str, template_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def send_template(
+        self, to: str, template_name: str, params: dict[str, Any]
+    ) -> dict[str, Any]:
         """Send template message"""
         import httpx
 
@@ -479,9 +526,9 @@ class WhatsAppSkill:
                     "template": {
                         "name": template_name,
                         "language": {"code": "en"},
-                        "components": params.get("components", [])
-                    }
-                }
+                        "components": params.get("components", []),
+                    },
+                },
             )
             return response.json()
 
@@ -489,6 +536,7 @@ class WhatsAppSkill:
 # ═══════════════════════════════════════════════════════════════════════════════
 # PDF SKILL
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class PDFSkill:
@@ -502,25 +550,29 @@ class PDFSkill:
     - Fill PDF forms
     - Add watermarks
     """
+
     name: str = "pdf"
     description: str = "PDF manipulation and extraction"
 
-    tools: List[str] = field(default_factory=lambda: [
-        "pdf_read",
-        "pdf_extract_text",
-        "pdf_extract_tables",
-        "pdf_create",
-        "pdf_merge",
-        "pdf_split",
-        "pdf_fill_form",
-        "pdf_watermark",
-        "pdf_encrypt",
-    ])
+    tools: list[str] = field(
+        default_factory=lambda: [
+            "pdf_read",
+            "pdf_extract_text",
+            "pdf_extract_tables",
+            "pdf_create",
+            "pdf_merge",
+            "pdf_split",
+            "pdf_fill_form",
+            "pdf_watermark",
+            "pdf_encrypt",
+        ]
+    )
 
     async def extract_text(self, path: str) -> str:
         """Extract text from PDF"""
         try:
             import pdfplumber
+
             text = ""
             with pdfplumber.open(path) as pdf:
                 for page in pdf.pages:
@@ -529,23 +581,25 @@ class PDFSkill:
         except Exception as e:
             return f"Error: {e}"
 
-    async def extract_tables(self, path: str) -> List[List[List[str]]]:
+    async def extract_tables(self, path: str) -> list[list[list[str]]]:
         """Extract tables from PDF"""
         try:
             import pdfplumber
+
             tables = []
             with pdfplumber.open(path) as pdf:
                 for page in pdf.pages:
                     page_tables = page.extract_tables()
                     tables.extend(page_tables)
             return tables
-        except Exception as e:
+        except Exception:
             return []
 
-    async def merge_pdfs(self, paths: List[str], output: str) -> bool:
+    async def merge_pdfs(self, paths: list[str], output: str) -> bool:
         """Merge multiple PDFs"""
         try:
-            from pypdf import PdfWriter, PdfReader
+            from pypdf import PdfReader, PdfWriter
+
             writer = PdfWriter()
             for path in paths:
                 reader = PdfReader(path)
@@ -554,13 +608,14 @@ class PDFSkill:
             with open(output, "wb") as f:
                 writer.write(f)
             return True
-        except Exception as e:
+        except Exception:
             return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DOCUMENT SKILL
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class DocxSkill:
@@ -573,28 +628,31 @@ class DocxSkill:
     - Add comments
     - Convert formats
     """
+
     name: str = "docx"
     description: str = "Word document creation and editing"
 
-    tools: List[str] = field(default_factory=lambda: [
-        "docx_read",
-        "docx_create",
-        "docx_edit",
-        "docx_track_changes",
-        "docx_add_comment",
-        "docx_convert",
-    ])
+    tools: list[str] = field(
+        default_factory=lambda: [
+            "docx_read",
+            "docx_create",
+            "docx_edit",
+            "docx_track_changes",
+            "docx_add_comment",
+            "docx_convert",
+        ]
+    )
 
     async def read_document(self, path: str) -> str:
         """Read document text"""
         import subprocess
+
         result = subprocess.run(
-            ["pandoc", path, "-o", "-", "-t", "markdown"],
-            capture_output=True, text=True
+            ["pandoc", path, "-o", "-", "-t", "markdown"], capture_output=True, text=True
         )
         return result.stdout
 
-    async def create_document(self, content: Dict[str, Any], output: str) -> bool:
+    async def create_document(self, content: dict[str, Any], output: str) -> bool:
         """Create new document"""
         # Would use docx-js or python-docx
         return True
@@ -622,7 +680,7 @@ def get_communication_skill(name: str):
     return None
 
 
-def list_communication_skills() -> List[str]:
+def list_communication_skills() -> list[str]:
     """List all communication skills"""
     return list(COMMUNICATION_SKILLS.keys())
 

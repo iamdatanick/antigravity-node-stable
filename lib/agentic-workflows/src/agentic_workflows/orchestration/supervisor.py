@@ -6,9 +6,10 @@ import asyncio
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 
 class TaskStatus(Enum):
@@ -197,7 +198,7 @@ class Supervisor:
 
         # Sort by priority (descending)
         runnable.sort(key=lambda t: -t.priority)
-        return runnable[:self.max_concurrent - self._running_count]
+        return runnable[: self.max_concurrent - self._running_count]
 
     async def run_task(self, task: Task) -> TaskResult:
         """Run a single task.
@@ -228,9 +229,7 @@ class Supervisor:
                 loop = asyncio.get_event_loop()
                 if task.timeout_seconds:
                     result = await asyncio.wait_for(
-                        loop.run_in_executor(
-                            None, self.executor, task.agent_type, task.payload
-                        ),
+                        loop.run_in_executor(None, self.executor, task.agent_type, task.payload),
                         timeout=task.timeout_seconds,
                     )
                 else:
@@ -282,8 +281,13 @@ class Supervisor:
             if not running_tasks:
                 # No running tasks - check if all complete
                 all_done = all(
-                    t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED,
-                                TaskStatus.CANCELLED, TaskStatus.TIMEOUT)
+                    t.status
+                    in (
+                        TaskStatus.COMPLETED,
+                        TaskStatus.FAILED,
+                        TaskStatus.CANCELLED,
+                        TaskStatus.TIMEOUT,
+                    )
                     for t in self._tasks.values()
                 )
                 if all_done:
@@ -319,22 +323,10 @@ class Supervisor:
         """Get execution progress."""
         with self._lock:
             total = len(self._tasks)
-            completed = sum(
-                1 for t in self._tasks.values()
-                if t.status == TaskStatus.COMPLETED
-            )
-            failed = sum(
-                1 for t in self._tasks.values()
-                if t.status == TaskStatus.FAILED
-            )
-            running = sum(
-                1 for t in self._tasks.values()
-                if t.status == TaskStatus.RUNNING
-            )
-            pending = sum(
-                1 for t in self._tasks.values()
-                if t.status == TaskStatus.PENDING
-            )
+            completed = sum(1 for t in self._tasks.values() if t.status == TaskStatus.COMPLETED)
+            failed = sum(1 for t in self._tasks.values() if t.status == TaskStatus.FAILED)
+            running = sum(1 for t in self._tasks.values() if t.status == TaskStatus.RUNNING)
+            pending = sum(1 for t in self._tasks.values() if t.status == TaskStatus.PENDING)
 
             return {
                 "total": total,
@@ -349,8 +341,12 @@ class Supervisor:
         """Get results for all completed tasks."""
         results = {}
         for task in self._tasks.values():
-            if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED,
-                              TaskStatus.CANCELLED, TaskStatus.TIMEOUT):
+            if task.status in (
+                TaskStatus.COMPLETED,
+                TaskStatus.FAILED,
+                TaskStatus.CANCELLED,
+                TaskStatus.TIMEOUT,
+            ):
                 results[task.id] = TaskResult(
                     task_id=task.id,
                     status=task.status,

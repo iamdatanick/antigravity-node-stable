@@ -39,9 +39,9 @@ class MCPStdioServerConfig:
     """Configuration for stdio-based MCP server."""
 
     command: str
-    args: List[str] = field(default_factory=list)
-    env: Dict[str, str] = field(default_factory=dict)
-    cwd: Optional[str] = None
+    args: list[str] = field(default_factory=list)
+    env: dict[str, str] = field(default_factory=dict)
+    cwd: str | None = None
 
 
 @dataclass
@@ -49,7 +49,7 @@ class MCPSSEServerConfig:
     """Configuration for SSE-based MCP server."""
 
     url: str
-    headers: Dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -57,7 +57,7 @@ class MCPHttpServerConfig:
     """Configuration for HTTP-based MCP server."""
 
     url: str
-    headers: Dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
     method: str = "POST"
 
 
@@ -66,8 +66,8 @@ class OAuthTokens:
     """OAuth 2.1 token storage."""
 
     access_token: str
-    refresh_token: Optional[str] = None
-    expires_at: Optional[float] = None
+    refresh_token: str | None = None
+    expires_at: float | None = None
     token_type: str = "Bearer"
 
     @property
@@ -90,28 +90,28 @@ class MCPServerConfig:
     transport: MCPTransport = MCPTransport.STDIO
 
     # Stdio config
-    command: Optional[str] = None
-    args: List[str] = field(default_factory=list)
-    env: Dict[str, str] = field(default_factory=dict)
-    cwd: Optional[str] = None
+    command: str | None = None
+    args: list[str] = field(default_factory=list)
+    env: dict[str, str] = field(default_factory=dict)
+    cwd: str | None = None
 
     # HTTP/SSE config
-    url: Optional[str] = None
-    headers: Dict[str, str] = field(default_factory=dict)
+    url: str | None = None
+    headers: dict[str, str] = field(default_factory=dict)
 
     # OAuth 2.1
-    oauth: Optional[Dict[str, Any]] = None
-    tokens: Optional[OAuthTokens] = None
+    oauth: dict[str, Any] | None = None
+    tokens: OAuthTokens | None = None
 
     # Identity verification
-    identity: Optional[Dict[str, Any]] = None
+    identity: dict[str, Any] | None = None
 
     # Metadata
     description: str = ""
     enabled: bool = True
 
     @classmethod
-    def from_dict(cls, name: str, data: Dict[str, Any]) -> "MCPServerConfig":
+    def from_dict(cls, name: str, data: dict[str, Any]) -> MCPServerConfig:
         """Create config from dictionary."""
         # Determine transport
         transport = MCPTransport.STDIO
@@ -138,7 +138,7 @@ class MCPServerConfig:
 
 
 # Built-in MCP servers with common configurations
-BUILTIN_SERVERS: Dict[str, Dict[str, Any]] = {
+BUILTIN_SERVERS: dict[str, dict[str, Any]] = {
     "filesystem": {
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-filesystem"],
@@ -191,11 +191,11 @@ class MCPServerInstance:
     """Running MCP server instance."""
 
     config: MCPServerConfig
-    process: Optional[subprocess.Popen] = None
+    process: subprocess.Popen | None = None
     connected: bool = False
-    error: Optional[str] = None
-    tools: List[str] = field(default_factory=list)
-    resources: List[str] = field(default_factory=list)
+    error: str | None = None
+    tools: list[str] = field(default_factory=list)
+    resources: list[str] = field(default_factory=list)
 
 
 class MCPServerRegistry:
@@ -219,8 +219,8 @@ class MCPServerRegistry:
 
     def __init__(self):
         """Initialize registry."""
-        self._servers: Dict[str, MCPServerInstance] = {}
-        self._config_path: Optional[Path] = None
+        self._servers: dict[str, MCPServerInstance] = {}
+        self._config_path: Path | None = None
 
     async def load_from_config(self, path: str) -> int:
         """Load servers from mcp.json config file.
@@ -284,7 +284,7 @@ class MCPServerRegistry:
         self.register(config)
         return True
 
-    def get(self, name: str) -> Optional[MCPServerInstance]:
+    def get(self, name: str) -> MCPServerInstance | None:
         """Get a server by name.
 
         Args:
@@ -295,7 +295,7 @@ class MCPServerRegistry:
         """
         return self._servers.get(name)
 
-    def list_servers(self) -> List[str]:
+    def list_servers(self) -> list[str]:
         """Get list of registered server names.
 
         Returns:
@@ -303,7 +303,7 @@ class MCPServerRegistry:
         """
         return list(self._servers.keys())
 
-    def list_builtin(self) -> List[str]:
+    def list_builtin(self) -> list[str]:
         """Get list of available built-in servers.
 
         Returns:
@@ -443,16 +443,14 @@ class MCPServerRegistry:
             logger.error(f"Failed to refresh token for {name}: {e}")
             return False
 
-    def list_tools(self) -> Dict[str, List[str]]:
+    def list_tools(self) -> dict[str, list[str]]:
         """Get tools from all connected servers.
 
         Returns:
             Dict mapping server name to list of tool names.
         """
         return {
-            name: instance.tools
-            for name, instance in self._servers.items()
-            if instance.connected
+            name: instance.tools for name, instance in self._servers.items() if instance.connected
         }
 
     async def shutdown(self) -> None:
@@ -462,46 +460,46 @@ class MCPServerRegistry:
 
 
 # Import from submodules
-from agentic_workflows.mcp.transports import (
-    MCPMessage,
-    BaseTransport,
-    StdioTransport,
-    SSETransport,
-    HTTPTransport,
-)
 from agentic_workflows.mcp.auth import (
+    APIKeyAuth,
+    AuthConfig,
     AuthType,
+    BasicAuth,
+    OAuth21Client,
+    OAuth21Config,
     PKCEChallenge,
     TokenSet,
-    OAuth21Config,
-    OAuth21Client,
-    APIKeyAuth,
-    BasicAuth,
-    AuthConfig,
+)
+from agentic_workflows.mcp.prompts import (
+    BUILTIN_PROMPTS,
+    Prompt,
+    PromptArgument,
+    PromptHandler,
+    PromptManager,
+    PromptMessage,
 )
 from agentic_workflows.mcp.resources import (
     Resource,
     ResourceContent,
-    ResourceTemplate,
     ResourceHandler,
     ResourceManager,
-)
-from agentic_workflows.mcp.prompts import (
-    Prompt,
-    PromptArgument,
-    PromptMessage,
-    PromptHandler,
-    PromptManager,
-    BUILTIN_PROMPTS,
+    ResourceTemplate,
 )
 from agentic_workflows.mcp.sampling import (
-    StopReason,
-    SamplingMessage,
     ModelPreferences,
-    SamplingRequest,
-    SamplingResult,
     SamplingHandler,
     SamplingManager,
+    SamplingMessage,
+    SamplingRequest,
+    SamplingResult,
+    StopReason,
+)
+from agentic_workflows.mcp.transports import (
+    BaseTransport,
+    HTTPTransport,
+    MCPMessage,
+    SSETransport,
+    StdioTransport,
 )
 
 __all__ = [

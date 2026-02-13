@@ -12,8 +12,9 @@ Usage:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,8 @@ class DSPySignature:
     Maps to dspy.Signature interface.
     """
 
-    inputs: List[str] = field(default_factory=list)
-    outputs: List[str] = field(default_factory=list)
+    inputs: list[str] = field(default_factory=list)
+    outputs: list[str] = field(default_factory=list)
     instructions: str = ""
 
     def to_string(self) -> str:
@@ -45,7 +46,7 @@ class DSPyModule:
 
     name: str
     signature: DSPySignature
-    forward_fn: Optional[Callable] = None
+    forward_fn: Callable | None = None
     predictor_type: str = "Predict"  # Predict, ChainOfThought, ProgramOfThought
 
 
@@ -53,12 +54,12 @@ class DSPyModule:
 class OptimizationConfig:
     """Configuration for DSPy optimization."""
 
-    metric: Optional[Callable] = None
+    metric: Callable | None = None
     max_bootstrapped_demos: int = 4
     max_labeled_demos: int = 16
     max_rounds: int = 1
     num_threads: int = 1
-    teacher_model: Optional[str] = None
+    teacher_model: str | None = None
 
 
 class DSPyOptimizer:
@@ -79,7 +80,7 @@ class DSPyOptimizer:
         optimized = optimizer.compile(module, trainset, metric=exact_match)
     """
 
-    def __init__(self, model: Optional[str] = None):
+    def __init__(self, model: str | None = None):
         """Initialize optimizer.
 
         Args:
@@ -92,6 +93,7 @@ class DSPyOptimizer:
         """Check if DSPy is available."""
         try:
             import dspy
+
             return True
         except ImportError:
             logger.warning("dspy package not installed")
@@ -123,8 +125,8 @@ class DSPyOptimizer:
 
     def create_signature(
         self,
-        inputs: List[str],
-        outputs: List[str],
+        inputs: list[str],
+        outputs: list[str],
         instructions: str = "",
     ) -> Any:
         """Create a DSPy signature.
@@ -180,9 +182,9 @@ class DSPyOptimizer:
     def compile(
         self,
         module: Any,
-        trainset: List[Any],
-        metric: Optional[Callable] = None,
-        config: Optional[OptimizationConfig] = None,
+        trainset: list[Any],
+        metric: Callable | None = None,
+        config: OptimizationConfig | None = None,
     ) -> Any:
         """Compile/optimize a DSPy module.
 
@@ -198,7 +200,6 @@ class DSPyOptimizer:
         if not self._dspy_available:
             raise RuntimeError("dspy package not installed")
 
-        import dspy
         from dspy.teleprompt import BootstrapFewShot
 
         config = config or OptimizationConfig()
@@ -217,9 +218,9 @@ class DSPyOptimizer:
     def evaluate(
         self,
         module: Any,
-        devset: List[Any],
+        devset: list[Any],
         metric: Callable,
-    ) -> Tuple[float, List[Any]]:
+    ) -> tuple[float, list[Any]]:
         """Evaluate a module on a dataset.
 
         Args:

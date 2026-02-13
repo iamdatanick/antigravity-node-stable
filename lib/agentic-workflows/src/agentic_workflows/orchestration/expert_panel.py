@@ -52,40 +52,41 @@ Architecture:
     +-------------------+
 """
 
+import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Optional
-import asyncio
-import json
-import uuid
+from typing import Any
 
+from ..core.artifact import ArtifactBuilder
 from ..core.scratchpad import Scratchpad, ThoughtType
-from ..core.artifact import ArtifactBuilder, ArtifactType
 
 
 class AgentRole(Enum):
     """Roles in the expert panel workflow."""
+
     # Expert Panel (Analysis Phase)
-    ANALYST = "analyst"           # Understands the request deeply
-    ARCHITECT = "architect"       # Designs the approach
+    ANALYST = "analyst"  # Understands the request deeply
+    ARCHITECT = "architect"  # Designs the approach
     RISK_ASSESSOR = "risk_assessor"  # Identifies risks and constraints
 
     # Execution Phase
-    WORKER = "worker"             # Executes assigned tasks
-    NOTE_TAKER = "note_taker"     # Logs everything for the worker
+    WORKER = "worker"  # Executes assigned tasks
+    NOTE_TAKER = "note_taker"  # Logs everything for the worker
 
     # Quality Phase
-    CHECKER = "checker"           # Reviews work for correctness
-    CORRECTOR = "corrector"       # Fixes issues found by checker
+    CHECKER = "checker"  # Reviews work for correctness
+    CORRECTOR = "corrector"  # Fixes issues found by checker
 
     # Coordination
-    COORDINATOR = "coordinator"   # Manages workflow
-    AGGREGATOR = "aggregator"     # Creates final handoff document
+    COORDINATOR = "coordinator"  # Manages workflow
+    AGGREGATOR = "aggregator"  # Creates final handoff document
 
 
 class TaskStatus(Enum):
     """Status of a task in the workflow."""
+
     PENDING = "pending"
     ASSIGNED = "assigned"
     IN_PROGRESS = "in_progress"
@@ -98,6 +99,7 @@ class TaskStatus(Enum):
 
 class TaskPriority(Enum):
     """Priority levels for tasks."""
+
     CRITICAL = 1
     HIGH = 2
     MEDIUM = 3
@@ -107,6 +109,7 @@ class TaskPriority(Enum):
 @dataclass
 class AgentAssignment:
     """Assignment of an agent to a task."""
+
     agent_id: str
     role: AgentRole
     model: str  # haiku, sonnet, opus
@@ -117,36 +120,37 @@ class AgentAssignment:
 @dataclass
 class TaskDefinition:
     """A task in the multi-agent workflow."""
+
     id: str
     description: str
     status: TaskStatus = TaskStatus.PENDING
     priority: TaskPriority = TaskPriority.MEDIUM
 
     # Assignments
-    worker: Optional[AgentAssignment] = None
-    note_taker: Optional[AgentAssignment] = None
-    checker: Optional[AgentAssignment] = None
-    corrector: Optional[AgentAssignment] = None
+    worker: AgentAssignment | None = None
+    note_taker: AgentAssignment | None = None
+    checker: AgentAssignment | None = None
+    corrector: AgentAssignment | None = None
 
     # Dependencies
     depends_on: list[str] = field(default_factory=list)
     blocks: list[str] = field(default_factory=list)
 
     # Execution tracking
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     attempts: int = 0
     max_attempts: int = 3
 
     # Results
-    result: Optional[Any] = None
-    error: Optional[str] = None
+    result: Any | None = None
+    error: str | None = None
 
     # Notes from note-taker
-    scratchpad: Optional[Scratchpad] = None
+    scratchpad: Scratchpad | None = None
 
     # Checker feedback
-    checker_feedback: Optional[str] = None
+    checker_feedback: str | None = None
     checker_approved: bool = False
 
     # Corrector changes
@@ -156,6 +160,7 @@ class TaskDefinition:
 @dataclass
 class ExpertAnalysis:
     """Analysis from the expert panel."""
+
     # From Analyst
     request_understanding: str
     key_requirements: list[str]
@@ -181,6 +186,7 @@ class ExpertAnalysis:
 @dataclass
 class WorkflowResult:
     """Final result of the expert panel workflow."""
+
     success: bool
     request: str
 
@@ -230,13 +236,15 @@ class NoteTaker:
             ThoughtType.CONTEXT,
             f"Initial context: {json.dumps(context, indent=2)}",
             priority=7,
-            tags=["context"]
+            tags=["context"],
         )
         self.notes.append({"type": "start", "task": task_description, "context": context})
 
     def log_observation(self, observation: str, importance: int = 5):
         """Log an observation."""
-        self.scratchpad.add_observation(observation, tags=["observation", f"importance_{importance}"])
+        self.scratchpad.add_observation(
+            observation, tags=["observation", f"importance_{importance}"]
+        )
         self.notes.append({"type": "observation", "content": observation, "importance": importance})
 
     def log_decision(self, decision: str, reasoning: str, alternatives: list[str] = None):
@@ -245,7 +253,14 @@ class NoteTaker:
         if alternatives:
             full_reasoning += f" | Alternatives: {', '.join(alternatives)}"
         self.scratchpad.add_decision(decision=decision, reasoning=full_reasoning)
-        self.notes.append({"type": "decision", "decision": decision, "reasoning": reasoning, "alternatives": alternatives})
+        self.notes.append(
+            {
+                "type": "decision",
+                "decision": decision,
+                "reasoning": reasoning,
+                "alternatives": alternatives,
+            }
+        )
 
     def log_action(self, action: str, params: dict = None):
         """Log an action taken."""
@@ -263,7 +278,7 @@ class NoteTaker:
             thought_type,
             f"Result ({status}): {str(result)[:500]}",
             priority=8 if not success else 6,
-            tags=["result", status.lower()]
+            tags=["result", status.lower()],
         )
         self.notes.append({"type": "result", "result": str(result)[:500], "success": success})
 
@@ -278,7 +293,9 @@ class NoteTaker:
     def log_hypothesis(self, hypothesis: str, confidence: float):
         """Log a hypothesis."""
         self.scratchpad.add_hypothesis(hypothesis=hypothesis, confidence=confidence)
-        self.notes.append({"type": "hypothesis", "hypothesis": hypothesis, "confidence": confidence})
+        self.notes.append(
+            {"type": "hypothesis", "hypothesis": hypothesis, "confidence": confidence}
+        )
 
     def log_question(self, question: str, for_whom: str = "self"):
         """Log a question."""
@@ -296,7 +313,7 @@ class NoteTaker:
             ThoughtType.NOTE,
             f"[HANDOFF to {for_agent}] {note}",
             priority=8,
-            tags=["handoff", for_agent]
+            tags=["handoff", for_agent],
         )
         self.notes.append({"type": "handoff", "note": note, "for_agent": for_agent})
 
@@ -311,7 +328,7 @@ class NoteTaker:
             "agent_id": self.agent_id,
             "duration_seconds": (datetime.now() - self._start_time).total_seconds(),
             "entries": self.scratchpad.export(),
-            "summary": self.get_summary()
+            "summary": self.get_summary(),
         }
 
 
@@ -327,10 +344,7 @@ class ExpertPanel:
     """
 
     def __init__(
-        self,
-        analyst_model: str = "opus",
-        architect_model: str = "opus",
-        risk_model: str = "sonnet"
+        self, analyst_model: str = "opus", architect_model: str = "opus", risk_model: str = "sonnet"
     ):
         self.analyst_model = analyst_model
         self.architect_model = architect_model
@@ -338,10 +352,7 @@ class ExpertPanel:
         self.scratchpad = Scratchpad(max_entries=200)
 
     async def analyze(
-        self,
-        request: str,
-        context: dict = None,
-        available_agents: list[str] = None
+        self, request: str, context: dict = None, available_agents: list[str] = None
     ) -> ExpertAnalysis:
         """
         Perform expert panel analysis of the request.
@@ -353,23 +364,17 @@ class ExpertPanel:
 
         # Log the analysis start
         self.scratchpad.add_goal(
-            f"Analyze request: {request[:100]}...",
-            priority=10,
-            tags=["analysis_start"]
+            f"Analyze request: {request[:100]}...", priority=10, tags=["analysis_start"]
         )
 
         # Phase 1: Analyst - Deep understanding
         analyst_result = await self._run_analyst(request, context)
 
         # Phase 2: Architect - Design approach
-        architect_result = await self._run_architect(
-            request, analyst_result, available_agents
-        )
+        architect_result = await self._run_architect(request, analyst_result, available_agents)
 
         # Phase 3: Risk Assessor - Identify risks
-        risk_result = await self._run_risk_assessor(
-            request, analyst_result, architect_result
-        )
+        risk_result = await self._run_risk_assessor(request, analyst_result, architect_result)
 
         # Combine into ExpertAnalysis
         analysis = ExpertAnalysis(
@@ -378,30 +383,25 @@ class ExpertPanel:
             key_requirements=analyst_result["key_requirements"],
             implicit_requirements=analyst_result["implicit_requirements"],
             clarifications_needed=analyst_result["clarifications"],
-
             # Architect
             approach=architect_result["approach"],
             task_breakdown=architect_result["tasks"],
             agent_assignments=architect_result["assignments"],
             execution_order=architect_result["order"],
-
             # Risk Assessor
             risks=risk_result["risks"],
             constraints=risk_result["constraints"],
             approval_gates=risk_result["approval_gates"],
-
             # Consensus
-            confidence=self._calculate_confidence(
-                analyst_result, architect_result, risk_result
-            ),
-            dissenting_opinions=[]
+            confidence=self._calculate_confidence(analyst_result, architect_result, risk_result),
+            dissenting_opinions=[],
         )
 
         self.scratchpad.add_entry(
             type=ThoughtType.DONE,
             content=f"Analysis complete. Confidence: {analysis.confidence:.2f}",
             priority=10,
-            tags=["analysis_complete"]
+            tags=["analysis_complete"],
         )
 
         return analysis
@@ -412,7 +412,7 @@ class ExpertPanel:
             type=ThoughtType.PROGRESS,
             content="Running Analyst (deep understanding)",
             priority=8,
-            tags=["analyst"]
+            tags=["analyst"],
         )
 
         # In production, this would call the LLM
@@ -421,21 +421,18 @@ class ExpertPanel:
             "understanding": f"User wants to: {request}",
             "key_requirements": self._extract_requirements(request),
             "implicit_requirements": self._infer_implicit_requirements(request),
-            "clarifications": []
+            "clarifications": [],
         }
 
     async def _run_architect(
-        self,
-        request: str,
-        analyst_result: dict,
-        available_agents: list[str]
+        self, request: str, analyst_result: dict, available_agents: list[str]
     ) -> dict:
         """Run the architect to design the approach."""
         self.scratchpad.add_entry(
             type=ThoughtType.PROGRESS,
             content="Running Architect (designing approach)",
             priority=8,
-            tags=["architect"]
+            tags=["architect"],
         )
 
         # Create task breakdown
@@ -451,35 +448,41 @@ class ExpertPanel:
             "approach": f"Multi-agent approach with {len(tasks)} tasks",
             "tasks": tasks,
             "assignments": assignments,
-            "order": order
+            "order": order,
         }
 
     async def _run_risk_assessor(
-        self,
-        request: str,
-        analyst_result: dict,
-        architect_result: dict
+        self, request: str, analyst_result: dict, architect_result: dict
     ) -> dict:
         """Run the risk assessor to identify risks."""
         self.scratchpad.add_entry(
             type=ThoughtType.PROGRESS,
             content="Running Risk Assessor (identifying risks)",
             priority=8,
-            tags=["risk_assessor"]
+            tags=["risk_assessor"],
         )
 
         return {
             "risks": self._identify_risks(request, architect_result),
             "constraints": self._identify_constraints(request),
-            "approval_gates": self._identify_approval_gates(architect_result)
+            "approval_gates": self._identify_approval_gates(architect_result),
         }
 
     def _get_default_agents(self) -> list[str]:
         """Get default available agents."""
         return [
-            "code-reviewer", "debugger", "test-writer", "security-auditor",
-            "data-analyst", "sql-expert", "researcher", "technical-writer",
-            "devops", "architect", "planner", "orchestrator"
+            "code-reviewer",
+            "debugger",
+            "test-writer",
+            "security-auditor",
+            "data-analyst",
+            "sql-expert",
+            "researcher",
+            "technical-writer",
+            "devops",
+            "architect",
+            "planner",
+            "orchestrator",
         ]
 
     def _extract_requirements(self, request: str) -> list[str]:
@@ -517,46 +520,52 @@ class ExpertPanel:
         tasks = []
 
         # Always start with analysis
-        tasks.append({
-            "id": "task_1",
-            "description": "Analyze and understand the request",
-            "type": "analysis",
-            "priority": TaskPriority.CRITICAL.value
-        })
+        tasks.append(
+            {
+                "id": "task_1",
+                "description": "Analyze and understand the request",
+                "type": "analysis",
+                "priority": TaskPriority.CRITICAL.value,
+            }
+        )
 
         # Main work
-        tasks.append({
-            "id": "task_2",
-            "description": f"Execute: {request[:100]}",
-            "type": "execution",
-            "priority": TaskPriority.HIGH.value,
-            "depends_on": ["task_1"]
-        })
+        tasks.append(
+            {
+                "id": "task_2",
+                "description": f"Execute: {request[:100]}",
+                "type": "execution",
+                "priority": TaskPriority.HIGH.value,
+                "depends_on": ["task_1"],
+            }
+        )
 
         # Review
-        tasks.append({
-            "id": "task_3",
-            "description": "Review and validate work",
-            "type": "review",
-            "priority": TaskPriority.HIGH.value,
-            "depends_on": ["task_2"]
-        })
+        tasks.append(
+            {
+                "id": "task_3",
+                "description": "Review and validate work",
+                "type": "review",
+                "priority": TaskPriority.HIGH.value,
+                "depends_on": ["task_2"],
+            }
+        )
 
         # Documentation
-        tasks.append({
-            "id": "task_4",
-            "description": "Document changes and create handoff",
-            "type": "documentation",
-            "priority": TaskPriority.MEDIUM.value,
-            "depends_on": ["task_3"]
-        })
+        tasks.append(
+            {
+                "id": "task_4",
+                "description": "Document changes and create handoff",
+                "type": "documentation",
+                "priority": TaskPriority.MEDIUM.value,
+                "depends_on": ["task_3"],
+            }
+        )
 
         return tasks
 
     def _assign_agents(
-        self,
-        tasks: list[dict],
-        available_agents: list[str]
+        self, tasks: list[dict], available_agents: list[str]
     ) -> dict[str, AgentAssignment]:
         """Assign agents to tasks with checkers and correctors."""
         assignments = {}
@@ -584,26 +593,26 @@ class ExpertPanel:
                     agent_id=f"{worker_agent}_{task_id}",
                     role=AgentRole.WORKER,
                     model=worker_model,
-                    tools=["Read", "Write", "Edit", "Glob", "Grep"]
+                    tools=["Read", "Write", "Edit", "Glob", "Grep"],
                 ),
                 "note_taker": AgentAssignment(
                     agent_id=f"note_taker_{task_id}",
                     role=AgentRole.NOTE_TAKER,
                     model="haiku",  # Cheap model for logging
-                    tools=[]
+                    tools=[],
                 ),
                 "checker": AgentAssignment(
                     agent_id=f"checker_{task_id}",
                     role=AgentRole.CHECKER,
                     model="sonnet",  # Good model for review
-                    tools=["Read", "Glob", "Grep"]
+                    tools=["Read", "Glob", "Grep"],
                 ),
                 "corrector": AgentAssignment(
                     agent_id=f"corrector_{task_id}",
                     role=AgentRole.CORRECTOR,
                     model="sonnet",
-                    tools=["Read", "Write", "Edit"]
-                )
+                    tools=["Read", "Write", "Edit"],
+                ),
             }
 
         return assignments
@@ -618,7 +627,8 @@ class ExpertPanel:
         while remaining:
             # Find tasks with all dependencies met
             ready = [
-                tid for tid, task in remaining.items()
+                tid
+                for tid, task in remaining.items()
                 if all(dep in completed for dep in task.get("depends_on", []))
             ]
 
@@ -641,19 +651,23 @@ class ExpertPanel:
 
         # Check for security-related requests
         if any(word in request.lower() for word in ["delete", "remove", "drop", "truncate"]):
-            risks.append({
-                "risk": "Destructive operation requested",
-                "severity": "high",
-                "mitigation": "Require explicit human approval before execution"
-            })
+            risks.append(
+                {
+                    "risk": "Destructive operation requested",
+                    "severity": "high",
+                    "mitigation": "Require explicit human approval before execution",
+                }
+            )
 
         # Check for external interactions
         if any(word in request.lower() for word in ["api", "external", "send", "post"]):
-            risks.append({
-                "risk": "External service interaction",
-                "severity": "medium",
-                "mitigation": "Use circuit breaker and rate limiting"
-            })
+            risks.append(
+                {
+                    "risk": "External service interaction",
+                    "severity": "medium",
+                    "mitigation": "Use circuit breaker and rate limiting",
+                }
+            )
 
         return risks
 
@@ -662,7 +676,7 @@ class ExpertPanel:
         constraints = [
             "Must complete within budget limits",
             "Must not expose sensitive data",
-            "Must maintain audit trail"
+            "Must maintain audit trail",
         ]
         return constraints
 
@@ -677,10 +691,7 @@ class ExpertPanel:
         return gates
 
     def _calculate_confidence(
-        self,
-        analyst_result: dict,
-        architect_result: dict,
-        risk_result: dict
+        self, analyst_result: dict, architect_result: dict, risk_result: dict
     ) -> float:
         """Calculate confidence in the analysis."""
         confidence = 0.8  # Base confidence
@@ -707,23 +718,16 @@ class ExpertPanelWorkflow:
     4. Aggregated handoff document generation
     """
 
-    def __init__(
-        self,
-        expert_panel: ExpertPanel = None,
-        max_correction_cycles: int = 2
-    ):
+    def __init__(self, expert_panel: ExpertPanel = None, max_correction_cycles: int = 2):
         self.expert_panel = expert_panel or ExpertPanel()
         self.max_correction_cycles = max_correction_cycles
         self.tasks: dict[str, TaskDefinition] = {}
         self.note_takers: dict[str, NoteTaker] = {}
         self.artifact_builder = ArtifactBuilder(agent_id="expert_panel_workflow")
-        self._start_time: Optional[datetime] = None
+        self._start_time: datetime | None = None
 
     async def execute(
-        self,
-        request: str,
-        context: dict = None,
-        executor: Callable = None
+        self, request: str, context: dict = None, executor: Callable = None
     ) -> WorkflowResult:
         """
         Execute the complete expert panel workflow.
@@ -774,9 +778,7 @@ class ExpertPanelWorkflow:
             final_output=execution_results.get("final_output"),
             handoff_document=handoff_doc,
             duration_seconds=duration,
-            all_scratchpads={
-                tid: nt.export() for tid, nt in self.note_takers.items()
-            }
+            all_scratchpads={tid: nt.export() for tid, nt in self.note_takers.items()},
         )
 
     def _create_tasks_from_analysis(self, analysis: ExpertAnalysis):
@@ -794,15 +796,14 @@ class ExpertPanelWorkflow:
                 note_taker=assignments.get("note_taker"),
                 checker=assignments.get("checker"),
                 corrector=assignments.get("corrector"),
-                scratchpad=Scratchpad(max_entries=100)
+                scratchpad=Scratchpad(max_entries=100),
             )
 
             self.tasks[task_id] = task
 
             # Create note-taker for this task
             self.note_takers[task_id] = NoteTaker(
-                task_id=task_id,
-                agent_id=task.worker.agent_id if task.worker else "unknown"
+                task_id=task_id, agent_id=task.worker.agent_id if task.worker else "unknown"
             )
 
     async def _execute_all_tasks(self, executor: Callable) -> dict:
@@ -818,10 +819,7 @@ class ExpertPanelWorkflow:
 
             # Check dependencies
             if not self._dependencies_met(task):
-                note_taker.log_blocker(
-                    f"Dependencies not met: {task.depends_on}",
-                    severity="high"
-                )
+                note_taker.log_blocker(f"Dependencies not met: {task.depends_on}", severity="high")
                 task.status = TaskStatus.BLOCKED
                 continue
 
@@ -845,7 +843,10 @@ class ExpertPanelWorkflow:
                 task.status = TaskStatus.FAILED
                 note_taker.log_error(str(e), context=f"Task: {task.description}")
 
-        return {"results": results, "final_output": results.get(list(results.keys())[-1]) if results else None}
+        return {
+            "results": results,
+            "final_output": results.get(list(results.keys())[-1]) if results else None,
+        }
 
     async def _run_quality_gates(self, executor: Callable) -> dict:
         """Run checker and corrector on completed tasks."""
@@ -875,7 +876,7 @@ class ExpertPanelWorkflow:
                 for cycle in range(self.max_correction_cycles):
                     note_taker.log_action(
                         f"Running corrector (cycle {cycle + 1})",
-                        {"issues": checker_result["issues"]}
+                        {"issues": checker_result["issues"]},
                     )
 
                     task.status = TaskStatus.CORRECTING
@@ -899,47 +900,29 @@ class ExpertPanelWorkflow:
                     task.status = TaskStatus.FAILED
                     note_taker.log_error(
                         "Failed quality gate after max correction cycles",
-                        context=checker_result["feedback"]
+                        context=checker_result["feedback"],
                     )
 
-        return {
-            "issues_found": issues_found,
-            "corrections_made": corrections_made
-        }
+        return {"issues_found": issues_found, "corrections_made": corrections_made}
 
     async def _run_checker(self, task: TaskDefinition, note_taker: NoteTaker) -> dict:
         """Run checker agent on task result."""
         # In production, this would invoke the checker agent
         # For now, simulate approval
-        return {
-            "approved": True,
-            "issues": [],
-            "feedback": "Looks good"
-        }
+        return {"approved": True, "issues": [], "feedback": "Looks good"}
 
     async def _run_corrector(
-        self,
-        task: TaskDefinition,
-        issues: list,
-        note_taker: NoteTaker
+        self, task: TaskDefinition, issues: list, note_taker: NoteTaker
     ) -> dict:
         """Run corrector agent to fix issues."""
         # In production, this would invoke the corrector agent
-        return {
-            "fixed": True,
-            "corrections": [f"Fixed: {issue}" for issue in issues]
-        }
+        return {"fixed": True, "corrections": [f"Fixed: {issue}" for issue in issues]}
 
-    async def _default_executor(
-        self,
-        task: TaskDefinition,
-        note_taker: NoteTaker
-    ) -> Any:
+    async def _default_executor(self, task: TaskDefinition, note_taker: NoteTaker) -> Any:
         """Default task executor (placeholder)."""
         note_taker.log_observation("Using default executor")
         note_taker.log_decision(
-            decision="Execute task as-is",
-            reasoning="No custom executor provided"
+            decision="Execute task as-is", reasoning="No custom executor provided"
         )
         return {"status": "completed", "task_id": task.id}
 
@@ -953,7 +936,8 @@ class ExpertPanelWorkflow:
         while remaining:
             # Find tasks with dependencies met
             ready = [
-                tid for tid in remaining
+                tid
+                for tid in remaining
                 if all(dep in completed for dep in self.tasks[tid].depends_on)
             ]
 
@@ -977,11 +961,7 @@ class ExpertPanelWorkflow:
         return True
 
     def _generate_handoff_document(
-        self,
-        request: str,
-        analysis: ExpertAnalysis,
-        execution_results: dict,
-        quality_results: dict
+        self, request: str, analysis: ExpertAnalysis, execution_results: dict, quality_results: dict
     ) -> str:
         """Generate aggregated handoff document."""
         doc_parts = []
@@ -1026,7 +1006,7 @@ class ExpertPanelWorkflow:
             status_emoji = {
                 TaskStatus.COMPLETED: "[DONE]",
                 TaskStatus.FAILED: "[FAIL]",
-                TaskStatus.BLOCKED: "[BLOCK]"
+                TaskStatus.BLOCKED: "[BLOCK]",
             }.get(task.status, "[????]")
 
             doc_parts.append(f"{status_emoji} {task_id}: {task.description}")
@@ -1068,9 +1048,7 @@ class ExpertPanelWorkflow:
 
 # Convenience function
 async def run_expert_panel_workflow(
-    request: str,
-    context: dict = None,
-    executor: Callable = None
+    request: str, context: dict = None, executor: Callable = None
 ) -> WorkflowResult:
     """
     Run the complete expert panel workflow.

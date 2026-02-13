@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Type
+from typing import Any
 
 from agentic_workflows.agents.base import AgentConfig, BaseAgent
 
@@ -16,7 +17,7 @@ class AgentDefinition:
     name: str
     description: str
     config: AgentConfig
-    agent_class: Type[BaseAgent] | None = None
+    agent_class: type[BaseAgent] | None = None
     factory: Callable[[AgentConfig], BaseAgent] | None = None
     tags: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -59,7 +60,7 @@ class AgentRegistry:
         name: str,
         description: str,
         config: AgentConfig,
-        agent_class: Type[BaseAgent] | None = None,
+        agent_class: type[BaseAgent] | None = None,
         factory: Callable[[AgentConfig], BaseAgent] | None = None,
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
@@ -130,10 +131,7 @@ class AgentRegistry:
         Returns:
             Matching definitions.
         """
-        return [
-            d for d in self._definitions.values()
-            if any(t in d.tags for t in tags)
-        ]
+        return [d for d in self._definitions.values() if any(t in d.tags for t in tags)]
 
     def create(
         self,
@@ -272,7 +270,8 @@ def register_agent(
         class MyAgent(BaseAgent):
             ...
     """
-    def decorator(cls: Type[BaseAgent]) -> Type[BaseAgent]:
+
+    def decorator(cls: type[BaseAgent]) -> type[BaseAgent]:
         config = AgentConfig(name=name, description=description)
         get_registry().register(
             name=name,
@@ -282,4 +281,5 @@ def register_agent(
             **kwargs,
         )
         return cls
+
     return decorator

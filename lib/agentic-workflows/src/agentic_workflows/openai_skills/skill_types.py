@@ -47,6 +47,7 @@ class SkillCategory(Enum):
     - USER: User-defined skills (~/.codex/skills or ~/.claude/skills)
     - PROJECT: Project-specific skills (.codex/skills or .claude/skills)
     """
+
     SYSTEM = "system"
     CURATED = "curated"
     EXPERIMENTAL = "experimental"
@@ -65,6 +66,7 @@ class ResourceType(Enum):
     - SCHEMA: JSON/YAML schemas
     - DATA: Lookup tables, canned examples
     """
+
     SCRIPT = "script"
     REFERENCE = "reference"
     ASSET = "asset"
@@ -78,6 +80,7 @@ class ToolPermission(Enum):
 
     Defines what tools a skill is allowed to invoke.
     """
+
     NONE = "none"
     READ_ONLY = "read_only"
     WRITE = "write"
@@ -128,6 +131,7 @@ class SkillMetadata:
         updated_at: Last update timestamp.
         extra: Additional arbitrary key-value metadata.
     """
+
     author: str = ""
     version: str = "1.0.0"
     license: str = ""
@@ -162,7 +166,7 @@ class SkillMetadata:
         return result
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SkillMetadata":
+    def from_dict(cls, data: dict[str, Any]) -> SkillMetadata:
         """Create from dictionary."""
         created = data.get("created_at")
         updated = data.get("updated_at")
@@ -175,8 +179,14 @@ class SkillMetadata:
 
         # Extract known fields, rest goes to extra
         known_fields = {
-            "author", "version", "license", "homepage",
-            "repository", "keywords", "created_at", "updated_at"
+            "author",
+            "version",
+            "license",
+            "homepage",
+            "repository",
+            "keywords",
+            "created_at",
+            "updated_at",
         }
         extra = {k: v for k, v in data.items() if k not in known_fields}
 
@@ -206,6 +216,7 @@ class SkillTool:
         description: What this tool does within the skill context.
         parameters: Tool parameter schema.
     """
+
     name: str
     pattern: str = "*"
     permission: ToolPermission = ToolPermission.EXECUTE
@@ -223,7 +234,7 @@ class SkillTool:
         return self.name
 
     @classmethod
-    def parse(cls, spec: str) -> "SkillTool":
+    def parse(cls, spec: str) -> SkillTool:
         """Parse a tool specification string.
 
         Args:
@@ -265,6 +276,7 @@ class SkillResource:
         executable: Whether the resource is executable (for scripts).
         dependencies: External dependencies required (for scripts).
     """
+
     path: str
     resource_type: ResourceType = ResourceType.REFERENCE
     description: str = ""
@@ -299,7 +311,7 @@ class SkillResource:
         return ext_map.get(self.extension.lower(), "text")
 
     @classmethod
-    def from_path(cls, skill_root: Path, resource_path: Path) -> "SkillResource":
+    def from_path(cls, skill_root: Path, resource_path: Path) -> SkillResource:
         """Create from file path.
 
         Args:
@@ -353,6 +365,7 @@ class SkillInstruction:
         examples: Input/output examples.
         edge_cases: Known edge cases to handle.
     """
+
     title: str
     content: str
     order: int = 0
@@ -361,12 +374,7 @@ class SkillInstruction:
     edge_cases: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_markdown_section(
-        cls,
-        heading: str,
-        content: str,
-        order: int = 0
-    ) -> "SkillInstruction":
+    def from_markdown_section(cls, heading: str, content: str, order: int = 0) -> SkillInstruction:
         """Parse from a markdown section.
 
         Args:
@@ -409,6 +417,7 @@ class SkillTrigger:
         domains: Domain categories (e.g., "pdf", "data-analysis").
         priority: Trigger priority (higher = more specific).
     """
+
     keywords: list[str] = field(default_factory=list)
     patterns: list[str] = field(default_factory=list)
     file_types: list[str] = field(default_factory=list)
@@ -449,7 +458,7 @@ class SkillTrigger:
         }
 
     @classmethod
-    def from_description(cls, description: str) -> "SkillTrigger":
+    def from_description(cls, description: str) -> SkillTrigger:
         """Extract trigger keywords from skill description.
 
         Per agentskills.io, the description should include keywords
@@ -508,6 +517,7 @@ class SkillManifest:
         >>> manifest.is_valid
         True
     """
+
     name: str
     description: str
     version: str = "1.0.0"
@@ -698,7 +708,7 @@ class SkillManifest:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SkillManifest":
+    def from_dict(cls, data: dict[str, Any]) -> SkillManifest:
         """Create from dictionary representation.
 
         Args:
@@ -717,13 +727,15 @@ class SkillManifest:
             # Parse list of dicts
             for t in data["tools"]:
                 if isinstance(t, dict):
-                    tools.append(SkillTool(
-                        name=t.get("name", ""),
-                        pattern=t.get("pattern", "*"),
-                        permission=ToolPermission(t.get("permission", "execute")),
-                        description=t.get("description", ""),
-                        parameters=t.get("parameters", {}),
-                    ))
+                    tools.append(
+                        SkillTool(
+                            name=t.get("name", ""),
+                            pattern=t.get("pattern", "*"),
+                            permission=ToolPermission(t.get("permission", "execute")),
+                            description=t.get("description", ""),
+                            parameters=t.get("parameters", {}),
+                        )
+                    )
                 elif isinstance(t, str):
                     tools.append(SkillTool.parse(t))
 

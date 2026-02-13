@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 
 import anthropic
-from anthropic.types import Message, MessageParam, ToolUseBlock, TextBlock
+from anthropic.types import Message, MessageParam, TextBlock, ToolUseBlock
 
 from ..observability.metrics import MetricsCollector, Model
 from ..security.injection_defense import PromptInjectionDefense, ScanResult
@@ -215,27 +216,33 @@ class ClaudeAgent:
                             output_str = str(result)
                             scan_result = self.defense.scan_tool_output(output_str)
                             if not scan_result.is_safe:
-                                result = f"[FILTERED: Tool output contained suspicious content]"
+                                result = "[FILTERED: Tool output contained suspicious content]"
 
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": str(result),
-                        })
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": str(result),
+                            }
+                        )
                     except Exception as e:
-                        tool_results.append({
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": f"Error: {e}",
+                                "is_error": True,
+                            }
+                        )
+                else:
+                    tool_results.append(
+                        {
                             "type": "tool_result",
                             "tool_use_id": block.id,
-                            "content": f"Error: {e}",
+                            "content": f"Error: No handler for tool '{block.name}'",
                             "is_error": True,
-                        })
-                else:
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": f"Error: No handler for tool '{block.name}'",
-                        "is_error": True,
-                    })
+                        }
+                    )
 
         if tool_results:
             # Add assistant response and tool results to history

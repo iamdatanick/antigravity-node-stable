@@ -24,22 +24,18 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Literal
 
-from .ui_types import (
-    UIResource,
-    UIResourceContent,
-    UIMetadata,
-    MimeType,
-    FrameSize,
-)
 from .resource import (
     RawHtmlResource,
-    RemoteDomResource,
     wrap_html_with_adapters,
+)
+from .ui_types import (
+    UIResource,
 )
 
 
 class ButtonVariant(str, Enum):
     """Button visual variants."""
+
     PRIMARY = "primary"
     SECONDARY = "secondary"
     DANGER = "danger"
@@ -50,6 +46,7 @@ class ButtonVariant(str, Enum):
 
 class ButtonSize(str, Enum):
     """Button size options."""
+
     SMALL = "sm"
     MEDIUM = "md"
     LARGE = "lg"
@@ -57,6 +54,7 @@ class ButtonSize(str, Enum):
 
 class InputType(str, Enum):
     """Input field types."""
+
     TEXT = "text"
     EMAIL = "email"
     PASSWORD = "password"
@@ -82,6 +80,7 @@ class ButtonConfig:
         action: Action configuration (tool, prompt, intent, link).
         loading: Show loading state.
     """
+
     label: str
     variant: ButtonVariant = ButtonVariant.PRIMARY
     size: ButtonSize = ButtonSize.MEDIUM
@@ -106,6 +105,7 @@ class InputConfig:
         error: Error message to display.
         help_text: Help text below input.
     """
+
     name: str
     type: InputType = InputType.TEXT
     label: str = ""
@@ -126,6 +126,7 @@ class SelectOption:
         label: Display label.
         disabled: Whether option is disabled.
     """
+
     value: str
     label: str
     disabled: bool = False
@@ -153,6 +154,7 @@ class SelectConfig:
         disabled: Whether field is disabled.
         multiple: Allow multiple selection.
     """
+
     name: str
     options: list[SelectOption] = field(default_factory=list)
     label: str = ""
@@ -174,6 +176,7 @@ class TableColumn:
         sortable: Whether column is sortable.
         render: Custom render function name.
     """
+
     key: str
     header: str
     width: str = ""
@@ -205,6 +208,7 @@ class TableConfig:
         loading: Show loading state.
         empty_message: Message when table is empty.
     """
+
     columns: list[TableColumn]
     data: list[dict[str, Any]] = field(default_factory=list)
     title: str = ""
@@ -225,6 +229,7 @@ class ChartDataset:
         color: Line/bar color.
         background_color: Fill color.
     """
+
     label: str
     data: list[float | int]
     color: str = ""
@@ -255,6 +260,7 @@ class ChartConfig:
         height: Chart height in pixels.
         show_legend: Show chart legend.
     """
+
     type: Literal["line", "bar", "pie", "doughnut", "area", "scatter"] = "line"
     datasets: list[ChartDataset] = field(default_factory=list)
     labels: list[str] = field(default_factory=list)
@@ -276,6 +282,7 @@ class ListItem:
         badge: Badge text.
         action: Action on click.
     """
+
     id: str
     title: str
     subtitle: str = ""
@@ -308,6 +315,7 @@ class ListConfig:
         empty_message: Message when list is empty.
         loading: Show loading state.
     """
+
     items: list[ListItem] = field(default_factory=list)
     title: str = ""
     selectable: bool = False
@@ -327,6 +335,7 @@ class CardConfig:
         footer: Footer content.
         actions: Card action buttons.
     """
+
     title: str = ""
     subtitle: str = ""
     content: str = ""
@@ -492,7 +501,9 @@ class Input(Component):
 
         help_html = ""
         if config.help_text:
-            help_html = f'<span class="input-help">{Component._escape_html(config.help_text)}</span>'
+            help_html = (
+                f'<span class="input-help">{Component._escape_html(config.help_text)}</span>'
+            )
 
         return f"""
 <div class="input-field">
@@ -624,7 +635,9 @@ class Table(Component):
         # Header
         header_html = "<tr>"
         if config.selectable:
-            header_html += '<th class="table-select"><input type="checkbox" class="select-all" /></th>'
+            header_html += (
+                '<th class="table-select"><input type="checkbox" class="select-all" /></th>'
+            )
         for col in config.columns:
             width_style = f'style="width: {col.width}"' if col.width else ""
             sortable_class = "sortable" if col.sortable else ""
@@ -637,7 +650,9 @@ class Table(Component):
             row_id = row.get("id", str(id(row)))
             rows_html += f'<tr data-id="{row_id}">'
             if config.selectable:
-                rows_html += f'<td class="table-select"><input type="checkbox" value="{row_id}" /></td>'
+                rows_html += (
+                    f'<td class="table-select"><input type="checkbox" value="{row_id}" /></td>'
+                )
             for col in config.columns:
                 value = row.get(col.key, "")
                 rows_html += f"<td>{Component._escape_html(str(value))}</td>"
@@ -782,7 +797,9 @@ class List(Component):
 
             badge_html = ""
             if item.badge:
-                badge_html = f'<span class="list-item-badge">{Component._escape_html(item.badge)}</span>'
+                badge_html = (
+                    f'<span class="list-item-badge">{Component._escape_html(item.badge)}</span>'
+                )
 
             items_html += f"""
 <div class="list-item" data-id="{item.id}" {action_attr}>
@@ -872,7 +889,11 @@ class Card(Component):
 
         header_html = ""
         if config.title or config.subtitle:
-            subtitle_html = f'<div class="card-subtitle">{Component._escape_html(config.subtitle)}</div>' if config.subtitle else ""
+            subtitle_html = (
+                f'<div class="card-subtitle">{Component._escape_html(config.subtitle)}</div>'
+                if config.subtitle
+                else ""
+            )
             header_html = f"""
 <div class="card-header">
   <div class="card-title">{Component._escape_html(config.title)}</div>

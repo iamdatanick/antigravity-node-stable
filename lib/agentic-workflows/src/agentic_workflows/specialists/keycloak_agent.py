@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig
 
 
 @dataclass
@@ -78,6 +78,7 @@ class KeycloakAgent(SpecialistAgent):
             self.logger.warning("python-keycloak not installed")
 
         import aiohttp
+
         self._session = aiohttp.ClientSession()
 
     async def _disconnect(self) -> None:
@@ -153,11 +154,13 @@ class KeycloakAgent(SpecialistAgent):
             }
 
             if password:
-                user_data["credentials"] = [{
-                    "type": "password",
-                    "value": password,
-                    "temporary": False,
-                }]
+                user_data["credentials"] = [
+                    {
+                        "type": "password",
+                        "value": password,
+                        "temporary": False,
+                    }
+                ]
 
             user_id = self._admin.create_user(user_data)
             return {"user_id": user_id, "username": username, "created": True}
