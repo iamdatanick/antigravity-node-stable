@@ -44,16 +44,28 @@ services:
     image: us-central1-docker.pkg.dev/agentic1111/antigravity/orchestrator:v14.1
     container_name: orchestrator
     environment:
+      - TENANT_ID=system
       - ETCD_HOST=etcd
+      - ETCD_PORT=2379
       - S3_ENDPOINT_URL=http://ceph-demo:8000
+      - AWS_ACCESS_KEY_ID=antigravity
+      - AWS_SECRET_ACCESS_KEY=antigravity_secret
+      - AWS_DEFAULT_REGION=us-east-1
       - OPENBAO_ADDR=http://openbao:8200
       - OPENBAO_TOKEN=root
+      - OVMS_REST_URL=http://ovms:9001
+      - LITELLM_BASE_URL=http://budget-proxy:4000
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - LOG_LEVEL=INFO
+    ports:
+      - "8080:8080"
+      - "8081:8081"
     depends_on:
       etcd: { condition: service_healthy }
-      openbao: { condition: service_healthy }
+      ceph-demo: { condition: service_started }
       ovms: { condition: service_healthy }
-      otel-collector: { condition: service_healthy }
+      openbao: { condition: service_healthy }
+      budget-proxy: { condition: service_healthy }
     restart: unless-stopped
     healthcheck: { test: ["CMD", "ls", "/"], interval: 10s }
 
