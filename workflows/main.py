@@ -34,17 +34,20 @@ async def check_dependencies(loop_id: int) -> str:
     import aiohttp
 
     checks = {
-        "etcd": f"http://{os.environ.get('ETCD_HOST', 'etcd')}:{os.environ.get('ETCD_PORT', '2379')}/health",
-        "ceph": f"http://{os.environ.get('CEPH_HOST', 'ceph-demo')}:{os.environ.get('CEPH_PORT', '8000')}",
-        "ovms": f"http://{os.environ.get('OVMS_HOST', 'ovms')}:9001/v2/health/live",
-        "openbao": f"{os.environ.get('OPENBAO_ADDR', 'http://openbao:8200')}/v1/sys/health",
+        "etcd": (f"http://{os.environ.get('ETCD_HOST', 'etcd')}:{os.environ.get('ETCD_PORT', '2379')}/health", [200]),
+        "ceph": (
+            f"http://{os.environ.get('CEPH_HOST', 'ceph-demo')}:{os.environ.get('CEPH_PORT', '8000')}",
+            [200, 403, 405],
+        ),
+        "ovms": (f"http://{os.environ.get('OVMS_HOST', 'ovms')}:9001/v2/health/live", [200]),
+        "openbao": (f"{os.environ.get('OPENBAO_ADDR', 'http://openbao:8200')}/v1/sys/health", [200]),
     }
     results = {}
     async with aiohttp.ClientSession() as session:
-        for name, url in checks.items():
+        for name, (url, accept_codes) in checks.items():
             try:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=3)) as resp:
-                    results[name] = resp.status == 200
+                    results[name] = resp.status in accept_codes
             except Exception:
                 results[name] = False
 
