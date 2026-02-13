@@ -530,6 +530,17 @@ services:
       - /var/cache/nginx
       - /var/run
 
+  # === CLOUDFLARE TUNNEL (optional, profile-gated) ===
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:2024.12.2
+    container_name: antigravity-v13-tunnel
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    networks: [antigravity_mesh]
+    profiles: ["tunnel"]
+    restart: unless-stopped
+
 networks:
   antigravity_mesh:
     driver: bridge

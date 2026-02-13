@@ -1,0 +1,97 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-workflows"
+version = "5.0.0"
+description = "Production-ready multi-agent workflow toolkit for Claude Code with MCP and A2A support"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Agentic Workflows Contributors" }
+]
+keywords = ["agents", "workflows", "claude", "ai", "orchestration", "mcp", "a2a", "phuc"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    # Core
+    "pydantic>=2.0,<3.0",
+    "httpx>=0.25,<1.0",
+    "PyYAML>=6.0,<7.0",
+
+    # Observability
+    "opentelemetry-api>=1.20,<2.0",
+    "opentelemetry-sdk>=1.20,<2.0",
+
+    # Anthropic SDK
+    "anthropic>=0.40.0",
+
+    # MCP SDK (Model Context Protocol) - optional, graceful fallback
+    "mcp>=1.0.0",
+
+    # Persistence (optional - graceful fallback to memory)
+    "asyncpg>=0.29.0",
+    "redis>=5.0.0",
+    "sqlalchemy>=2.0",
+
+    # Security
+    "tiktoken>=0.5.0",
+]
+
+[project.optional-dependencies]
+a2a = [
+    # A2A SDK - optional until stable release
+    "a2a-python>=0.0.1",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "pytest-benchmark>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+    "testcontainers>=3.7",
+    "respx>=0.20",
+]
+
+[project.scripts]
+agentic-mcp = "agentic_workflows.protocols.mcp_server:main"
+agentic-cli = "agentic_workflows.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/example/agentic-workflows"
+Documentation = "https://github.com/example/agentic-workflows#readme"
+Repository = "https://github.com/example/agentic-workflows"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentic_workflows"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

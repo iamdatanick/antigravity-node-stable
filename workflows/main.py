@@ -30,8 +30,13 @@ MAX_ITERATIONS = int(os.environ.get("GOD_MODE_ITERATIONS", "50"))
 
 # --- God Mode Loop (background) ---
 async def check_dependencies(loop_id: int) -> str:
-    """Check stack health via HTTP endpoints."""
+    """Check stack health via HTTP endpoints with kill switch protection."""
     import aiohttp
+    from workflows.resilience import is_killed
+
+    if is_killed():
+        logger.warning(f"[Loop {loop_id}] Kill switch active — skipping health checks")
+        return "STACK_KILLED"
 
     checks = {
         "etcd": (f"http://{os.environ.get('ETCD_HOST', 'etcd')}:{os.environ.get('ETCD_PORT', '2379')}/health", [200]),

@@ -36,7 +36,7 @@ fastmcp>=2.0.0
 tenacity>=8.2
 
 # Agentic Workflows (shared hooks, security, orchestration framework)
-# agentic-workflows @ git+https://github.com/iamdatanick/agentic-workflows.git@agentic-workflows
+# Installed from vendored lib/agentic-workflows/ in Dockerfile
 
 # OpenLineage (Marquez integration)
 openlineage-python>=1.9
