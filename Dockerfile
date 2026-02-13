@@ -15,4 +15,4 @@ RUN python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. workflows
 HEALTHCHECK --interval=10s --timeout=5s --retries=3     CMD ls /app/workflows/a2a_server.py || exit 1
 
 EXPOSE 8080 8081
-CMD ["python", "-m", "workflows.a2a_server"]
+CMD ["python", "-m", "workflows.main"]
