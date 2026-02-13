@@ -17,5 +17,4 @@ variable "zone" {
 variable "admin_cidr" {
   description = "CIDR range for internal service access (API, debug, OVMS). Set to your VPN or office IP."
   type        = string
-  default     = "0.0.0.0/0"  # CHANGE THIS before production — restrict to your IP/VPN
 }
