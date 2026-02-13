@@ -171,7 +171,7 @@ class TestChatCompletionsEndpoint:
 
         # Use respx to mock httpx calls
         with respx.mock:
-            respx.post("http://litellm:4000/v1/chat/completions").mock(
+            respx.post("http://budget-proxy:4000/v1/chat/completions").mock(
                 return_value=httpx.Response(
                     200,
                     json={

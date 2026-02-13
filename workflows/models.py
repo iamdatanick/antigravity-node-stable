@@ -1,4 +1,4 @@
-"""Pydantic request/response models for Antigravity Node v13.0 A2A endpoints."""
+"""Pydantic request/response models for Antigravity Node v14.1 A2A endpoints."""
 
 from typing import Any
 

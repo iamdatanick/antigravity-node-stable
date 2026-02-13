@@ -1,4 +1,4 @@
-"""OpenTelemetry initialization for Antigravity Node v13.0."""
+"""OpenTelemetry initialization for Antigravity Node v14.1."""
 
 import logging
 import os
@@ -12,7 +12,7 @@ logger = logging.getLogger("antigravity.telemetry")
 
 OTEL_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 SERVICE_NAME = os.environ.get("OTEL_SERVICE_NAME", "antigravity-node")
-SERVICE_VERSION = os.environ.get("SERVICE_VERSION", "13.0.0")
+SERVICE_VERSION = os.environ.get("SERVICE_VERSION", "14.1.0")
 
 
 def init_telemetry():

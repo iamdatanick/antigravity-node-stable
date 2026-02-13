@@ -133,7 +133,9 @@ class TestChatCompletionsEndpoint:
         mock_recall.return_value = []
 
         # Mock LiteLLM response
-        mock_response = AsyncMock()
+        from unittest.mock import MagicMock as _MagicMock
+
+        mock_response = _MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"choices": [{"message": {"role": "assistant", "content": "Test response"}}]}
 

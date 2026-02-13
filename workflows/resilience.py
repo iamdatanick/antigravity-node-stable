@@ -16,12 +16,12 @@ try:
         CircuitBreakerConfig,
     )
     from agentic_workflows.orchestration.retry import Retrier, RetryConfig
-    from agentic_workflows.security.rate_limiter import RateLimiter, RateLimitConfig
     from agentic_workflows.security.kill_switch import (
         KillSwitch,
         KillSwitchConfig,
         TriggerReason,
     )
+    from agentic_workflows.security.rate_limiter import RateLimitConfig, RateLimiter
 
     _HAS_AGENTIC = True
     logger.info("agentic-workflows loaded: circuit breakers, rate limiting, kill switch active")
@@ -86,12 +86,11 @@ else:
 # Kill Switch — emergency stop
 # ---------------------------------------------------------------------------
 
-if _HAS_AGENTIC:
-    kill_switch = KillSwitch(config=KillSwitchConfig(
-        max_consecutive_errors=10,
-    ))
-else:
-    kill_switch = None
+kill_switch = (
+    KillSwitch(config=KillSwitchConfig(max_consecutive_errors=10))
+    if _HAS_AGENTIC
+    else None
+)
 
 
 # ---------------------------------------------------------------------------

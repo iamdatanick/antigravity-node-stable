@@ -157,7 +157,7 @@ services:
 
   # === L2: MEMORY + VECTOR + CACHE ===
   starrocks:
-    image: starrocks/allin1-ubuntu:latest
+    image: starrocks/allin1-ubuntu:3.3.3
     container_name: antigravity-v13-starrocks
     ports: ["9030:9030", "8030:8030"]
     networks: [antigravity_mesh]
@@ -243,7 +243,7 @@ services:
           memory: 256M
           cpus: "0.5"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8200/v1/sys/health || exit 0"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8200/v1/sys/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -265,7 +265,7 @@ services:
           memory: 2G
           cpus: "2.0"
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/v1/config || exit 0"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/v1/config || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -279,7 +279,7 @@ services:
 
   # Ollama - Local LLM Runtime (MIT)
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.5.7
     container_name: antigravity-v13-llm
     environment:
       - OLLAMA_HOST=0.0.0.0
@@ -305,7 +305,7 @@ services:
 
   # === L3: SIDECARS ===
   wasm-worker:
-    image: wasmedge/wasmedge:latest
+    image: wasmedge/wasmedge:0.14.1
     container_name: antigravity-v13-runtime
     entrypoint: ["/bin/sh", "-c", "echo 'WasmEdge Active' && sleep infinity"]
     networks: [antigravity_mesh]
@@ -503,6 +503,12 @@ services:
         limits:
           memory: 1G
           cpus: "1.0"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
@@ -513,9 +519,9 @@ services:
     container_name: antigravity-v13-portal
     ports: ["1055:80"]
     depends_on:
-      - orchestrator
-      - budget-proxy
-      - perses
+      orchestrator: { condition: service_healthy }
+      budget-proxy: { condition: service_healthy }
+      perses: { condition: service_started }
     networks: [antigravity_mesh]
     deploy:
       resources:
