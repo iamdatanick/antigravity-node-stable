@@ -206,26 +206,32 @@ async def handoff_endpoint(request: HandoffRequest):
 
 @app.post("/webhook", response_model=WebhookResponse)
 async def webhook_endpoint(
-    payload: WebhookPayload,
-    x_signature: str | None = Header(None, alias="x-signature"),
+    request: Request,
+    x_webhook_signature: str | None = Header(None, alias="x-webhook-signature"),
 ):
     """Webhook callback from Argo Workflows."""
+    # Parse payload
+    body_bytes = await request.body()
+    payload = WebhookPayload.model_validate_json(body_bytes)
+    
     # Validate signature if secret is configured
     if WEBHOOK_SECRET:
-        if not x_signature:
+        if not x_webhook_signature:
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
-        # Create signature from payload
-        payload_str = (
-            f"{payload.task_id}{payload.status}{payload.message or ''}"
-        )
+        # Strip sha256= prefix if present
+        signature = x_webhook_signature
+        if signature.startswith("sha256="):
+            signature = signature[7:]
+        
+        # Calculate expected signature from raw body
         expected_sig = hmac.new(
             WEBHOOK_SECRET.encode(),
-            payload_str.encode(),
+            body_bytes,
             hashlib.sha256
         ).hexdigest()
 
-        if not hmac.compare_digest(x_signature, expected_sig):
+        if not hmac.compare_digest(signature, expected_sig):
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     # Trigger reflection on failure
@@ -334,10 +340,13 @@ async def inference_endpoint(request: InferenceRequest):
     """OVMS inference endpoint."""
     try:
         result = await run_inference(request.model_name, request.input_data)
+        
+        # Pass through the status from run_inference
         return InferenceResponse(
-            status="success",
-            model=request.model_name,
+            status=result.get("status", "success"),
+            model=result.get("model", request.model_name),
             outputs=result.get("outputs", {}),
+            message=result.get("message"),
             latency_ms=result.get("latency_ms", 0),
         )
     except Exception as e:
@@ -352,7 +361,7 @@ async def inference_endpoint(request: InferenceRequest):
 async def list_ovms_models_endpoint():
     """List models available in OVMS."""
     models = await ovms_list_models()
-    return {"models": models}
+    return {"models": models, "count": len(models)}
 
 
 @app.get("/v1/models")
