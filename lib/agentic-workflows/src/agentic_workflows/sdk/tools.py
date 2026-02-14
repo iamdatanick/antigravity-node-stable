@@ -20,8 +20,8 @@ Usage:
     )
 """
 
-from typing import Any
 import json
+from typing import Any
 
 # Note: In production, these would use the actual claude_agent_sdk imports
 # For now, we provide the tool definitions and factory functions
@@ -30,6 +30,7 @@ import json
 # =============================================================================
 # TOOL DEFINITIONS (SDK @tool decorator format)
 # =============================================================================
+
 
 def _make_tool_schema(name: str, description: str, input_schema: dict) -> dict:
     """Create a tool schema compatible with SDK format."""
@@ -46,7 +47,7 @@ check_injection_tool = _make_tool_schema(
     description="Check text for prompt injection attacks. Returns safety status and reason.",
     input_schema={
         "text": str,
-    }
+    },
 )
 
 redact_sensitive_tool = _make_tool_schema(
@@ -55,7 +56,7 @@ redact_sensitive_tool = _make_tool_schema(
     input_schema={
         "text": str,
         "categories": list,  # Optional: ["pii", "phi", "pci", "credentials"]
-    }
+    },
 )
 
 validate_scope_tool = _make_tool_schema(
@@ -64,7 +65,7 @@ validate_scope_tool = _make_tool_schema(
     input_schema={
         "tool_name": str,
         "scope": int,  # 1-4
-    }
+    },
 )
 
 # Agent Tools
@@ -74,7 +75,7 @@ list_agents_tool = _make_tool_schema(
     input_schema={
         "category": str,  # Optional filter
         "scope": int,  # Optional filter
-    }
+    },
 )
 
 get_agent_tool = _make_tool_schema(
@@ -82,13 +83,13 @@ get_agent_tool = _make_tool_schema(
     description="Get detailed information about a specific agent template.",
     input_schema={
         "name": str,
-    }
+    },
 )
 
 audit_agents_tool = _make_tool_schema(
     name="audit_agents",
     description="Run comprehensive audit of all agent templates for SKILL.md v4.1 compliance.",
-    input_schema={}
+    input_schema={},
 )
 
 # Context/Persistence Tools
@@ -99,7 +100,7 @@ save_context_tool = _make_tool_schema(
         "context_type": str,  # "scratchpad", "learning", "context"
         "identifier": str,
         "data": dict,
-    }
+    },
 )
 
 load_context_tool = _make_tool_schema(
@@ -108,7 +109,7 @@ load_context_tool = _make_tool_schema(
     input_schema={
         "context_type": str,
         "identifier": str,
-    }
+    },
 )
 
 # Workflow Tools
@@ -118,7 +119,7 @@ run_expert_panel_tool = _make_tool_schema(
     input_schema={
         "task": str,
         "context": dict,  # Optional additional context
-    }
+    },
 )
 
 # Metrics Tools
@@ -130,19 +131,20 @@ record_usage_tool = _make_tool_schema(
         "model": str,  # "opus", "sonnet", "haiku"
         "input_tokens": int,
         "output_tokens": int,
-    }
+    },
 )
 
 get_cost_summary_tool = _make_tool_schema(
     name="get_cost_summary",
     description="Get usage summary with cost breakdown by model and agent.",
-    input_schema={}
+    input_schema={},
 )
 
 
 # =============================================================================
 # TOOL HANDLERS
 # =============================================================================
+
 
 async def handle_check_injection(args: dict[str, Any]) -> dict[str, Any]:
     """Handle check_injection tool call."""
@@ -152,14 +154,19 @@ async def handle_check_injection(args: dict[str, Any]) -> dict[str, Any]:
     is_safe, reason = check_injection(text)
 
     return {
-        "content": [{
-            "type": "text",
-            "text": json.dumps({
-                "is_safe": is_safe,
-                "reason": reason,
-                "input_length": len(text),
-            }, indent=2)
-        }]
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "is_safe": is_safe,
+                        "reason": reason,
+                        "input_length": len(text),
+                    },
+                    indent=2,
+                ),
+            }
+        ]
     }
 
 
@@ -173,14 +180,21 @@ async def handle_redact_sensitive(args: dict[str, Any]) -> dict[str, Any]:
     redacted = filter.redact(text)
 
     return {
-        "content": [{
-            "type": "text",
-            "text": json.dumps({
-                "redacted_text": redacted,
-                "findings_count": len(matches),
-                "categories_found": list(set(m.category.value for m in matches)) if matches else [],
-            }, indent=2)
-        }]
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "redacted_text": redacted,
+                        "findings_count": len(matches),
+                        "categories_found": list(set(m.category.value for m in matches))
+                        if matches
+                        else [],
+                    },
+                    indent=2,
+                ),
+            }
+        ]
     }
 
 
@@ -203,24 +217,29 @@ async def handle_validate_scope(args: dict[str, Any]) -> dict[str, Any]:
     allowed, reason = validator.validate_tool_call(tool_name, security_scope)
 
     return {
-        "content": [{
-            "type": "text",
-            "text": json.dumps({
-                "allowed": allowed,
-                "reason": reason,
-                "tool": tool_name,
-                "scope": scope,
-            }, indent=2)
-        }]
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "allowed": allowed,
+                        "reason": reason,
+                        "tool": tool_name,
+                        "scope": scope,
+                    },
+                    indent=2,
+                ),
+            }
+        ]
     }
 
 
 async def handle_list_agents(args: dict[str, Any]) -> dict[str, Any]:
     """Handle list_agents tool call."""
     from agentic_workflows.agents.templates import (
-        list_agent_templates,
         get_agents_by_category,
         get_agents_by_scope,
+        list_agent_templates,
     )
 
     category = args.get("category")
@@ -234,43 +253,58 @@ async def handle_list_agents(args: dict[str, Any]) -> dict[str, Any]:
         agents = list_agent_templates()
 
     return {
-        "content": [{
-            "type": "text",
-            "text": json.dumps({
-                "count": len(agents),
-                "agents": agents,
-            }, indent=2)
-        }]
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "count": len(agents),
+                        "agents": agents,
+                    },
+                    indent=2,
+                ),
+            }
+        ]
     }
 
 
 async def handle_get_agent(args: dict[str, Any]) -> dict[str, Any]:
     """Handle get_agent tool call."""
-    from agentic_workflows.agents.templates import get_agent_template, ALL_AGENTS
+    from agentic_workflows.agents.templates import ALL_AGENTS, get_agent_template
 
     name = args.get("name", "")
     template = get_agent_template(name)
 
     if template:
         return {
-            "content": [{
-                "type": "text",
-                "text": json.dumps({
-                    "found": True,
-                    "agent": template,
-                }, indent=2)
-            }]
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "found": True,
+                            "agent": template,
+                        },
+                        indent=2,
+                    ),
+                }
+            ]
         }
     else:
         return {
-            "content": [{
-                "type": "text",
-                "text": json.dumps({
-                    "found": False,
-                    "error": f"Agent '{name}' not found",
-                    "available_agents": list(ALL_AGENTS.keys())[:20],
-                }, indent=2)
-            }]
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "found": False,
+                            "error": f"Agent '{name}' not found",
+                            "available_agents": list(ALL_AGENTS.keys())[:20],
+                        },
+                        indent=2,
+                    ),
+                }
+            ]
         }
 
 
@@ -280,20 +314,15 @@ async def handle_audit_agents(args: dict[str, Any]) -> dict[str, Any]:
 
     summary = get_audit_summary()
 
-    return {
-        "content": [{
-            "type": "text",
-            "text": json.dumps(summary, indent=2)
-        }]
-    }
+    return {"content": [{"type": "text", "text": json.dumps(summary, indent=2)}]}
 
 
 async def handle_save_context(args: dict[str, Any]) -> dict[str, Any]:
     """Handle save_context tool call."""
+    from agentic_workflows.context.graph import ContextGraph
+    from agentic_workflows.core.context_graph import LearningContextGraph
     from agentic_workflows.core.persistence import FileContextPersistence
     from agentic_workflows.core.scratchpad import Scratchpad
-    from agentic_workflows.core.context_graph import LearningContextGraph
-    from agentic_workflows.context.graph import ContextGraph
 
     persistence = FileContextPersistence()
     context_type = args.get("context_type", "")
@@ -305,55 +334,75 @@ async def handle_save_context(args: dict[str, Any]) -> dict[str, Any]:
         scratchpad.import_data(data)
         filepath = persistence.save_scratchpad(identifier, scratchpad)
         return {
-            "content": [{
-                "type": "text",
-                "text": json.dumps({
-                    "saved": True,
-                    "type": "scratchpad",
-                    "identifier": identifier,
-                    "filepath": filepath,
-                }, indent=2)
-            }]
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "saved": True,
+                            "type": "scratchpad",
+                            "identifier": identifier,
+                            "filepath": filepath,
+                        },
+                        indent=2,
+                    ),
+                }
+            ]
         }
     elif context_type == "learning":
         graph = LearningContextGraph()
         graph.import_data(data)
         filepath = persistence.save_learning_graph(identifier, graph)
         return {
-            "content": [{
-                "type": "text",
-                "text": json.dumps({
-                    "saved": True,
-                    "type": "learning_graph",
-                    "identifier": identifier,
-                    "filepath": filepath,
-                }, indent=2)
-            }]
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "saved": True,
+                            "type": "learning_graph",
+                            "identifier": identifier,
+                            "filepath": filepath,
+                        },
+                        indent=2,
+                    ),
+                }
+            ]
         }
     elif context_type == "context":
         graph = ContextGraph.from_dict(data)
         filepath = persistence.save_context_graph(identifier, graph)
         return {
-            "content": [{
-                "type": "text",
-                "text": json.dumps({
-                    "saved": True,
-                    "type": "context_graph",
-                    "identifier": identifier,
-                    "filepath": filepath,
-                }, indent=2)
-            }]
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "saved": True,
+                            "type": "context_graph",
+                            "identifier": identifier,
+                            "filepath": filepath,
+                        },
+                        indent=2,
+                    ),
+                }
+            ]
         }
     else:
         return {
-            "content": [{
-                "type": "text",
-                "text": json.dumps({
-                    "error": f"Unknown context type: {context_type}",
-                    "valid_types": ["scratchpad", "learning", "context"],
-                }, indent=2)
-            }],
-            "is_error": True
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "error": f"Unknown context type: {context_type}",
+                            "valid_types": ["scratchpad", "learning", "context"],
+                        },
+                        indent=2,
+                    ),
+                }
+            ],
+            "is_error": True,
         }
 
 
@@ -369,54 +418,74 @@ async def handle_load_context(args: dict[str, Any]) -> dict[str, Any]:
         scratchpad = persistence.load_scratchpad(identifier)
         if scratchpad:
             return {
-                "content": [{
-                    "type": "text",
-                    "text": json.dumps({
-                        "found": True,
-                        "type": "scratchpad",
-                        "summary": scratchpad.get_summary(),
-                        "data": scratchpad.export(),
-                    }, indent=2)
-                }]
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            {
+                                "found": True,
+                                "type": "scratchpad",
+                                "summary": scratchpad.get_summary(),
+                                "data": scratchpad.export(),
+                            },
+                            indent=2,
+                        ),
+                    }
+                ]
             }
     elif context_type == "learning":
         graph = persistence.load_learning_graph(identifier)
         if graph:
             return {
-                "content": [{
-                    "type": "text",
-                    "text": json.dumps({
-                        "found": True,
-                        "type": "learning_graph",
-                        "statistics": graph.get_statistics(),
-                        "data": graph.export(),
-                    }, indent=2)
-                }]
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            {
+                                "found": True,
+                                "type": "learning_graph",
+                                "statistics": graph.get_statistics(),
+                                "data": graph.export(),
+                            },
+                            indent=2,
+                        ),
+                    }
+                ]
             }
     elif context_type == "context":
         graph = persistence.load_context_graph(identifier)
         if graph:
             return {
-                "content": [{
-                    "type": "text",
-                    "text": json.dumps({
-                        "found": True,
-                        "type": "context_graph",
-                        "stats": graph.get_stats(),
-                        "data": graph.to_dict(),
-                    }, indent=2)
-                }]
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            {
+                                "found": True,
+                                "type": "context_graph",
+                                "stats": graph.get_stats(),
+                                "data": graph.to_dict(),
+                            },
+                            indent=2,
+                        ),
+                    }
+                ]
             }
 
     return {
-        "content": [{
-            "type": "text",
-            "text": json.dumps({
-                "found": False,
-                "type": context_type,
-                "identifier": identifier,
-            }, indent=2)
-        }]
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "found": False,
+                        "type": context_type,
+                        "identifier": identifier,
+                    },
+                    indent=2,
+                ),
+            }
+        ]
     }
 
 
@@ -428,34 +497,35 @@ async def handle_run_expert_panel(args: dict[str, Any]) -> dict[str, Any]:
     # This would integrate with the actual ExpertPanelWorkflow
     # For SDK usage, we return a structured prompt for the orchestrator
     return {
-        "content": [{
-            "type": "text",
-            "text": json.dumps({
-                "workflow": "expert_panel",
-                "phases": [
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(
                     {
-                        "phase": 1,
-                        "name": "Expert Analysis",
-                        "agents": ["expert-analyst", "expert-architect", "risk-assessor"],
-                        "status": "pending"
+                        "workflow": "expert_panel",
+                        "phases": [
+                            {
+                                "phase": 1,
+                                "name": "Expert Analysis",
+                                "agents": ["expert-analyst", "expert-architect", "risk-assessor"],
+                                "status": "pending",
+                            },
+                            {
+                                "phase": 2,
+                                "name": "Task Execution",
+                                "agents": ["note-taker", "checker", "corrector"],
+                                "status": "pending",
+                            },
+                            {"phase": 3, "name": "Handoff Generation", "status": "pending"},
+                        ],
+                        "task": task,
+                        "context": context,
+                        "instructions": "Use the orchestrator agent to coordinate this workflow. Start with expert-analyst for deep analysis, then expert-architect for design, then risk-assessor for validation.",
                     },
-                    {
-                        "phase": 2,
-                        "name": "Task Execution",
-                        "agents": ["note-taker", "checker", "corrector"],
-                        "status": "pending"
-                    },
-                    {
-                        "phase": 3,
-                        "name": "Handoff Generation",
-                        "status": "pending"
-                    }
-                ],
-                "task": task,
-                "context": context,
-                "instructions": "Use the orchestrator agent to coordinate this workflow. Start with expert-analyst for deep analysis, then expert-architect for design, then risk-assessor for validation.",
-            }, indent=2)
-        }]
+                    indent=2,
+                ),
+            }
+        ]
     }
 
 

@@ -5,10 +5,11 @@ Handles chain execution, tool integration, and prompt management.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig
 
 
 @dataclass
@@ -64,8 +65,8 @@ class LangChainAgent(SpecialistAgent):
     async def _connect(self) -> None:
         """Initialize LangChain components."""
         try:
-            from langchain_openai import ChatOpenAI
             from langchain.memory import ConversationBufferMemory
+            from langchain_openai import ChatOpenAI
 
             self._llm = ChatOpenAI(
                 model=self.lc_config.default_model,
@@ -149,17 +150,19 @@ class LangChainAgent(SpecialistAgent):
                     chain = self._llm
 
             elif chain_type == "agent":
-                from langchain.agents import create_openai_functions_agent, AgentExecutor
+                from langchain.agents import AgentExecutor, create_openai_functions_agent
                 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 
                 agent_tools = [self._tools[t] for t in (tools or []) if t in self._tools]
 
-                prompt = ChatPromptTemplate.from_messages([
-                    ("system", prompt_template or "You are a helpful assistant."),
-                    MessagesPlaceholder(variable_name="chat_history", optional=True),
-                    ("human", "{input}"),
-                    MessagesPlaceholder(variable_name="agent_scratchpad"),
-                ])
+                prompt = ChatPromptTemplate.from_messages(
+                    [
+                        ("system", prompt_template or "You are a helpful assistant."),
+                        MessagesPlaceholder(variable_name="chat_history", optional=True),
+                        ("human", "{input}"),
+                        MessagesPlaceholder(variable_name="agent_scratchpad"),
+                    ]
+                )
 
                 agent = create_openai_functions_agent(self._llm, agent_tools, prompt)
                 chain = AgentExecutor(agent=agent, tools=agent_tools, memory=self._memory)
@@ -192,7 +195,7 @@ class LangChainAgent(SpecialistAgent):
             Registration result.
         """
         try:
-            from langchain.tools import Tool, StructuredTool
+            from langchain.tools import StructuredTool, Tool
 
             if func:
                 if args_schema:
@@ -237,22 +240,26 @@ class LangChainAgent(SpecialistAgent):
             return {"error": "LLM not initialized"}
 
         try:
-            from langchain.agents import create_openai_functions_agent, AgentExecutor
+            from langchain.agents import AgentExecutor, create_openai_functions_agent
             from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-            agent_tools = [self._tools[t] for t in (tools or list(self._tools.keys())) if t in self._tools]
+            agent_tools = [
+                self._tools[t] for t in (tools or list(self._tools.keys())) if t in self._tools
+            ]
 
             if not agent_tools:
                 # Direct LLM call if no tools
                 result = await self._llm.ainvoke(input_text)
                 return {"output": result.content}
 
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", "You are a helpful assistant."),
-                MessagesPlaceholder(variable_name="chat_history", optional=True),
-                ("human", "{input}"),
-                MessagesPlaceholder(variable_name="agent_scratchpad"),
-            ])
+            prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", "You are a helpful assistant."),
+                    MessagesPlaceholder(variable_name="chat_history", optional=True),
+                    ("human", "{input}"),
+                    MessagesPlaceholder(variable_name="agent_scratchpad"),
+                ]
+            )
 
             agent = create_openai_functions_agent(self._llm, agent_tools, prompt)
             executor = AgentExecutor(
@@ -279,7 +286,9 @@ class LangChainAgent(SpecialistAgent):
             return {"error": "Memory not initialized"}
 
         return {
-            "messages": self._memory.chat_memory.messages if hasattr(self._memory, "chat_memory") else [],
+            "messages": self._memory.chat_memory.messages
+            if hasattr(self._memory, "chat_memory")
+            else [],
         }
 
     async def _clear_memory(self) -> dict[str, Any]:

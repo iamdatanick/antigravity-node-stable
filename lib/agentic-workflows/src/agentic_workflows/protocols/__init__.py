@@ -9,14 +9,22 @@ See also:
     - agentic_workflows.a2a: Comprehensive A2A protocol support
 """
 
-from agentic_workflows.protocols.mcp_client import (
-    MCPClient,
-    MCPTool,
-    MCPServerConfig,
+from agentic_workflows.a2a import (
+    # Server
+    A2AServer,
+    create_a2a_server,
 )
-from agentic_workflows.protocols.mcp_server import (
-    AgenticWorkflowsMCPServer,
-    serve as mcp_serve,
+from agentic_workflows.a2a import (
+    AgentCard as A2AAgentCard,
+)
+
+# Import the new A2A module for convenience
+from agentic_workflows.a2a import (
+    # Core types
+    AgentSkill as A2AAgentSkill,
+)
+from agentic_workflows.a2a import (
+    Task as A2ATaskFull,
 )
 from agentic_workflows.protocols.a2a_client import (
     A2AClient,
@@ -28,16 +36,16 @@ from agentic_workflows.protocols.agent_card import (
     Capability,
     Constraint,
 )
-
-# Import the new A2A module for convenience
-from agentic_workflows.a2a import (
-    # Core types
-    AgentSkill as A2AAgentSkill,
-    AgentCard as A2AAgentCard,
-    Task as A2ATaskFull,
-    # Server
-    A2AServer,
-    create_a2a_server,
+from agentic_workflows.protocols.mcp_client import (
+    MCPClient,
+    MCPServerConfig,
+    MCPTool,
+)
+from agentic_workflows.protocols.mcp_server import (
+    AgenticWorkflowsMCPServer,
+)
+from agentic_workflows.protocols.mcp_server import (
+    serve as mcp_serve,
 )
 
 __all__ = [

@@ -497,6 +497,8 @@ services:
       milvus: { condition: service_healthy }
       openbao: { condition: service_healthy }
       seaweedfs: { condition: service_healthy }
+      etcd: { condition: service_healthy }
+      ovms: { condition: service_healthy }
     networks: [antigravity_mesh]
     deploy:
       resources:

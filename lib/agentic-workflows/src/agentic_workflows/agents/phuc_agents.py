@@ -14,50 +14,29 @@ Location: C:\\Users\\NickV\\agentic-workflows\\agentic-workflows\\src\\agentic_w
 """
 
 from __future__ import annotations
-import asyncio
+
 import time
-import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Callable, TYPE_CHECKING
-from abc import abstractmethod
+from typing import Any
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AGENTIC-WORKFLOWS SDK IMPORTS
 # ═══════════════════════════════════════════════════════════════════════════════
 from agentic_workflows.agents.base import (
-    BaseAgent, 
-    AgentConfig, 
-    AgentContext, 
-    AgentResult,
-    AgentState,
+    AgentConfig,
+    BaseAgent,
 )
+from agentic_workflows.observability import (
+    MetricsCollector,
+)
+from agentic_workflows.protocols.mcp_client import MCPClient
 from agentic_workflows.security import (
     PromptInjectionDefense,
     RateLimiter,
-    KillSwitch,
-    ScopeValidator,
     Scope,
+    ScopeValidator,
 )
-from agentic_workflows.orchestration.pipeline import Pipeline
-from agentic_workflows.orchestration.circuit_breaker import CircuitBreaker
-from agentic_workflows.orchestration.retry import Retrier as RetryPolicy
-from agentic_workflows.observability import (
-    MetricsCollector,
-    AlertManager,
-)
-from agentic_workflows.context import (
-    ContextGraph,
-)
-from agentic_workflows.handoffs import (
-    HandoffManager,
-    CheckpointManager,
-)
-from agentic_workflows.artifacts import (
-    ArtifactManager,
-    ArtifactType,
-)
-from agentic_workflows.protocols.mcp_client import MCPClient
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MCP SDK IMPORTS
@@ -65,6 +44,7 @@ from agentic_workflows.protocols.mcp_client import MCPClient
 try:
     from mcp import ClientSession
     from mcp.client.sse import sse_client
+
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
@@ -75,6 +55,7 @@ except ImportError:
 try:
     import anthropic
     from anthropic import Anthropic, AsyncAnthropic
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
@@ -83,8 +64,9 @@ except ImportError:
 # LANGCHAIN IMPORTS
 # ═══════════════════════════════════════════════════════════════════════════════
 try:
-    from langchain_core.prompts import ChatPromptTemplate
     from langchain_core.output_parsers import StrOutputParser
+    from langchain_core.prompts import ChatPromptTemplate
+
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
@@ -95,6 +77,7 @@ except ImportError:
 try:
     from opentelemetry import trace
     from opentelemetry.trace import Status, StatusCode
+
     OTEL_AVAILABLE = True
     tracer = trace.get_tracer("phuc.agents")
 except ImportError:
@@ -119,8 +102,10 @@ DEPLOYMENT_VERSION = "d5b2201e-072a-4367-a7a5-099b3d0c9ca7"
 # ENUMS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class PipelineRole(Enum):
     """Main pipeline agent roles"""
+
     ARCHITECT = "architect"
     BUILDER = "builder"
     TESTER = "tester"
@@ -129,6 +114,7 @@ class PipelineRole(Enum):
 
 class SubAgentRole(Enum):
     """Sub-agent specializations"""
+
     # Architect (3)
     DESIGNER = "designer"
     RESEARCHER = "researcher"
@@ -152,35 +138,39 @@ class SubAgentRole(Enum):
 # PYDANTIC MODELS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TaskInput(BaseModel):
     """Validated task input"""
+
     prompt: str = Field(..., min_length=1, max_length=10000)
-    context: Dict[str, Any] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict)
     priority: int = Field(default=1, ge=1, le=10)
     timeout_seconds: float = Field(default=300.0, gt=0)
-    
-    @validator('prompt')
+
+    @validator("prompt")
     def sanitize_prompt(cls, v):
         return v.strip()
 
 
 class TaskOutput(BaseModel):
     """Validated task output"""
+
     task_id: str
     status: str
     agent: str
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    result: dict[str, Any] | None = None
+    error: str | None = None
     duration_ms: float = 0.0
-    handoff_to: Optional[str] = None
+    handoff_to: str | None = None
 
 
 class SubAgentOutput(BaseModel):
     """Sub-agent execution result"""
+
     sub_agent: str
     parent: str
     status: str
-    results: List[Dict[str, Any]] = Field(default_factory=list)
+    results: list[dict[str, Any]] = Field(default_factory=list)
     duration_ms: float = 0.0
 
 
@@ -188,87 +178,103 @@ class SubAgentOutput(BaseModel):
 # SUB-AGENT CLASS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class SubAgent:
     """
     Specialized sub-agent under a main pipeline agent.
     Uses MCP skills for execution.
     """
+
     role: SubAgentRole
     parent: PipelineRole
     description: str
-    skills: List[str]      # MCP skill names
-    tools: List[str]       # MCP tool names
-    priority: int = 1      # 1=highest
+    skills: list[str]  # MCP skill names
+    tools: list[str]  # MCP tool names
+    priority: int = 1  # 1=highest
     scope: Scope = Scope.STANDARD
-    
+
     async def execute(
-        self, 
-        task: Dict[str, Any], 
+        self,
+        task: dict[str, Any],
         mcp_client: MCPClient,
-        metrics: Optional[MetricsCollector] = None,
+        metrics: MetricsCollector | None = None,
     ) -> SubAgentOutput:
         """Execute sub-agent task using MCP skills"""
         start_time = time.time()
         results = []
-        
+
         # Trace with OpenTelemetry if available
         span = None
         if OTEL_AVAILABLE and tracer:
             span = tracer.start_span(f"sub_agent.{self.role.value}")
             span.set_attribute("parent_agent", self.parent.value)
             span.set_attribute("skills", ",".join(self.skills))
-        
+
         try:
             # Execute priority tools via MCP
             for tool in self.tools[:3]:  # Limit to top 3 tools
                 if mcp_client:
                     result = await mcp_client.call_tool(tool, task.get("args", {}))
-                    results.append({
-                        "tool": tool,
-                        "skill": self._get_skill_for_tool(tool),
-                        "result": result
-                    })
-                    
+                    results.append(
+                        {"tool": tool, "skill": self._get_skill_for_tool(tool), "result": result}
+                    )
+
                     # Record metrics
                     if metrics:
                         metrics.record_tool_call(tool, success=True)
-            
+
             if span:
                 span.set_status(Status(StatusCode.OK))
-                
+
         except Exception as e:
             if span:
                 span.set_status(Status(StatusCode.ERROR, str(e)))
             results.append({"error": str(e)})
-            
+
         finally:
             if span:
                 span.end()
-        
+
         return SubAgentOutput(
             sub_agent=self.role.value,
             parent=self.parent.value,
             status="complete",
             results=results,
-            duration_ms=(time.time() - start_time) * 1000
+            duration_ms=(time.time() - start_time) * 1000,
         )
-    
+
     def _get_skill_for_tool(self, tool: str) -> str:
         """Map tool to skill"""
         tool_skill_map = {
-            "ai_generate": "ai", "ai_embed": "ai", "ai_classify": "ai",
-            "ai_summarize": "ai", "ai_image": "ai",
-            "d1_query": "d1", "d1_execute": "d1", "d1_batch": "d1",
-            "r2_get": "r2", "r2_put": "r2", "r2_list": "r2", "r2_delete": "r2",
-            "workers_deploy": "workers", "workers_logs": "workers",
-            "vectorize_query": "vectorize", "vectorize_insert": "vectorize",
-            "scan_prompt": "injection-defense", "check_threat": "injection-defense",
-            "validate_scope": "scope-validator", "check_permissions": "scope-validator",
-            "detect_pii": "pii-detector", "mask_pii": "pii-detector",
-            "attribution_track": "attribution", "attribution_query": "attribution",
-            "campaign_create": "campaign", "campaign_analyze": "campaign",
-            "report_generate": "reporting", "report_export": "reporting",
+            "ai_generate": "ai",
+            "ai_embed": "ai",
+            "ai_classify": "ai",
+            "ai_summarize": "ai",
+            "ai_image": "ai",
+            "d1_query": "d1",
+            "d1_execute": "d1",
+            "d1_batch": "d1",
+            "r2_get": "r2",
+            "r2_put": "r2",
+            "r2_list": "r2",
+            "r2_delete": "r2",
+            "workers_deploy": "workers",
+            "workers_logs": "workers",
+            "vectorize_query": "vectorize",
+            "vectorize_insert": "vectorize",
+            "scan_prompt": "injection-defense",
+            "check_threat": "injection-defense",
+            "validate_scope": "scope-validator",
+            "check_permissions": "scope-validator",
+            "detect_pii": "pii-detector",
+            "mask_pii": "pii-detector",
+            "attribution_track": "attribution",
+            "attribution_query": "attribution",
+            "campaign_create": "campaign",
+            "campaign_analyze": "campaign",
+            "report_generate": "reporting",
+            "report_export": "reporting",
         }
         return tool_skill_map.get(tool, "unknown")
 
@@ -277,7 +283,7 @@ class SubAgent:
 # SUB-AGENT REGISTRY
 # ═══════════════════════════════════════════════════════════════════════════════
 
-SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
+SUB_AGENTS: dict[SubAgentRole, SubAgent] = {
     # ═══════════════════════════════════════════════════════════════════════════
     # ARCHITECT SUB-AGENTS (3)
     # ═══════════════════════════════════════════════════════════════════════════
@@ -287,7 +293,7 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="System design, architecture diagrams, UI/UX",
         skills=["ai", "vectorize"],
         tools=["ai_generate", "ai_image", "vectorize_query"],
-        priority=1
+        priority=1,
     ),
     SubAgentRole.RESEARCHER: SubAgent(
         role=SubAgentRole.RESEARCHER,
@@ -295,7 +301,7 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="Requirements analysis, competitive research",
         skills=["ai", "vectorize"],
         tools=["ai_summarize", "vectorize_query", "ai_classify"],
-        priority=2
+        priority=2,
     ),
     SubAgentRole.PLANNER: SubAgent(
         role=SubAgentRole.PLANNER,
@@ -303,9 +309,8 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="Task planning, estimation, roadmapping",
         skills=["ai"],
         tools=["ai_generate"],
-        priority=3
+        priority=3,
     ),
-    
     # ═══════════════════════════════════════════════════════════════════════════
     # BUILDER SUB-AGENTS (3)
     # ═══════════════════════════════════════════════════════════════════════════
@@ -315,7 +320,7 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="Write production code, implement features",
         skills=["ai", "workers", "d1", "r2"],
         tools=["ai_generate", "workers_deploy", "d1_execute", "r2_put"],
-        priority=1
+        priority=1,
     ),
     SubAgentRole.DOCUMENTER: SubAgent(
         role=SubAgentRole.DOCUMENTER,
@@ -323,7 +328,7 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="Create documentation, READMEs, API docs",
         skills=["ai"],
         tools=["ai_generate", "ai_summarize"],
-        priority=2
+        priority=2,
     ),
     SubAgentRole.REFACTORER: SubAgent(
         role=SubAgentRole.REFACTORER,
@@ -331,9 +336,8 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="Code improvements, optimization, cleanup",
         skills=["ai"],
         tools=["ai_generate", "ai_classify"],
-        priority=3
+        priority=3,
     ),
-    
     # ═══════════════════════════════════════════════════════════════════════════
     # TESTER SUB-AGENTS (4)
     # ═══════════════════════════════════════════════════════════════════════════
@@ -343,7 +347,7 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="Unit test execution, coverage analysis",
         skills=["ai"],
         tools=["ai_generate"],
-        priority=2
+        priority=2,
     ),
     SubAgentRole.INTEGRATION_TESTER: SubAgent(
         role=SubAgentRole.INTEGRATION_TESTER,
@@ -351,7 +355,7 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="Integration testing, API validation",
         skills=["d1", "r2", "workers"],
         tools=["d1_query", "r2_list", "workers_logs"],
-        priority=2
+        priority=2,
     ),
     SubAgentRole.SECURITY_AUDITOR: SubAgent(
         role=SubAgentRole.SECURITY_AUDITOR,
@@ -360,7 +364,7 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         skills=["injection-defense", "scope-validator"],
         tools=["scan_prompt", "check_threat", "validate_scope"],
         priority=1,
-        scope=Scope.ELEVATED
+        scope=Scope.ELEVATED,
     ),
     SubAgentRole.PII_CHECKER: SubAgent(
         role=SubAgentRole.PII_CHECKER,
@@ -369,9 +373,8 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         skills=["pii-detector"],
         tools=["detect_pii", "mask_pii", "audit_pii"],
         priority=1,
-        scope=Scope.ELEVATED
+        scope=Scope.ELEVATED,
     ),
-    
     # ═══════════════════════════════════════════════════════════════════════════
     # SHIPPER SUB-AGENTS (3)
     # ═══════════════════════════════════════════════════════════════════════════
@@ -381,7 +384,7 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="Cloudflare deployment, version management",
         skills=["workers"],
         tools=["workers_deploy", "workers_secrets"],
-        priority=1
+        priority=1,
     ),
     SubAgentRole.MONITOR: SubAgent(
         role=SubAgentRole.MONITOR,
@@ -389,7 +392,7 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="Performance monitoring, alerting",
         skills=["workers", "reporting"],
         tools=["workers_logs", "report_generate"],
-        priority=2
+        priority=2,
     ),
     SubAgentRole.ROLLBACKER: SubAgent(
         role=SubAgentRole.ROLLBACKER,
@@ -397,7 +400,7 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
         description="Deployment rollback, disaster recovery",
         skills=["workers", "d1"],
         tools=["workers_deploy", "d1_backup"],
-        priority=3
+        priority=3,
     ),
 }
 
@@ -406,22 +409,23 @@ SUB_AGENTS: Dict[SubAgentRole, SubAgent] = {
 # PIPELINE AGENTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class PipelineAgent(BaseAgent):
     """
     Base class for pipeline agents.
     Extends agentic-workflows BaseAgent with MCP integration.
     """
-    
+
     def __init__(
         self,
         role: PipelineRole,
         name: str,
         description: str,
-        skills: List[str],
-        tools: List[str],
-        sub_agent_roles: List[SubAgentRole],
-        handoff_to: List[PipelineRole],
-        **kwargs
+        skills: list[str],
+        tools: list[str],
+        sub_agent_roles: list[SubAgentRole],
+        handoff_to: list[PipelineRole],
+        **kwargs,
     ):
         super().__init__(
             config=AgentConfig(
@@ -429,36 +433,32 @@ class PipelineAgent(BaseAgent):
                 description=description,
                 scope=Scope.STANDARD,
             ),
-            **kwargs
+            **kwargs,
         )
         self.role = role
         self.skills = skills
         self.tools = tools
         self.sub_agent_roles = sub_agent_roles
         self.handoff_to = handoff_to
-        
+
         # MCP Client
         self.mcp = MCPClient(MCP_ENDPOINT) if MCP_AVAILABLE else None
-        
+
         # Anthropic client for direct Claude calls
         self.claude = AsyncAnthropic() if ANTHROPIC_AVAILABLE else None
-        
+
         # Security components
         self.injection_defense = PromptInjectionDefense(sensitivity=0.8)
         self.rate_limiter = RateLimiter()
         self.scope_validator = ScopeValidator()
-        
+
         # Observability
         self.metrics = MetricsCollector()
-        
+
         # Get sub-agents
         self.sub_agents = [SUB_AGENTS[r] for r in sub_agent_roles if r in SUB_AGENTS]
-    
-    async def delegate(
-        self, 
-        sub_role: SubAgentRole, 
-        task: Dict[str, Any]
-    ) -> SubAgentOutput:
+
+    async def delegate(self, sub_role: SubAgentRole, task: dict[str, Any]) -> SubAgentOutput:
         """Delegate task to a sub-agent"""
         sub = SUB_AGENTS.get(sub_role)
         if not sub or sub.parent != self.role:
@@ -466,23 +466,23 @@ class PipelineAgent(BaseAgent):
                 sub_agent=sub_role.value,
                 parent=self.role.value,
                 status="error",
-                results=[{"error": f"Sub-agent {sub_role.value} not found for {self.role.value}"}]
+                results=[{"error": f"Sub-agent {sub_role.value} not found for {self.role.value}"}],
             )
         return await sub.execute(task, self.mcp, self.metrics)
-    
+
     async def _execute_with_claude(self, prompt: str) -> str:
         """Direct Claude API call via anthropic SDK"""
         if not self.claude:
             return f"[simulated] Response to: {prompt[:100]}..."
-        
+
         response = await self.claude.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": prompt}],
         )
         return response.content[0].text
-    
-    async def _execute_sub_agents(self, task: Dict[str, Any]) -> List[SubAgentOutput]:
+
+    async def _execute_sub_agents(self, task: dict[str, Any]) -> list[SubAgentOutput]:
         """Execute priority sub-agents"""
         results = []
         for sub in self.sub_agents:
@@ -498,7 +498,7 @@ class ArchitectAgent(PipelineAgent):
     Uses: ai, vectorize skills
     Sub-agents: Designer, Researcher, Planner
     """
-    
+
     def __init__(self, **kwargs):
         super().__init__(
             role=PipelineRole.ARCHITECT,
@@ -508,31 +508,35 @@ class ArchitectAgent(PipelineAgent):
             tools=["ai_generate", "ai_image", "vectorize_query", "ai_summarize"],
             sub_agent_roles=[SubAgentRole.DESIGNER, SubAgentRole.RESEARCHER, SubAgentRole.PLANNER],
             handoff_to=[PipelineRole.BUILDER],
-            **kwargs
+            **kwargs,
         )
-    
-    async def _execute(self, input_data: Any) -> Dict[str, Any]:
+
+    async def _execute(self, input_data: Any) -> dict[str, Any]:
         """Execute architecture design"""
-        task = TaskInput(prompt=str(input_data)) if isinstance(input_data, str) else TaskInput(**input_data)
-        
+        task = (
+            TaskInput(prompt=str(input_data))
+            if isinstance(input_data, str)
+            else TaskInput(**input_data)
+        )
+
         # Security check
         scan = self.injection_defense.scan(task.prompt)
         if not scan.is_safe:
             return {"status": "blocked", "reason": "Security threat detected"}
-        
+
         # Execute sub-agents
         sub_results = await self._execute_sub_agents({"prompt": task.prompt})
-        
+
         # Generate design with Claude
         design = await self._execute_with_claude(
             f"Design the architecture for: {task.prompt}\n\nCreate a detailed technical specification."
         )
-        
+
         return {
             "status": "designed",
             "design": design,
             "sub_results": [r.dict() for r in sub_results],
-            "handoff_to": PipelineRole.BUILDER.value
+            "handoff_to": PipelineRole.BUILDER.value,
         }
 
 
@@ -542,7 +546,7 @@ class BuilderAgent(PipelineAgent):
     Uses: ai, workers, d1, r2 skills
     Sub-agents: Coder, Documenter, Refactorer
     """
-    
+
     def __init__(self, **kwargs):
         super().__init__(
             role=PipelineRole.BUILDER,
@@ -552,32 +556,36 @@ class BuilderAgent(PipelineAgent):
             tools=["ai_generate", "workers_deploy", "d1_execute", "r2_put", "vectorize_insert"],
             sub_agent_roles=[SubAgentRole.CODER, SubAgentRole.DOCUMENTER, SubAgentRole.REFACTORER],
             handoff_to=[PipelineRole.TESTER],
-            **kwargs
+            **kwargs,
         )
-    
-    async def _execute(self, input_data: Any) -> Dict[str, Any]:
+
+    async def _execute(self, input_data: Any) -> dict[str, Any]:
         """Execute code building"""
-        design = input_data.get("design", str(input_data)) if isinstance(input_data, dict) else str(input_data)
-        
+        design = (
+            input_data.get("design", str(input_data))
+            if isinstance(input_data, dict)
+            else str(input_data)
+        )
+
         # Execute sub-agents
         sub_results = await self._execute_sub_agents({"design": design})
-        
+
         # Generate code with Claude
         code = await self._execute_with_claude(
             f"Implement the following design:\n\n{design}\n\nWrite production-ready Python code."
         )
-        
+
         # Generate tests
         tests = await self._execute_with_claude(
             f"Write comprehensive tests for:\n\n{code[:2000]}..."
         )
-        
+
         return {
             "status": "built",
             "code": code,
             "tests": tests,
             "sub_results": [r.dict() for r in sub_results],
-            "handoff_to": PipelineRole.TESTER.value
+            "handoff_to": PipelineRole.TESTER.value,
         }
 
 
@@ -587,31 +595,38 @@ class TesterAgent(PipelineAgent):
     Uses: injection-defense, scope-validator, pii-detector skills
     Sub-agents: UnitTester, IntegTester, SecurityAuditor, PIIChecker
     """
-    
+
     def __init__(self, **kwargs):
         super().__init__(
             role=PipelineRole.TESTER,
             name="tester",
             description="Test code, validate outputs, security audit, PII check",
             skills=["injection-defense", "scope-validator", "pii-detector", "d1", "r2"],
-            tools=["scan_prompt", "check_threat", "validate_scope", "detect_pii", "mask_pii", "d1_query"],
+            tools=[
+                "scan_prompt",
+                "check_threat",
+                "validate_scope",
+                "detect_pii",
+                "mask_pii",
+                "d1_query",
+            ],
             sub_agent_roles=[
-                SubAgentRole.UNIT_TESTER, 
+                SubAgentRole.UNIT_TESTER,
                 SubAgentRole.INTEGRATION_TESTER,
-                SubAgentRole.SECURITY_AUDITOR, 
-                SubAgentRole.PII_CHECKER
+                SubAgentRole.SECURITY_AUDITOR,
+                SubAgentRole.PII_CHECKER,
             ],
             handoff_to=[PipelineRole.SHIPPER, PipelineRole.BUILDER],
-            **kwargs
+            **kwargs,
         )
-    
-    async def _execute(self, input_data: Any) -> Dict[str, Any]:
+
+    async def _execute(self, input_data: Any) -> dict[str, Any]:
         """Execute testing and validation"""
         code = input_data.get("code", "") if isinstance(input_data, dict) else ""
-        
+
         # Execute security sub-agents (priority 1)
         sub_results = await self._execute_sub_agents({"code": code})
-        
+
         # Security scan via MCP
         security_result = {"passed": True}
         if self.mcp:
@@ -620,7 +635,7 @@ class TesterAgent(PipelineAgent):
                 security_result = {"passed": True, "scan": scan}
             except:
                 security_result = {"passed": True, "scan": "simulated"}
-        
+
         # PII check via MCP
         pii_result = {"passed": True}
         if self.mcp:
@@ -629,16 +644,16 @@ class TesterAgent(PipelineAgent):
                 pii_result = {"passed": True, "pii": pii}
             except:
                 pii_result = {"passed": True, "pii": "simulated"}
-        
+
         test_passed = security_result["passed"] and pii_result["passed"]
-        
+
         return {
             "status": "tested",
             "security_passed": security_result["passed"],
             "pii_passed": pii_result["passed"],
             "test_passed": test_passed,
             "sub_results": [r.dict() for r in sub_results],
-            "handoff_to": PipelineRole.SHIPPER.value if test_passed else PipelineRole.BUILDER.value
+            "handoff_to": PipelineRole.SHIPPER.value if test_passed else PipelineRole.BUILDER.value,
         }
 
 
@@ -648,7 +663,7 @@ class ShipperAgent(PipelineAgent):
     Uses: workers, reporting, attribution skills
     Sub-agents: Deployer, Monitor, Rollbacker
     """
-    
+
     def __init__(self, **kwargs):
         super().__init__(
             role=PipelineRole.SHIPPER,
@@ -658,48 +673,46 @@ class ShipperAgent(PipelineAgent):
             tools=["workers_deploy", "workers_logs", "report_generate", "attribution_track"],
             sub_agent_roles=[SubAgentRole.DEPLOYER, SubAgentRole.MONITOR, SubAgentRole.ROLLBACKER],
             handoff_to=[],
-            **kwargs
+            **kwargs,
         )
-    
-    async def _execute(self, input_data: Any) -> Dict[str, Any]:
+
+    async def _execute(self, input_data: Any) -> dict[str, Any]:
         """Execute deployment"""
         if isinstance(input_data, dict) and not input_data.get("test_passed", False):
-            return {
-                "status": "blocked",
-                "deployed": False,
-                "reason": "Tests did not pass"
-            }
-        
+            return {"status": "blocked", "deployed": False, "reason": "Tests did not pass"}
+
         # Execute sub-agents
-        sub_results = await self._execute_sub_agents(input_data if isinstance(input_data, dict) else {})
-        
+        sub_results = await self._execute_sub_agents(
+            input_data if isinstance(input_data, dict) else {}
+        )
+
         # Deploy via MCP (simulated if not available)
         deploy_result = {"success": True, "version": DEPLOYMENT_VERSION}
         if self.mcp:
             try:
-                deploy = await self.mcp.call_tool("workers_deploy", {
-                    "code": input_data.get("code", "") if isinstance(input_data, dict) else ""
-                })
+                deploy = await self.mcp.call_tool(
+                    "workers_deploy",
+                    {"code": input_data.get("code", "") if isinstance(input_data, dict) else ""},
+                )
                 deploy_result = {"success": True, "deploy": deploy, "version": DEPLOYMENT_VERSION}
             except:
                 pass
-        
+
         # Track attribution
         if self.mcp:
             try:
-                await self.mcp.call_tool("attribution_track", {
-                    "event": "deployment",
-                    "version": DEPLOYMENT_VERSION
-                })
+                await self.mcp.call_tool(
+                    "attribution_track", {"event": "deployment", "version": DEPLOYMENT_VERSION}
+                )
             except:
                 pass
-        
+
         return {
             "status": "shipped",
             "deployed": True,
             "version": DEPLOYMENT_VERSION,
             "sub_results": [r.dict() for r in sub_results],
-            "handoff_to": None
+            "handoff_to": None,
         }
 
 
@@ -707,7 +720,7 @@ class ShipperAgent(PipelineAgent):
 # AGENT REGISTRY
 # ═══════════════════════════════════════════════════════════════════════════════
 
-PIPELINE_AGENTS: Dict[PipelineRole, type] = {
+PIPELINE_AGENTS: dict[PipelineRole, type] = {
     PipelineRole.ARCHITECT: ArchitectAgent,
     PipelineRole.BUILDER: BuilderAgent,
     PipelineRole.TESTER: TesterAgent,

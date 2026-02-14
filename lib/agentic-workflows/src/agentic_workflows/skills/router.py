@@ -18,9 +18,10 @@ from __future__ import annotations
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -316,10 +317,7 @@ class SemanticSkillRouter:
 
     def get_stats(self) -> dict[str, Any]:
         """Get routing statistics."""
-        avg_latency = (
-            self._total_latency_ms / self._route_count
-            if self._route_count > 0 else 0
-        )
+        avg_latency = self._total_latency_ms / self._route_count if self._route_count > 0 else 0
 
         return {
             "route_count": len(self._routes),
@@ -357,88 +355,108 @@ def create_phuc_router() -> SemanticSkillRouter:
     router = SemanticSkillRouter(strategy=RoutingStrategy.HYBRID)
 
     # Cloudflare skills
-    router.add_route(SkillRoute(
-        skill_name="cloudflare-d1",
-        description="D1 SQLite database operations",
-        keywords=["database", "sql", "query", "d1", "sqlite", "select", "insert"],
-        patterns=[r"\b(SELECT|INSERT|UPDATE|DELETE)\b", r"\bd1\b"],
-        priority=1,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="cloudflare-d1",
+            description="D1 SQLite database operations",
+            keywords=["database", "sql", "query", "d1", "sqlite", "select", "insert"],
+            patterns=[r"\b(SELECT|INSERT|UPDATE|DELETE)\b", r"\bd1\b"],
+            priority=1,
+        )
+    )
 
-    router.add_route(SkillRoute(
-        skill_name="cloudflare-r2",
-        description="R2 object storage operations",
-        keywords=["storage", "bucket", "object", "r2", "upload", "download", "file"],
-        patterns=[r"\br2\b", r"\bbucket\b"],
-        priority=1,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="cloudflare-r2",
+            description="R2 object storage operations",
+            keywords=["storage", "bucket", "object", "r2", "upload", "download", "file"],
+            patterns=[r"\br2\b", r"\bbucket\b"],
+            priority=1,
+        )
+    )
 
-    router.add_route(SkillRoute(
-        skill_name="cloudflare-vectorize",
-        description="Vectorize vector database operations",
-        keywords=["vector", "embedding", "search", "similarity", "vectorize"],
-        patterns=[r"\bvector\b", r"\bembedding\b", r"\bsimilarity\s+search\b"],
-        priority=1,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="cloudflare-vectorize",
+            description="Vectorize vector database operations",
+            keywords=["vector", "embedding", "search", "similarity", "vectorize"],
+            patterns=[r"\bvector\b", r"\bembedding\b", r"\bsimilarity\s+search\b"],
+            priority=1,
+        )
+    )
 
-    router.add_route(SkillRoute(
-        skill_name="cloudflare-ai",
-        description="Workers AI inference operations",
-        keywords=["ai", "inference", "model", "llm", "generate", "workers ai"],
-        patterns=[r"\bworkers\s+ai\b", r"\binference\b"],
-        priority=1,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="cloudflare-ai",
+            description="Workers AI inference operations",
+            keywords=["ai", "inference", "model", "llm", "generate", "workers ai"],
+            patterns=[r"\bworkers\s+ai\b", r"\binference\b"],
+            priority=1,
+        )
+    )
 
-    router.add_route(SkillRoute(
-        skill_name="cloudflare-workers",
-        description="Cloudflare Workers deployment and management",
-        keywords=["worker", "deploy", "serverless", "edge", "function"],
-        patterns=[r"\bworker\b", r"\bserverless\b", r"\bedge\s+function\b"],
-        priority=1,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="cloudflare-workers",
+            description="Cloudflare Workers deployment and management",
+            keywords=["worker", "deploy", "serverless", "edge", "function"],
+            patterns=[r"\bworker\b", r"\bserverless\b", r"\bedge\s+function\b"],
+            priority=1,
+        )
+    )
 
     # Pharma skills
-    router.add_route(SkillRoute(
-        skill_name="pharma-npi-ndc",
-        description="NPI and NDC lookup and validation",
-        keywords=["npi", "ndc", "prescriber", "drug", "pharmacy", "hcp", "physician"],
-        patterns=[r"\bNPI\b", r"\bNDC\b", r"\bprescriber\b"],
-        priority=2,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="pharma-npi-ndc",
+            description="NPI and NDC lookup and validation",
+            keywords=["npi", "ndc", "prescriber", "drug", "pharmacy", "hcp", "physician"],
+            patterns=[r"\bNPI\b", r"\bNDC\b", r"\bprescriber\b"],
+            priority=2,
+        )
+    )
 
     # Analytics skills
-    router.add_route(SkillRoute(
-        skill_name="analytics-attribution",
-        description="Marketing attribution and channel analysis",
-        keywords=["attribution", "channel", "marketing", "conversion", "touchpoint"],
-        patterns=[r"\battribution\b", r"\bchannel\s+analysis\b"],
-        priority=2,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="analytics-attribution",
+            description="Marketing attribution and channel analysis",
+            keywords=["attribution", "channel", "marketing", "conversion", "touchpoint"],
+            patterns=[r"\battribution\b", r"\bchannel\s+analysis\b"],
+            priority=2,
+        )
+    )
 
-    router.add_route(SkillRoute(
-        skill_name="analytics-campaign",
-        description="Campaign performance analysis",
-        keywords=["campaign", "performance", "roi", "metrics", "marketing"],
-        patterns=[r"\bcampaign\b", r"\bROI\b"],
-        priority=2,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="analytics-campaign",
+            description="Campaign performance analysis",
+            keywords=["campaign", "performance", "roi", "metrics", "marketing"],
+            patterns=[r"\bcampaign\b", r"\bROI\b"],
+            priority=2,
+        )
+    )
 
     # Integration skills
-    router.add_route(SkillRoute(
-        skill_name="integrations-uid2",
-        description="UID2 identity management",
-        keywords=["uid2", "identity", "token", "advertising", "programmatic"],
-        patterns=[r"\bUID2\b", r"\bunified\s+id\b"],
-        priority=2,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="integrations-uid2",
+            description="UID2 identity management",
+            keywords=["uid2", "identity", "token", "advertising", "programmatic"],
+            patterns=[r"\bUID2\b", r"\bunified\s+id\b"],
+            priority=2,
+        )
+    )
 
-    router.add_route(SkillRoute(
-        skill_name="integrations-camara",
-        description="CAMARA API telecommunications",
-        keywords=["camara", "telecom", "number", "verification", "carrier"],
-        patterns=[r"\bCAMARA\b", r"\btelecom\b"],
-        priority=2,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="integrations-camara",
+            description="CAMARA API telecommunications",
+            keywords=["camara", "telecom", "number", "verification", "carrier"],
+            patterns=[r"\bCAMARA\b", r"\btelecom\b"],
+            priority=2,
+        )
+    )
 
     return router
 
@@ -447,44 +465,54 @@ def create_communication_router() -> SemanticSkillRouter:
     """Create router pre-configured with communication skills."""
     router = SemanticSkillRouter(strategy=RoutingStrategy.HYBRID)
 
-    router.add_route(SkillRoute(
-        skill_name="email",
-        description="Email management and automation",
-        keywords=["email", "inbox", "gmail", "outlook", "mail", "message"],
-        patterns=[r"\bemail\b", r"\binbox\b", r"\bmail\b"],
-        priority=1,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="email",
+            description="Email management and automation",
+            keywords=["email", "inbox", "gmail", "outlook", "mail", "message"],
+            patterns=[r"\bemail\b", r"\binbox\b", r"\bmail\b"],
+            priority=1,
+        )
+    )
 
-    router.add_route(SkillRoute(
-        skill_name="xlsx",
-        description="Excel and spreadsheet operations",
-        keywords=["excel", "spreadsheet", "xlsx", "csv", "formula", "pivot"],
-        patterns=[r"\bexcel\b", r"\bspreadsheet\b", r"\.xlsx\b"],
-        priority=1,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="xlsx",
+            description="Excel and spreadsheet operations",
+            keywords=["excel", "spreadsheet", "xlsx", "csv", "formula", "pivot"],
+            patterns=[r"\bexcel\b", r"\bspreadsheet\b", r"\.xlsx\b"],
+            priority=1,
+        )
+    )
 
-    router.add_route(SkillRoute(
-        skill_name="research",
-        description="Multi-agent research and synthesis",
-        keywords=["research", "investigate", "analyze", "summarize", "study"],
-        patterns=[r"\bresearch\b", r"\binvestigate\b"],
-        priority=1,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="research",
+            description="Multi-agent research and synthesis",
+            keywords=["research", "investigate", "analyze", "summarize", "study"],
+            patterns=[r"\bresearch\b", r"\binvestigate\b"],
+            priority=1,
+        )
+    )
 
-    router.add_route(SkillRoute(
-        skill_name="whatsapp",
-        description="WhatsApp Business messaging",
-        keywords=["whatsapp", "message", "chat", "wa", "text"],
-        patterns=[r"\bwhatsapp\b", r"\bWA\b"],
-        priority=1,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="whatsapp",
+            description="WhatsApp Business messaging",
+            keywords=["whatsapp", "message", "chat", "wa", "text"],
+            patterns=[r"\bwhatsapp\b", r"\bWA\b"],
+            priority=1,
+        )
+    )
 
-    router.add_route(SkillRoute(
-        skill_name="pdf",
-        description="PDF document processing",
-        keywords=["pdf", "document", "extract", "parse"],
-        patterns=[r"\.pdf\b", r"\bPDF\b"],
-        priority=1,
-    ))
+    router.add_route(
+        SkillRoute(
+            skill_name="pdf",
+            description="PDF document processing",
+            keywords=["pdf", "document", "extract", "parse"],
+            patterns=[r"\.pdf\b", r"\bPDF\b"],
+            priority=1,
+        )
+    )
 
     return router

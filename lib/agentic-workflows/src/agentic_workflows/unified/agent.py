@@ -42,25 +42,20 @@ import asyncio
 import json
 import logging
 import uuid
-from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Callable, AsyncIterator, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from agentic_workflows.unified.skills import (
-    UnifiedSkillRegistry,
-    UnifiedSkill,
-    ToolFormat,
-    get_unified_registry,
-)
 from agentic_workflows.unified.bridge import (
-    ProtocolBridge,
-    ProtocolType,
     UniversalMessage,
     UniversalTool,
     get_protocol_bridge,
+)
+from agentic_workflows.unified.skills import (
+    ToolFormat,
+    UnifiedSkillRegistry,
+    get_unified_registry,
 )
 
 if TYPE_CHECKING:
@@ -71,6 +66,7 @@ logger = logging.getLogger(__name__)
 
 class AgentCapability(Enum):
     """Agent capabilities for protocol negotiation."""
+
     TOOLS = "tools"
     STREAMING = "streaming"
     HANDOFFS = "handoffs"
@@ -85,6 +81,7 @@ class AgentCapability(Enum):
 
 class AgentState(Enum):
     """Agent execution states."""
+
     IDLE = "idle"
     RUNNING = "running"
     WAITING_INPUT = "waiting_input"
@@ -96,6 +93,7 @@ class AgentState(Enum):
 @dataclass
 class AgentTool:
     """Unified tool representation for agents."""
+
     name: str
     description: str
     handler: Callable[..., Any]
@@ -117,7 +115,8 @@ class AgentTool:
 @dataclass
 class AgentHandoff:
     """Configuration for agent handoff."""
-    target_agent: "UnifiedAgent | str"
+
+    target_agent: UnifiedAgent | str
     condition: Callable[[str], bool] | None = None
     description: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -126,6 +125,7 @@ class AgentHandoff:
 @dataclass
 class AgentGuardrail:
     """Guardrail for input/output filtering."""
+
     name: str
     type: str  # "input" or "output"
     handler: Callable[[str], tuple[bool, str]]  # (allowed, modified_content)
@@ -135,6 +135,7 @@ class AgentGuardrail:
 @dataclass
 class UnifiedAgentConfig:
     """Configuration for unified agent."""
+
     # Identity
     name: str = "unified-agent"
     description: str = ""
@@ -178,6 +179,7 @@ class UnifiedAgentConfig:
 @dataclass
 class AgentResult:
     """Result from agent execution."""
+
     success: bool
     output: str = ""
     error: str | None = None
@@ -193,10 +195,12 @@ class AgentResult:
 
         history = []
         for msg in self.messages:
-            history.append(UniversalMessage(
-                role=msg.get("role", "assistant"),
-                content=msg.get("content", ""),
-            ).to_a2a_message())
+            history.append(
+                UniversalMessage(
+                    role=msg.get("role", "assistant"),
+                    content=msg.get("content", ""),
+                ).to_a2a_message()
+            )
 
         return {
             "id": str(uuid.uuid4()),
@@ -241,7 +245,7 @@ class UnifiedAgent:
         instructions: str = "",
         model: str | None = None,
         tools: list[AgentTool | Callable] | None = None,
-        handoffs: list[AgentHandoff | "UnifiedAgent"] | None = None,
+        handoffs: list[AgentHandoff | UnifiedAgent] | None = None,
         guardrails: list[AgentGuardrail] | None = None,
         **kwargs,
     ):
@@ -353,6 +357,7 @@ class UnifiedAgent:
         if callable(tool) and not isinstance(tool, AgentTool):
             # Convert function to tool
             import inspect
+
             sig = inspect.signature(tool)
 
             properties = {}
@@ -398,6 +403,7 @@ class UnifiedAgent:
                 '''Greet someone.'''
                 return f"Hello, {name}!"
         """
+
         def decorator(func: Callable) -> Callable:
             import inspect
 
@@ -446,7 +452,7 @@ class UnifiedAgent:
 
         return decorator
 
-    def add_handoff(self, handoff: AgentHandoff | "UnifiedAgent") -> None:
+    def add_handoff(self, handoff: AgentHandoff | UnifiedAgent) -> None:
         """Add a handoff target.
 
         Args:
@@ -494,11 +500,13 @@ class UnifiedAgent:
                 _skill_name: str = skill.name,
             ) -> str:
                 skill_context = registry.load_skill_context(_skill_name)
-                return json.dumps({
-                    "skill": _skill_name,
-                    "action": action,
-                    "context": skill_context[:5000] if skill_context else None,
-                })
+                return json.dumps(
+                    {
+                        "skill": _skill_name,
+                        "action": action,
+                        "context": skill_context[:5000] if skill_context else None,
+                    }
+                )
 
             tool = AgentTool(
                 name=f"skill_{skill.name.replace('-', '_')}",
@@ -634,10 +642,12 @@ class UnifiedAgent:
                     )
 
             # Add user message to history
-            self._messages.append({
-                "role": "user",
-                "content": input_text,
-            })
+            self._messages.append(
+                {
+                    "role": "user",
+                    "content": input_text,
+                }
+            )
 
             # Build system prompt
             system_prompt = self.config.system_prompt or self.config.instructions
@@ -664,10 +674,12 @@ class UnifiedAgent:
                     )
 
             # Add assistant message to history
-            self._messages.append({
-                "role": "assistant",
-                "content": output,
-            })
+            self._messages.append(
+                {
+                    "role": "assistant",
+                    "content": output,
+                }
+            )
 
             self._state = AgentState.COMPLETED
             return AgentResult(
@@ -708,10 +720,12 @@ class UnifiedAgent:
             # Format messages
             formatted_messages = []
             for msg in messages:
-                formatted_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"],
-                })
+                formatted_messages.append(
+                    {
+                        "role": msg["role"],
+                        "content": msg["content"],
+                    }
+                )
 
             response = await client.messages.create(
                 model=self.config.model,
@@ -730,7 +744,9 @@ class UnifiedAgent:
 
         except ImportError:
             # Fallback response
-            return f"[Agent {self.name}] Received: {messages[-1]['content'] if messages else 'empty'}"
+            return (
+                f"[Agent {self.name}] Received: {messages[-1]['content'] if messages else 'empty'}"
+            )
 
     async def run_with_handoffs(
         self,
@@ -766,13 +782,15 @@ class UnifiedAgent:
                 return result
 
             # Record handoff
-            handoff_chain.append({
-                "from": current_agent.name,
-                "to": handoff.target_agent.name if isinstance(
-                    handoff.target_agent, UnifiedAgent
-                ) else handoff.target_agent,
-                "reason": handoff.description,
-            })
+            handoff_chain.append(
+                {
+                    "from": current_agent.name,
+                    "to": handoff.target_agent.name
+                    if isinstance(handoff.target_agent, UnifiedAgent)
+                    else handoff.target_agent,
+                    "reason": handoff.description,
+                }
+            )
 
             # Switch to target agent
             if isinstance(handoff.target_agent, UnifiedAgent):
@@ -805,20 +823,22 @@ class UnifiedAgent:
         try:
             from agentic_workflows.a2a import (
                 A2AServer,
-                AgentCard,
-                AgentSkill,
                 AgentCapabilities,
+                AgentCard,
                 AgentProvider,
+                AgentSkill,
             )
 
             # Build agent card
             skills = []
             for tool in self._tools.values():
-                skills.append(AgentSkill(
-                    id=tool.name,
-                    name=tool.name.replace("_", " ").title(),
-                    description=tool.description,
-                ))
+                skills.append(
+                    AgentSkill(
+                        id=tool.name,
+                        name=tool.name.replace("_", " ").title(),
+                        description=tool.description,
+                    )
+                )
 
             for handoff in self._handoffs:
                 target_name = (
@@ -826,11 +846,13 @@ class UnifiedAgent:
                     if isinstance(handoff.target_agent, UnifiedAgent)
                     else str(handoff.target_agent)
                 )
-                skills.append(AgentSkill(
-                    id=f"handoff_{target_name}",
-                    name=f"Handoff to {target_name}",
-                    description=handoff.description,
-                ))
+                skills.append(
+                    AgentSkill(
+                        id=f"handoff_{target_name}",
+                        name=f"Handoff to {target_name}",
+                        description=handoff.description,
+                    )
+                )
 
             card = AgentCard(
                 name=self.name,
@@ -846,7 +868,7 @@ class UnifiedAgent:
             )
 
             # Create executor that uses this agent
-            from agentic_workflows.a2a import AgentExecutor, RequestContext, EventQueue
+            from agentic_workflows.a2a import AgentExecutor, EventQueue, RequestContext
 
             class UnifiedAgentExecutor(AgentExecutor):
                 def __init__(self, agent: UnifiedAgent):
@@ -886,15 +908,15 @@ class UnifiedAgent:
             logger.warning(f"A2A module not available: {e}")
             return None
 
-    def expose_as_mcp(self) -> "UnifiedMCPServer":
+    def expose_as_mcp(self) -> UnifiedMCPServer:
         """Create MCP server exposing this agent.
 
         Returns:
             UnifiedMCPServer instance.
         """
         from agentic_workflows.unified.mcp import (
-            UnifiedMCPServer,
             UnifiedMCPConfig,
+            UnifiedMCPServer,
         )
 
         config = UnifiedMCPConfig(
@@ -916,11 +938,13 @@ class UnifiedAgent:
             session_id: str = "",
         ) -> str:
             result = await self.run(message, session_id or None)
-            return json.dumps({
-                "success": result.success,
-                "output": result.output,
-                "error": result.error,
-            })
+            return json.dumps(
+                {
+                    "success": result.success,
+                    "output": result.output,
+                    "error": result.error,
+                }
+            )
 
         from agentic_workflows.unified.mcp import MCPToolDefinition
 
@@ -999,7 +1023,7 @@ def create_unified_agent(
     instructions: str = "",
     model: str = "claude-sonnet-4",
     tools: list[Callable] | None = None,
-    handoffs: list["UnifiedAgent"] | None = None,
+    handoffs: list[UnifiedAgent] | None = None,
     enable_skills: bool = True,
     **kwargs,
 ) -> UnifiedAgent:

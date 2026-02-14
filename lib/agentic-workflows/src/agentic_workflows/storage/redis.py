@@ -61,7 +61,9 @@ class RedisStorage(StorageBackend[Any]):
             config: Redis configuration.
         """
         if not REDIS_AVAILABLE:
-            raise ImportError("redis is required for Redis storage. Install with: pip install redis")
+            raise ImportError(
+                "redis is required for Redis storage. Install with: pip install redis"
+            )
 
         self.redis_config = config or RedisConfig()
         super().__init__(self.redis_config)
@@ -336,7 +338,7 @@ class RedisStorage(StorageBackend[Any]):
             for key in serialized.keys():
                 await client.expire(key, ttl)
 
-    async def __aenter__(self) -> "RedisStorage":
+    async def __aenter__(self) -> RedisStorage:
         """Async context manager entry."""
         await self.connect()
         return self

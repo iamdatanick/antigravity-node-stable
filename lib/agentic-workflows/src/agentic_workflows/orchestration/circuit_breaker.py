@@ -10,9 +10,10 @@ import inspect
 import random
 import threading
 import time
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -84,7 +85,7 @@ def exponential_backoff_with_jitter(
         >>> # Approximately: [1.0, 2.0, 4.0, 8.0, 16.0] + jitter
     """
     # Calculate exponential delay
-    exp_delay = base_delay * (exponential_base ** attempt)
+    exp_delay = base_delay * (exponential_base**attempt)
 
     # Cap at max_delay
     capped_delay = min(exp_delay, max_delay)
@@ -96,8 +97,8 @@ def exponential_backoff_with_jitter(
 class CircuitState(Enum):
     """Circuit breaker states."""
 
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Failing, rejecting calls
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing, rejecting calls
     HALF_OPEN = "half_open"  # Testing if service recovered
 
 
@@ -107,9 +108,7 @@ class CircuitBreakerOpen(Exception):
     def __init__(self, name: str, retry_after: float):
         self.name = name
         self.retry_after = retry_after
-        super().__init__(
-            f"Circuit breaker '{name}' is open. Retry after {retry_after:.1f}s"
-        )
+        super().__init__(f"Circuit breaker '{name}' is open. Retry after {retry_after:.1f}s")
 
 
 @dataclass
@@ -305,9 +304,7 @@ class CircuitBreaker:
             # Clean old failures outside window
             if self.config.failure_window_seconds:
                 cutoff = now - self.config.failure_window_seconds
-                self._failure_timestamps = [
-                    t for t in self._failure_timestamps if t > cutoff
-                ]
+                self._failure_timestamps = [t for t in self._failure_timestamps if t > cutoff]
 
             # Check if should open
             if self._state == CircuitState.HALF_OPEN:

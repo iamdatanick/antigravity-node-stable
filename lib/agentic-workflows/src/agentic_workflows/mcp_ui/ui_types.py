@@ -19,9 +19,8 @@ from __future__ import annotations
 import base64
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from typing import Any, Union, Literal, TypeVar, Generic
+from typing import Any, Literal, Union
 
 
 class MimeType(str, Enum):
@@ -36,7 +35,9 @@ class MimeType(str, Enum):
     TEXT_HTML = "text/html"
     TEXT_URI_LIST = "text/uri-list"
     REMOTE_DOM_REACT = "application/vnd.mcp-ui.remote-dom+javascript; framework=react"
-    REMOTE_DOM_WEBCOMPONENTS = "application/vnd.mcp-ui.remote-dom+javascript; framework=webcomponents"
+    REMOTE_DOM_WEBCOMPONENTS = (
+        "application/vnd.mcp-ui.remote-dom+javascript; framework=webcomponents"
+    )
 
     @classmethod
     def remote_dom(cls, framework: Literal["react", "webcomponents"] = "react") -> str:
@@ -87,6 +88,7 @@ class UIActionToolPayload:
         tool_name: Name of the tool to invoke.
         params: Parameters to pass to the tool.
     """
+
     tool_name: str
     params: dict[str, Any] = field(default_factory=dict)
 
@@ -106,6 +108,7 @@ class UIActionIntentPayload:
         intent: Intent identifier.
         params: Parameters for the intent.
     """
+
     intent: str
     params: dict[str, Any] = field(default_factory=dict)
 
@@ -124,6 +127,7 @@ class UIActionPromptPayload:
     Attributes:
         prompt: Prompt text to send to the LLM.
     """
+
     prompt: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -138,6 +142,7 @@ class UIActionNotifyPayload:
     Attributes:
         message: Notification message to display.
     """
+
     message: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -152,6 +157,7 @@ class UIActionLinkPayload:
     Attributes:
         url: URL to navigate to.
     """
+
     url: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -181,6 +187,7 @@ class UIActionResult:
         payload: Action-specific payload data.
         message_id: Optional message ID for async response correlation.
     """
+
     type: UIActionType
     payload: UIActionPayload
     message_id: str | None = None
@@ -201,7 +208,7 @@ class UIActionResult:
         tool_name: str,
         params: dict[str, Any] | None = None,
         message_id: str | None = None,
-    ) -> "UIActionResult":
+    ) -> UIActionResult:
         """Create a tool call action result.
 
         Args:
@@ -224,7 +231,7 @@ class UIActionResult:
         intent: str,
         params: dict[str, Any] | None = None,
         message_id: str | None = None,
-    ) -> "UIActionResult":
+    ) -> UIActionResult:
         """Create an intent action result.
 
         Args:
@@ -246,7 +253,7 @@ class UIActionResult:
         cls,
         prompt: str,
         message_id: str | None = None,
-    ) -> "UIActionResult":
+    ) -> UIActionResult:
         """Create a prompt action result.
 
         Args:
@@ -267,7 +274,7 @@ class UIActionResult:
         cls,
         message: str,
         message_id: str | None = None,
-    ) -> "UIActionResult":
+    ) -> UIActionResult:
         """Create a notification action result.
 
         Args:
@@ -288,7 +295,7 @@ class UIActionResult:
         cls,
         url: str,
         message_id: str | None = None,
-    ) -> "UIActionResult":
+    ) -> UIActionResult:
         """Create a link action result.
 
         Args:
@@ -313,6 +320,7 @@ class FrameSize:
         width: Width in pixels or CSS units.
         height: Height in pixels or CSS units.
     """
+
     width: int | str | None = None
     height: int | str | None = None
 
@@ -342,6 +350,7 @@ class UIMetadata:
         session_id: Session ID for stateful widgets.
         additional: Additional custom metadata fields.
     """
+
     preferred_frame_size: FrameSize | None = None
     initial_render_data: dict[str, Any] = field(default_factory=dict)
     auto_resize_iframe: bool | dict[str, bool] = True
@@ -397,7 +406,7 @@ class UIMetadata:
         return result
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "UIMetadata":
+    def from_dict(cls, data: dict[str, Any]) -> UIMetadata:
         """Create UIMetadata from dictionary.
 
         Args:
@@ -440,6 +449,7 @@ class UIResourceContent:
         text: Text content (for text encoding).
         blob: Base64-encoded blob content (for blob encoding).
     """
+
     text: str | None = None
     blob: str | None = None
 
@@ -458,7 +468,7 @@ class UIResourceContent:
         return ""
 
     @classmethod
-    def from_text(cls, text: str) -> "UIResourceContent":
+    def from_text(cls, text: str) -> UIResourceContent:
         """Create content from text.
 
         Args:
@@ -470,7 +480,7 @@ class UIResourceContent:
         return cls(text=text)
 
     @classmethod
-    def from_blob(cls, data: bytes) -> "UIResourceContent":
+    def from_blob(cls, data: bytes) -> UIResourceContent:
         """Create content from binary data.
 
         Args:
@@ -511,6 +521,7 @@ class UIResource:
         ... )
         >>> payload = resource.to_mcp_resource()
     """
+
     uri: str
     mime_type: MimeType | str
     content: UIResourceContent
@@ -563,7 +574,9 @@ class UIResource:
 ContentSpec = Union[
     tuple[Literal["rawHtml"], str],  # (type, htmlString)
     tuple[Literal["externalUrl"], str],  # (type, iframeUrl)
-    tuple[Literal["remoteDom"], str, Literal["react", "webcomponents"]],  # (type, script, framework)
+    tuple[
+        Literal["remoteDom"], str, Literal["react", "webcomponents"]
+    ],  # (type, script, framework)
 ]
 
 

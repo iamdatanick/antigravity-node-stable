@@ -15,29 +15,29 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from .scratchpad import Scratchpad, ThoughtType
 from .context_graph import LearningContextGraph
+from .scratchpad import Scratchpad, ThoughtType
 
 
 class ArtifactType(Enum):
     """Types of artifacts that can be generated."""
 
     # State artifacts
-    SCRATCHPAD = "scratchpad"           # Working memory state
-    CONTEXT_GRAPH = "context_graph"     # Learning/context state
-    FULL_STATE = "full_state"           # Complete agent state
+    SCRATCHPAD = "scratchpad"  # Working memory state
+    CONTEXT_GRAPH = "context_graph"  # Learning/context state
+    FULL_STATE = "full_state"  # Complete agent state
 
     # Work product artifacts
-    CODE = "code"                       # Generated code
-    DOCUMENT = "document"               # Generated document
-    ANALYSIS = "analysis"               # Analysis results
-    PLAN = "plan"                       # Execution plan
-    DECISION = "decision"               # Decision record
+    CODE = "code"  # Generated code
+    DOCUMENT = "document"  # Generated document
+    ANALYSIS = "analysis"  # Analysis results
+    PLAN = "plan"  # Execution plan
+    DECISION = "decision"  # Decision record
 
     # Handoff artifacts
-    TASK_HANDOFF = "task_handoff"       # Task transfer to another agent
-    CHECKPOINT = "checkpoint"           # Resumable checkpoint
-    SUMMARY = "summary"                 # Condensed summary for context
+    TASK_HANDOFF = "task_handoff"  # Task transfer to another agent
+    CHECKPOINT = "checkpoint"  # Resumable checkpoint
+    SUMMARY = "summary"  # Condensed summary for context
 
 
 @dataclass
@@ -145,7 +145,9 @@ class AgentArtifact:
 
         sections.append("<artifact>")
         sections.append(f"Type: {self.metadata.artifact_type.value}")
-        sections.append(f"Created: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.metadata.created_at))}")
+        sections.append(
+            f"Created: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.metadata.created_at))}"
+        )
         sections.append(f"By: {self.metadata.created_by}")
 
         if self.task_description:
@@ -190,7 +192,7 @@ class AgentArtifact:
         # Truncate if needed
         max_chars = max_tokens * 4
         if len(result) > max_chars:
-            result = result[:max_chars - 100] + "\n...[truncated]</artifact>"
+            result = result[: max_chars - 100] + "\n...[truncated]</artifact>"
 
         return result
 
@@ -268,8 +270,7 @@ class ArtifactBuilder:
         if task_description:
             insights = context_graph.get_relevant_insights(task_description, top_k=5)
             relevant_context = [
-                f"[{i.insight_type}] {i.content} (confidence: {i.confidence:.2f})"
-                for i in insights
+                f"[{i.insight_type}] {i.content} (confidence: {i.confidence:.2f})" for i in insights
             ]
 
         metadata = ArtifactMetadata(
@@ -317,13 +318,13 @@ class ArtifactBuilder:
         # Auto-extract from scratchpad if available
         if scratchpad and not next_steps:
             next_steps = [
-                e.content for e in scratchpad.get_unresolved()
-                if e.thought_type == ThoughtType.TODO
+                e.content for e in scratchpad.get_unresolved() if e.thought_type == ThoughtType.TODO
             ][:10]
 
         if scratchpad and not open_questions:
             open_questions = [
-                e.content for e in scratchpad.get_unresolved()
+                e.content
+                for e in scratchpad.get_unresolved()
                 if e.thought_type == ThoughtType.QUESTION
             ][:5]
 
@@ -445,11 +446,13 @@ class ArtifactBuilder:
             content=content,
             task_description=f"Decision: {decision}",
             current_state="Decision made",
-            key_decisions=[{
-                "decision": decision,
-                "reasoning": reasoning,
-                "confidence": confidence,
-            }],
+            key_decisions=[
+                {
+                    "decision": decision,
+                    "reasoning": reasoning,
+                    "confidence": confidence,
+                }
+            ],
             warnings=risks or [],
         )
 
@@ -468,13 +471,13 @@ def serialize_for_handoff(
         Base64-encoded serialized artifact
     """
     data = artifact.to_dict()
-    json_str = json.dumps(data, separators=(',', ':'))
+    json_str = json.dumps(data, separators=(",", ":"))
 
     if compress:
-        compressed = gzip.compress(json_str.encode('utf-8'))
-        return base64.b64encode(compressed).decode('ascii')
+        compressed = gzip.compress(json_str.encode("utf-8"))
+        return base64.b64encode(compressed).decode("ascii")
     else:
-        return base64.b64encode(json_str.encode('utf-8')).decode('ascii')
+        return base64.b64encode(json_str.encode("utf-8")).decode("ascii")
 
 
 def deserialize_from_handoff(
@@ -493,9 +496,9 @@ def deserialize_from_handoff(
     raw_bytes = base64.b64decode(serialized)
 
     if compressed:
-        json_str = gzip.decompress(raw_bytes).decode('utf-8')
+        json_str = gzip.decompress(raw_bytes).decode("utf-8")
     else:
-        json_str = raw_bytes.decode('utf-8')
+        json_str = raw_bytes.decode("utf-8")
 
     data = json.loads(json_str)
     return AgentArtifact.from_dict(data)

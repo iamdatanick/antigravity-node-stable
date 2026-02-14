@@ -198,122 +198,120 @@ server.register_ui_tool("products", adapted)
 __version__ = "1.0.0"
 
 # UI Types
-from .ui_types import (
-    # Core types
-    UIResource,
-    UIResourceContent,
-    UIMetadata,
-    FrameSize,
-    # Enums
-    MimeType,
-    ContentType,
-    UIActionType,
-    # Action payloads
-    UIActionPayload,
-    UIActionToolPayload,
-    UIActionIntentPayload,
-    UIActionPromptPayload,
-    UIActionNotifyPayload,
-    UIActionLinkPayload,
-    # Action result
-    UIActionResult,
-    # Type aliases
-    UIStructuredContent,
-)
-
-# Resource Creation
-from .resource import (
-    # Main factory
-    create_ui_resource,
-    # Resource factories
-    RawHtmlResource,
-    ExternalUrlResource,
-    RemoteDomResource,
-    # Convenience functions
-    create_html_resource,
-    create_url_resource,
-    create_remote_dom_resource,
-    # Adapter utilities
-    wrap_html_with_adapters,
-    get_apps_sdk_adapter_script,
-    # Configuration
-    AppsSdkConfig,
-    AdapterConfig,
-    ResourceContent,
-    UI_METADATA_PREFIX,
-)
-
 # UI Actions
 from .actions import (
-    # Action result factories
-    ui_action_result_tool_call,
-    ui_action_result_prompt,
-    ui_action_result_link,
-    ui_action_result_intent,
-    ui_action_result_notification,
+    IntentHandler,
+    LinkHandler,
+    NotifyHandler,
+    PromptHandler,
+    # Handler types
+    ToolCallHandler,
     # Handler
     UIActionHandler,
     UIActionHandlerConfig,
     create_action_handler,
-    # Handler types
-    ToolCallHandler,
-    IntentHandler,
-    PromptHandler,
-    NotifyHandler,
-    LinkHandler,
+    ui_action_result_intent,
+    ui_action_result_link,
+    ui_action_result_notification,
+    ui_action_result_prompt,
+    # Action result factories
+    ui_action_result_tool_call,
 )
 
 # Components
 from .components import (
-    # Enums
-    ButtonVariant,
-    ButtonSize,
-    InputType,
-    # Component configs
-    ButtonConfig,
-    InputConfig,
-    SelectConfig,
-    SelectOption,
-    TableConfig,
-    TableColumn,
-    ChartConfig,
-    ChartDataset,
-    ListConfig,
-    ListItem,
-    CardConfig,
+    # CSS
+    BASE_CSS,
     # Component classes
     Button,
-    Input,
-    Select,
-    Table,
-    Chart,
-    List,
+    # Component configs
+    ButtonConfig,
+    ButtonSize,
+    # Enums
+    ButtonVariant,
     Card,
+    CardConfig,
+    Chart,
+    ChartConfig,
+    ChartDataset,
     Component,
+    Input,
+    InputConfig,
+    InputType,
+    List,
+    ListConfig,
+    ListItem,
+    Select,
+    SelectConfig,
+    SelectOption,
+    Table,
+    TableColumn,
+    TableConfig,
     # Factory functions
     create_component_html,
     create_component_resource,
     generate_remote_dom_script,
-    # CSS
-    BASE_CSS,
 )
 
 # Integration
 from .integration import (
     # Server
     MCPUIServer,
-    create_mcp_ui_server,
-    # Registration types
-    UIToolRegistration,
-    UIResourceTemplate,
-    # Tool decorator
-    ui_tool,
-    UIToolHandler,
     # Adapter
     OpenAIAppsWidgetAdapter,
+    UIResourceTemplate,
+    UIToolHandler,
+    # Registration types
+    UIToolRegistration,
+    create_mcp_ui_server,
     register_openai_apps_widgets,
+    # Tool decorator
+    ui_tool,
 )
 
+# Resource Creation
+from .resource import (
+    UI_METADATA_PREFIX,
+    AdapterConfig,
+    # Configuration
+    AppsSdkConfig,
+    ExternalUrlResource,
+    # Resource factories
+    RawHtmlResource,
+    RemoteDomResource,
+    ResourceContent,
+    # Convenience functions
+    create_html_resource,
+    create_remote_dom_resource,
+    # Main factory
+    create_ui_resource,
+    create_url_resource,
+    get_apps_sdk_adapter_script,
+    # Adapter utilities
+    wrap_html_with_adapters,
+)
+from .ui_types import (
+    ContentType,
+    FrameSize,
+    # Enums
+    MimeType,
+    UIActionIntentPayload,
+    UIActionLinkPayload,
+    UIActionNotifyPayload,
+    # Action payloads
+    UIActionPayload,
+    UIActionPromptPayload,
+    # Action result
+    UIActionResult,
+    UIActionToolPayload,
+    UIActionType,
+    UIMetadata,
+    # Core types
+    UIResource,
+    UIResourceContent,
+    # Type aliases
+    UIStructuredContent,
+)
 
 __all__ = [
     # Version

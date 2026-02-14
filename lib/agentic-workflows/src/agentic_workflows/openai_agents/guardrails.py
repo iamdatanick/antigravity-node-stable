@@ -13,12 +13,13 @@ Reference: https://github.com/openai/openai-agents-python
 
 from __future__ import annotations
 
-import re
 import logging
+import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -463,6 +464,7 @@ class InjectionDefenseGuardrail(BaseGuardrail):
                 PromptInjectionDefense,
                 ThreatLevel,
             )
+
             self._defense = PromptInjectionDefense(sensitivity=sensitivity)
             self._threat_levels = {
                 "low": ThreatLevel.LOW,
@@ -604,7 +606,9 @@ class LengthGuardrail(BaseGuardrail):
                 message=f"Content too long: {length} > {self.max_length}",
                 violations=["max_length"],
                 metadata={"length": length},
-                sanitized_content=content[:self.max_length] if self.action == GuardrailAction.SANITIZE else None,
+                sanitized_content=content[: self.max_length]
+                if self.action == GuardrailAction.SANITIZE
+                else None,
             )
 
         return GuardrailResult(passed=True, metadata={"length": length})
@@ -742,7 +746,10 @@ class GuardrailChain:
                 # Track worst action
                 if result.action == GuardrailAction.BLOCK:
                     worst_action = GuardrailAction.BLOCK
-                elif result.action == GuardrailAction.ESCALATE and worst_action != GuardrailAction.BLOCK:
+                elif (
+                    result.action == GuardrailAction.ESCALATE
+                    and worst_action != GuardrailAction.BLOCK
+                ):
                     worst_action = GuardrailAction.ESCALATE
 
                 # Apply sanitization if available
@@ -768,7 +775,7 @@ class GuardrailChain:
             metadata=all_metadata,
         )
 
-    def add(self, guardrail: BaseGuardrail) -> "GuardrailChain":
+    def add(self, guardrail: BaseGuardrail) -> GuardrailChain:
         """Add a guardrail to the chain.
 
         Args:
@@ -808,7 +815,7 @@ def guardrail(
     """
 
     def decorator(
-        func: Callable[[str], bool | tuple[bool, str]]
+        func: Callable[[str], bool | tuple[bool, str]],
     ) -> InputGuardrail | OutputGuardrail:
         guardrail_name = name or func.__name__
 

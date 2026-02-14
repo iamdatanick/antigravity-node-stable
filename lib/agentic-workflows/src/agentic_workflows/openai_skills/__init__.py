@@ -62,89 +62,87 @@ Version: 1.0.0
 """
 
 # Skill Types
-from agentic_workflows.openai_skills.skill_types import (
-    # Enums
-    SkillCategory,
-    ResourceType,
-    ToolPermission,
+# Compatibility
+from agentic_workflows.openai_skills.compat import (
     # Dataclasses
-    SkillMetadata,
-    SkillTool,
-    SkillResource,
-    SkillInstruction,
-    SkillTrigger,
-    SkillManifest,
-    # Validation
-    validate_skill_name,
-    # Constants
-    MAX_NAME_LENGTH,
-    MAX_DESCRIPTION_LENGTH,
-    # Type aliases
-    SkillDict,
-    SkillList,
+    ConversionResult,
+    CrossPlatformDiscovery,
+    # Classes
+    FormatDetector,
+    SkillConverter,
+    # Enums
+    SkillFormat,
+    convert_skill,
+    # Functions
+    detect_format,
+    discover_cross_platform,
+)
+
+# Skill Installer
+from agentic_workflows.openai_skills.installer import (
+    InstallerConfig,
+    # Dataclasses
+    InstallResult,
+    InstallStatus,
+    # Enums
+    InstallTarget,
+    # Classes
+    SkillInstaller,
+    SkillSource,
+    # Functions
+    install_skill,
+    list_installed_skills,
+    uninstall_skill,
 )
 
 # Skill Loader
 from agentic_workflows.openai_skills.loader import (
-    # Classes
-    SkillPath,
     LoaderConfig,
     SkillLoader,
+    # Classes
+    SkillPath,
     # Functions
     create_default_loader,
     discover_skills,
     load_skill_md,
 )
 
-# Skill Installer
-from agentic_workflows.openai_skills.installer import (
-    # Enums
-    InstallTarget,
-    InstallStatus,
-    # Dataclasses
-    InstallResult,
-    InstallerConfig,
-    SkillSource,
-    # Classes
-    SkillInstaller,
-    # Functions
-    install_skill,
-    uninstall_skill,
-    list_installed_skills,
-)
-
 # Skill Registry
 from agentic_workflows.openai_skills.registry import (
+    # Classes
+    OpenAISkillRegistry,
+    RegistryConfig,
     # Enums
     SearchMode,
     # Dataclasses
     SearchResult,
-    RegistryConfig,
-    # Classes
-    OpenAISkillRegistry,
     # Global functions
     get_openai_skill_registry,
-    set_openai_skill_registry,
-    search_skills,
     get_skill_context,
+    search_skills,
+    set_openai_skill_registry,
 )
-
-# Compatibility
-from agentic_workflows.openai_skills.compat import (
+from agentic_workflows.openai_skills.skill_types import (
+    MAX_DESCRIPTION_LENGTH,
+    # Constants
+    MAX_NAME_LENGTH,
+    ResourceType,
     # Enums
-    SkillFormat,
+    SkillCategory,
+    # Type aliases
+    SkillDict,
+    SkillInstruction,
+    SkillList,
+    SkillManifest,
     # Dataclasses
-    ConversionResult,
-    # Classes
-    FormatDetector,
-    SkillConverter,
-    CrossPlatformDiscovery,
-    # Functions
-    detect_format,
-    convert_skill,
-    discover_cross_platform,
+    SkillMetadata,
+    SkillResource,
+    SkillTool,
+    SkillTrigger,
+    ToolPermission,
+    # Validation
+    validate_skill_name,
 )
-
 
 __all__ = [
     # === Skill Types ===
@@ -167,7 +165,6 @@ __all__ = [
     # Type aliases
     "SkillDict",
     "SkillList",
-
     # === Skill Loader ===
     "SkillPath",
     "LoaderConfig",
@@ -175,7 +172,6 @@ __all__ = [
     "create_default_loader",
     "discover_skills",
     "load_skill_md",
-
     # === Skill Installer ===
     "InstallTarget",
     "InstallStatus",
@@ -186,7 +182,6 @@ __all__ = [
     "install_skill",
     "uninstall_skill",
     "list_installed_skills",
-
     # === Skill Registry ===
     "SearchMode",
     "SearchResult",
@@ -196,7 +191,6 @@ __all__ = [
     "set_openai_skill_registry",
     "search_skills",
     "get_skill_context",
-
     # === Compatibility ===
     "SkillFormat",
     "ConversionResult",

@@ -15,23 +15,35 @@ Usage:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from agentic_workflows.agents.agent_loader import (
-    AgentDefinition,
-    AgentCategory,
     CLAUDE_AGENTS_DIR,
+    AgentDefinition,
 )
-
 
 # v4.1 required fields
 V41_REQUIRED_FIELDS = [
-    "name", "description", "tools", "model", "skills",
-    "permissionMode", "security_scope", "timeout", "max_iterations",
-    "recovery", "guardrails", "telemetry", "memory", "context_mode",
-    "cost_tier", "constitutional", "async", "delegates_to",
+    "name",
+    "description",
+    "tools",
+    "model",
+    "skills",
+    "permissionMode",
+    "security_scope",
+    "timeout",
+    "max_iterations",
+    "recovery",
+    "guardrails",
+    "telemetry",
+    "memory",
+    "context_mode",
+    "cost_tier",
+    "constitutional",
+    "async",
+    "delegates_to",
 ]
 
 # Valid values for each field
@@ -51,6 +63,7 @@ SCOPE_REQUIRES_KILL_SWITCH = {"admin"}
 @dataclass
 class AgentAuditResult:
     """Result of auditing a single agent."""
+
     name: str
     category: str
     file_path: str
@@ -75,6 +88,7 @@ class AgentAuditResult:
 @dataclass
 class AuditSummary:
     """Summary of a full agent audit."""
+
     total_agents: int = 0
     compliant_agents: int = 0
     non_compliant_agents: int = 0
@@ -129,9 +143,7 @@ def _load_agent_files(agents_dir: Path | None = None) -> list[tuple[Path, dict, 
         if md_file.name == "MANIFEST.md":
             continue
         try:
-            fm, body = AgentDefinition._parse_yaml_frontmatter(
-                md_file.read_text(encoding="utf-8")
-            )
+            fm, body = AgentDefinition._parse_yaml_frontmatter(md_file.read_text(encoding="utf-8"))
             if fm:
                 results.append((md_file, fm, body))
         except Exception:

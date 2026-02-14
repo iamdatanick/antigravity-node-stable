@@ -5,10 +5,11 @@ Handles message publishing, consumption, and stream processing.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig
 
 
 @dataclass
@@ -213,15 +214,17 @@ class KafkaAgent(SpecialistAgent):
 
         messages = []
         async for msg in consumer:
-            messages.append({
-                "topic": msg.topic,
-                "partition": msg.partition,
-                "offset": msg.offset,
-                "key": msg.key.decode() if msg.key else None,
-                "value": msg.value,
-                "timestamp": msg.timestamp,
-                "headers": dict(msg.headers) if msg.headers else {},
-            })
+            messages.append(
+                {
+                    "topic": msg.topic,
+                    "partition": msg.partition,
+                    "offset": msg.offset,
+                    "key": msg.key.decode() if msg.key else None,
+                    "value": msg.value,
+                    "timestamp": msg.timestamp,
+                    "headers": dict(msg.headers) if msg.headers else {},
+                }
+            )
             if len(messages) >= max_messages:
                 break
 

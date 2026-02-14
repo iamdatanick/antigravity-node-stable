@@ -235,14 +235,8 @@ class AgentCard:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AgentCard:
         """Create from dictionary."""
-        capabilities = [
-            Capability.from_dict(c)
-            for c in data.get("capabilities", [])
-        ]
-        constraints = [
-            Constraint.from_dict(c)
-            for c in data.get("constraints", [])
-        ]
+        capabilities = [Capability.from_dict(c) for c in data.get("capabilities", [])]
+        constraints = [Constraint.from_dict(c) for c in data.get("constraints", [])]
 
         auth_data = data.get("authentication", {})
 
@@ -349,9 +343,9 @@ class AgentCard:
                                 "application/json": {
                                     "schema": capability.output_schema or {"type": "object"},
                                 }
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             }
 

@@ -14,9 +14,8 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class PIIMatch:
 
 
 # PII Patterns
-PII_PATTERNS: Dict[PIIType, List[Tuple[str, float]]] = {
+PII_PATTERNS: dict[PIIType, list[tuple[str, float]]] = {
     PIIType.EMAIL: [
         (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", 0.95),
     ],
@@ -73,7 +72,10 @@ PII_PATTERNS: Dict[PIIType, List[Tuple[str, float]]] = {
         (r"\b6(?:011|5[0-9]{2})[0-9]{12}\b", 0.9),  # Discover
     ],
     PIIType.IP_ADDRESS: [
-        (r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b", 0.85),
+        (
+            r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b",
+            0.85,
+        ),
     ],
     PIIType.DATE_OF_BIRTH: [
         (r"\b(?:0[1-9]|1[0-2])/(?:0[1-9]|[12][0-9]|3[01])/(?:19|20)\d{2}\b", 0.7),
@@ -110,9 +112,9 @@ class PIIDetector:
 
     def __init__(
         self,
-        pii_types: Optional[List[PIIType]] = None,
+        pii_types: list[PIIType] | None = None,
         min_confidence: float = 0.5,
-        custom_patterns: Optional[Dict[PIIType, List[Tuple[str, float]]]] = None,
+        custom_patterns: dict[PIIType, list[tuple[str, float]]] | None = None,
     ):
         """Initialize detector.
 
@@ -125,19 +127,16 @@ class PIIDetector:
         self.min_confidence = min_confidence
 
         # Compile patterns
-        self.patterns: Dict[PIIType, List[Tuple[re.Pattern, float]]] = {}
+        self.patterns: dict[PIIType, list[tuple[re.Pattern, float]]] = {}
 
         for pii_type in self.pii_types:
             patterns = PII_PATTERNS.get(pii_type, [])
             if custom_patterns and pii_type in custom_patterns:
                 patterns = patterns + custom_patterns[pii_type]
 
-            self.patterns[pii_type] = [
-                (re.compile(p, re.IGNORECASE), conf)
-                for p, conf in patterns
-            ]
+            self.patterns[pii_type] = [(re.compile(p, re.IGNORECASE), conf) for p, conf in patterns]
 
-    def detect(self, text: str) -> List[PIIMatch]:
+    def detect(self, text: str) -> list[PIIMatch]:
         """Detect PII in text.
 
         Args:
@@ -159,14 +158,16 @@ class PIIDetector:
                     end = min(len(text), match.end() + 20)
                     context = text[start:end]
 
-                    matches.append(PIIMatch(
-                        pii_type=pii_type,
-                        value=match.group(),
-                        start=match.start(),
-                        end=match.end(),
-                        confidence=confidence,
-                        context=context,
-                    ))
+                    matches.append(
+                        PIIMatch(
+                            pii_type=pii_type,
+                            value=match.group(),
+                            start=match.start(),
+                            end=match.end(),
+                            confidence=confidence,
+                            context=context,
+                        )
+                    )
 
         # Sort by position
         matches.sort(key=lambda m: m.start)
@@ -177,7 +178,7 @@ class PIIDetector:
         self,
         text: str,
         replacement: str = "[REDACTED]",
-        pii_types: Optional[List[PIIType]] = None,
+        pii_types: list[PIIType] | None = None,
     ) -> str:
         """Redact PII from text.
 
@@ -199,7 +200,7 @@ class PIIDetector:
 
         result = text
         for match in matches:
-            result = result[:match.start] + replacement + result[match.end:]
+            result = result[: match.start] + replacement + result[match.end :]
 
         return result
 
@@ -229,7 +230,7 @@ class PIIDetector:
                 masked = mask_char * len(value)
             else:
                 masked = value[:visible_chars] + mask_char * (len(value) - visible_chars)
-            result = result[:match.start] + masked + result[match.end:]
+            result = result[: match.start] + masked + result[match.end :]
 
         return result
 
@@ -244,7 +245,7 @@ class PIIDetector:
         """
         return len(self.detect(text)) > 0
 
-    def get_pii_summary(self, text: str) -> Dict[str, int]:
+    def get_pii_summary(self, text: str) -> dict[str, int]:
         """Get summary of PII types found.
 
         Args:
@@ -254,7 +255,7 @@ class PIIDetector:
             Dict mapping PII type to count.
         """
         matches = self.detect(text)
-        summary: Dict[str, int] = {}
+        summary: dict[str, int] = {}
 
         for match in matches:
             key = match.pii_type.value

@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import fnmatch
 import re
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
 
 
 class Scope(Enum):
     """Security scope levels (AWS-style 4-tier)."""
 
-    MINIMAL = "minimal"      # Read-only, no execution
-    STANDARD = "standard"    # Read + limited write
-    ELEVATED = "elevated"    # Full local access
-    ADMIN = "admin"          # Full access including network
+    MINIMAL = "minimal"  # Read-only, no execution
+    STANDARD = "standard"  # Read + limited write
+    ELEVATED = "elevated"  # Full local access
+    ADMIN = "admin"  # Full access including network
 
 
 @dataclass
@@ -50,7 +50,6 @@ class ScopeValidator:
             allowed_scopes=[Scope.MINIMAL, Scope.STANDARD, Scope.ELEVATED, Scope.ADMIN],
             description="Search file contents",
         ),
-
         # Write tools
         "Write": ToolPermission(
             name="Write",
@@ -62,7 +61,6 @@ class ScopeValidator:
             allowed_scopes=[Scope.STANDARD, Scope.ELEVATED, Scope.ADMIN],
             description="Edit file contents",
         ),
-
         # Execution tools
         "Bash": ToolPermission(
             name="Bash",
@@ -75,7 +73,6 @@ class ScopeValidator:
             allowed_scopes=[Scope.STANDARD, Scope.ELEVATED, Scope.ADMIN],
             description="Launch sub-agents",
         ),
-
         # Network tools
         "WebFetch": ToolPermission(
             name="WebFetch",
@@ -96,9 +93,20 @@ class ScopeValidator:
     # File access patterns by scope
     FILE_PATTERNS: dict[Scope, list[str]] = {
         Scope.MINIMAL: [
-            "*.md", "*.txt", "*.json", "*.yaml", "*.yml",
-            "*.py", "*.js", "*.ts", "*.go", "*.rs", "*.java",
-            "*.html", "*.css", "*.xml",
+            "*.md",
+            "*.txt",
+            "*.json",
+            "*.yaml",
+            "*.yml",
+            "*.py",
+            "*.js",
+            "*.ts",
+            "*.go",
+            "*.rs",
+            "*.java",
+            "*.html",
+            "*.css",
+            "*.xml",
         ],
         Scope.STANDARD: [
             "*",  # All files except blocked
@@ -113,19 +121,32 @@ class ScopeValidator:
 
     # Blocked patterns (never allowed regardless of scope)
     BLOCKED_PATTERNS: list[str] = [
-        "*.pem", "*.key", "*.p12", "*.pfx",  # Private keys
-        "**/id_rsa*", "**/id_ed25519*",      # SSH keys
-        "**/.env*", "**/secrets*",            # Environment/secrets
-        "**/credentials*", "**/password*",    # Credentials
-        "**/.aws/*", "**/.ssh/*",            # Cloud/SSH configs
+        "*.pem",
+        "*.key",
+        "*.p12",
+        "*.pfx",  # Private keys
+        "**/id_rsa*",
+        "**/id_ed25519*",  # SSH keys
+        "**/.env*",
+        "**/secrets*",  # Environment/secrets
+        "**/credentials*",
+        "**/password*",  # Credentials
+        "**/.aws/*",
+        "**/.ssh/*",  # Cloud/SSH configs
     ]
 
     # Dangerous bash commands
     DANGEROUS_COMMANDS: list[str] = [
-        "rm -rf", "mkfs", "dd if=", ":(){", "chmod -R 777",
-        "curl.*|.*sh", "wget.*|.*sh",  # Pipe to shell
-        "nc -l", "netcat",             # Network listeners
-        "> /dev/sd",                   # Disk overwrites
+        "rm -rf",
+        "mkfs",
+        "dd if=",
+        ":(){",
+        "chmod -R 777",
+        "curl.*|.*sh",
+        "wget.*|.*sh",  # Pipe to shell
+        "nc -l",
+        "netcat",  # Network listeners
+        "> /dev/sd",  # Disk overwrites
     ]
 
     def __init__(
@@ -171,21 +192,20 @@ class ScopeValidator:
         if scope not in permission.allowed_scopes:
             allowed_str = ", ".join(s.value for s in permission.allowed_scopes)
             return False, (
-                f"Tool '{tool_name}' not allowed in {scope.value} scope. "
-                f"Requires: {allowed_str}"
+                f"Tool '{tool_name}' not allowed in {scope.value} scope. Requires: {allowed_str}"
             )
 
         # Check rate limit
         if permission.rate_limit:
             import time
+
             now = time.time()
             calls = self._call_counts.get(tool_name, [])
             # Remove calls older than 1 minute
             calls = [t for t in calls if now - t < 60]
             if len(calls) >= permission.rate_limit:
                 return False, (
-                    f"Rate limit exceeded for '{tool_name}': "
-                    f"{permission.rate_limit}/minute"
+                    f"Rate limit exceeded for '{tool_name}': {permission.rate_limit}/minute"
                 )
             calls.append(now)
             self._call_counts[tool_name] = calls
@@ -232,9 +252,7 @@ class ScopeValidator:
         if scope == Scope.MINIMAL:
             allowed_patterns = self.FILE_PATTERNS[Scope.MINIMAL]
             if not any(fnmatch.fnmatch(normalized, p.lower()) for p in allowed_patterns):
-                return False, (
-                    f"File type not allowed in minimal scope: {file_path}"
-                )
+                return False, (f"File type not allowed in minimal scope: {file_path}")
 
         return True, "Allowed"
 
@@ -262,8 +280,7 @@ class ScopeValidator:
             if re.search(pattern, command_lower):
                 if scope != Scope.ADMIN:
                     return False, (
-                        f"Dangerous command pattern detected: {pattern}. "
-                        f"Requires admin scope."
+                        f"Dangerous command pattern detected: {pattern}. Requires admin scope."
                     )
 
         # Check network commands in elevated scope
@@ -271,9 +288,7 @@ class ScopeValidator:
         if scope == Scope.ELEVATED:
             for pattern in network_patterns:
                 if pattern in command_lower:
-                    return False, (
-                        f"Network command '{pattern}' requires admin scope"
-                    )
+                    return False, (f"Network command '{pattern}' requires admin scope")
 
         return True, "Allowed"
 
@@ -296,9 +311,14 @@ class ScopeValidator:
 
         # Block internal/localhost
         internal_patterns = [
-            r"localhost", r"127\.0\.0\.", r"0\.0\.0\.0",
-            r"192\.168\.", r"10\.", r"172\.(1[6-9]|2[0-9]|3[01])\.",
-            r"::1", r"fe80:",
+            r"localhost",
+            r"127\.0\.0\.",
+            r"0\.0\.0\.0",
+            r"192\.168\.",
+            r"10\.",
+            r"172\.(1[6-9]|2[0-9]|3[01])\.",
+            r"::1",
+            r"fe80:",
         ]
 
         url_lower = url.lower()
@@ -317,10 +337,7 @@ class ScopeValidator:
         Returns:
             List of allowed tool names.
         """
-        return [
-            name for name, perm in self.permissions.items()
-            if scope in perm.allowed_scopes
-        ]
+        return [name for name, perm in self.permissions.items() if scope in perm.allowed_scopes]
 
     def explain_scope(self, scope: Scope) -> str:
         """Get human-readable explanation of scope capabilities.

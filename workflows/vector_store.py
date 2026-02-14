@@ -14,4 +14,5 @@ class VectorStore:
         results = self.collection.query(query_texts=[query], n_results=top_k)
         return results["documents"][0]
 
+
 vector_store = VectorStore()

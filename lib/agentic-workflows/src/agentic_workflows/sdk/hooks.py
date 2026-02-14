@@ -14,15 +14,17 @@ Usage:
     )
 """
 
-from typing import Any, Callable
-from dataclasses import dataclass
-from enum import Enum
 import json
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any
 
 
 class HookType(Enum):
     """Types of SDK hooks."""
+
     PRE_TOOL_USE = "PreToolUse"
     POST_TOOL_USE = "PostToolUse"
     USER_PROMPT_SUBMIT = "UserPromptSubmit"
@@ -34,6 +36,7 @@ class HookType(Enum):
 @dataclass
 class HookContext:
     """Context passed to hook callbacks."""
+
     tool_name: str | None = None
     tool_input: dict[str, Any] | None = None
     tool_output: Any | None = None
@@ -46,6 +49,7 @@ class HookContext:
 @dataclass
 class HookResult:
     """Result returned from hook callbacks."""
+
     allow: bool = True
     modified_input: dict[str, Any] | None = None
     message: str | None = None
@@ -55,6 +59,7 @@ class HookResult:
 # =============================================================================
 # SECURITY HOOKS
 # =============================================================================
+
 
 def security_pre_tool_hook(context: HookContext) -> HookResult:
     """Pre-tool hook that validates security before tool execution.
@@ -80,13 +85,14 @@ def security_pre_tool_hook(context: HookContext) -> HookResult:
         # Import security check
         try:
             from agentic_workflows.skills.security import check_injection
+
             is_safe, reason = check_injection(command)
 
             if not is_safe:
                 return HookResult(
                     allow=False,
                     message=f"Security violation: {reason}",
-                    metadata={"blocked_command": command[:100]}
+                    metadata={"blocked_command": command[:100]},
                 )
         except ImportError:
             # If security module not available, allow but warn
@@ -97,8 +103,14 @@ def security_pre_tool_hook(context: HookContext) -> HookResult:
         file_path = tool_input.get("file_path", "") or tool_input.get("path", "")
 
         sensitive_patterns = [
-            ".env", "credentials", "secrets", "password",
-            ".ssh", ".aws", ".kube", "config.json"
+            ".env",
+            "credentials",
+            "secrets",
+            "password",
+            ".ssh",
+            ".aws",
+            ".kube",
+            "config.json",
         ]
 
         file_lower = file_path.lower()
@@ -107,7 +119,7 @@ def security_pre_tool_hook(context: HookContext) -> HookResult:
                 return HookResult(
                     allow=False,
                     message=f"Blocked write to sensitive file: {file_path}",
-                    metadata={"blocked_path": file_path}
+                    metadata={"blocked_path": file_path},
                 )
 
     return HookResult(allow=True)
@@ -128,16 +140,23 @@ def scope_validator_hook(context: HookContext, max_scope: int = 2) -> HookResult
     # Tool to required scope mapping
     tool_scopes = {
         # Scope 1: Read-only
-        "read": 1, "grep": 1, "glob": 1, "websearch": 1,
-
+        "read": 1,
+        "grep": 1,
+        "glob": 1,
+        "websearch": 1,
         # Scope 2: Tool access
-        "write": 2, "edit": 2, "webfetch": 2,
-
+        "write": 2,
+        "edit": 2,
+        "webfetch": 2,
         # Scope 3: Autonomous
-        "bash": 3, "run_command": 3, "execute": 3, "task": 3,
-
+        "bash": 3,
+        "run_command": 3,
+        "execute": 3,
+        "task": 3,
         # Scope 4: Full autonomy
-        "deploy": 4, "publish": 4, "release": 4,
+        "deploy": 4,
+        "publish": 4,
+        "release": 4,
     }
 
     required_scope = tool_scopes.get(tool_name.lower(), 2)
@@ -146,7 +165,7 @@ def scope_validator_hook(context: HookContext, max_scope: int = 2) -> HookResult
         return HookResult(
             allow=False,
             message=f"Tool '{tool_name}' requires scope {required_scope}, but max is {max_scope}",
-            metadata={"required_scope": required_scope, "max_scope": max_scope}
+            metadata={"required_scope": required_scope, "max_scope": max_scope},
         )
 
     return HookResult(allow=True)
@@ -184,10 +203,7 @@ def audit_post_tool_hook(context: HookContext) -> HookResult:
     if len(_audit_log) > 1000:
         _audit_log.pop(0)
 
-    return HookResult(
-        allow=True,
-        metadata={"logged": True, "entry_id": len(_audit_log) - 1}
-    )
+    return HookResult(allow=True, metadata={"logged": True, "entry_id": len(_audit_log) - 1})
 
 
 def _summarize_input(tool_input: dict[str, Any] | None) -> str:
@@ -227,6 +243,7 @@ def clear_audit_log() -> None:
 # CONTEXT HOOKS
 # =============================================================================
 
+
 def context_save_hook(context: HookContext) -> HookResult:
     """Post-tool hook that auto-saves context after significant operations.
 
@@ -259,13 +276,12 @@ def context_save_hook(context: HookContext) -> HookResult:
                 persistence.save_scratchpad(session_id, context.metadata["scratchpad"])
 
             return HookResult(
-                allow=True,
-                metadata={"context_saved": True, "session_id": session_id}
+                allow=True, metadata={"context_saved": True, "session_id": session_id}
             )
         except Exception as e:
             return HookResult(
                 allow=True,  # Don't block on save failure
-                metadata={"context_saved": False, "error": str(e)}
+                metadata={"context_saved": False, "error": str(e)},
             )
 
     return HookResult(allow=True)
@@ -306,16 +322,15 @@ def telemetry_hook(context: HookContext) -> HookResult:
 
     # Track errors
     if context.metadata and context.metadata.get("is_error"):
-        _usage_metrics["errors"].append({
-            "tool": tool_name,
-            "timestamp": context.timestamp or time.time(),
-            "error": context.metadata.get("error_message", "Unknown error")
-        })
+        _usage_metrics["errors"].append(
+            {
+                "tool": tool_name,
+                "timestamp": context.timestamp or time.time(),
+                "error": context.metadata.get("error_message", "Unknown error"),
+            }
+        )
 
-    return HookResult(
-        allow=True,
-        metadata={"telemetry_recorded": True}
-    )
+    return HookResult(allow=True, metadata={"telemetry_recorded": True})
 
 
 def get_usage_metrics() -> dict[str, Any]:
@@ -341,6 +356,7 @@ def reset_usage_metrics() -> None:
 # =============================================================================
 # HOOK REGISTRATION
 # =============================================================================
+
 
 def get_all_hooks() -> dict[str, list[Callable]]:
     """Get all hooks organized by type for SDK registration.
@@ -402,6 +418,7 @@ def create_scoped_hooks(max_scope: int = 2) -> dict[str, list[Callable]]:
     Returns:
         Dictionary with scope-limited hooks
     """
+
     def scoped_validator(context: HookContext) -> HookResult:
         return scope_validator_hook(context, max_scope=max_scope)
 

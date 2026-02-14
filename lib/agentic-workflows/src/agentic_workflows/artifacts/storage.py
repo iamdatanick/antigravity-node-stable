@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from agentic_workflows.artifacts.generator import Artifact, ArtifactType
 
@@ -279,9 +278,7 @@ class FileStorage(ArtifactStorage):
             # Save metadata
             metadata = artifact.to_dict()
             metadata.pop("content", None)
-            self._metadata_path(artifact.id).write_text(
-                json.dumps(metadata, indent=2)
-            )
+            self._metadata_path(artifact.id).write_text(json.dumps(metadata, indent=2))
 
             # Save content
             content_path = self._content_path(artifact.id, extension)
@@ -293,9 +290,7 @@ class FileStorage(ArtifactStorage):
                 content_path.write_text(json.dumps(artifact.content, indent=2))
         else:
             # Save everything in one file
-            self._metadata_path(artifact.id).write_text(
-                json.dumps(artifact.to_dict(), indent=2)
-            )
+            self._metadata_path(artifact.id).write_text(json.dumps(artifact.to_dict(), indent=2))
 
         # Update index
         self._index[artifact.id] = {

@@ -12,38 +12,34 @@ Based on FastMCP patterns for efficient MCP server implementation.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable, TypeVar
+from typing import Any, TypeVar
 
 from mcp.server import Server
+from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp.server.lowlevel.server import NotificationOptions
 from mcp.types import (
-    Tool,
-    TextContent,
     Resource,
-    ResourceTemplate,
-    CallToolResult,
+    TextContent,
+    Tool,
 )
 
-from .widget_types import (
-    WidgetTemplate,
-    WidgetMeta,
-    WidgetPayload,
-    WidgetState,
-    StructuredContent,
-)
-from .state import (
-    WidgetSessionManager,
-    StateStore,
-    InMemoryStateStore,
-)
 from .components import WIDGET_TEMPLATES, get_template
+from .state import (
+    InMemoryStateStore,
+    StateStore,
+    WidgetSessionManager,
+)
+from .widget_types import (
+    StructuredContent,
+    WidgetMeta,
+    WidgetState,
+    WidgetTemplate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -120,9 +116,7 @@ class WidgetServer:
         elif state_store:
             self.session_manager = WidgetSessionManager(store=state_store)
         else:
-            self.session_manager = WidgetSessionManager(
-                store=InMemoryStateStore()
-            )
+            self.session_manager = WidgetSessionManager(store=InMemoryStateStore())
 
         # Setup handlers
         self._setup_handlers()
@@ -137,10 +131,14 @@ class WidgetServer:
 
             for name, reg in self._widgets.items():
                 # Build input schema
-                schema = reg.input_schema.copy() if reg.input_schema else {
-                    "type": "object",
-                    "properties": {},
-                }
+                schema = (
+                    reg.input_schema.copy()
+                    if reg.input_schema
+                    else {
+                        "type": "object",
+                        "properties": {},
+                    }
+                )
 
                 # Add widgetSessionId for stateful widgets
                 if reg.stateful:
@@ -154,11 +152,13 @@ class WidgetServer:
                         "description": "Current widget state from client",
                     }
 
-                tools.append(Tool(
-                    name=name,
-                    description=reg.description or f"Widget: {name}",
-                    inputSchema=schema,
-                ))
+                tools.append(
+                    Tool(
+                        name=name,
+                        description=reg.description or f"Widget: {name}",
+                        inputSchema=schema,
+                    )
+                )
 
             return tools
 
@@ -166,10 +166,9 @@ class WidgetServer:
         async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             """Execute a widget tool."""
             if name not in self._widgets:
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({"error": f"Unknown widget: {name}"})
-                )]
+                return [
+                    TextContent(type="text", text=json.dumps({"error": f"Unknown widget: {name}"}))
+                ]
 
             reg = self._widgets[name]
 
@@ -222,23 +221,29 @@ class WidgetServer:
                         extend_ttl=True,
                     )
 
-                return [TextContent(
-                    type="text",
-                    text=json.dumps(result, indent=2),
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(result, indent=2),
+                    )
+                ]
 
             except Exception as e:
                 logger.exception(f"Widget handler error: {name}")
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({
-                        "error": str(e),
-                        "_meta": {
-                            "openai/outputTemplate": "widget://status",
-                            "status": "error",
-                        },
-                    })
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "error": str(e),
+                                "_meta": {
+                                    "openai/outputTemplate": "widget://status",
+                                    "status": "error",
+                                },
+                            }
+                        ),
+                    )
+                ]
 
         @self.server.list_resources()
         async def list_resources() -> list[Resource]:
@@ -247,21 +252,25 @@ class WidgetServer:
 
             # Built-in templates
             for name, template in WIDGET_TEMPLATES.items():
-                resources.append(Resource(
-                    uri=template.uri,
-                    name=template.name or name,
-                    description=template.description,
-                    mimeType=template.mime_type,
-                ))
+                resources.append(
+                    Resource(
+                        uri=template.uri,
+                        name=template.name or name,
+                        description=template.description,
+                        mimeType=template.mime_type,
+                    )
+                )
 
             # Custom templates
             for name, template in self._custom_templates.items():
-                resources.append(Resource(
-                    uri=template.uri,
-                    name=template.name or name,
-                    description=template.description,
-                    mimeType=template.mime_type,
-                ))
+                resources.append(
+                    Resource(
+                        uri=template.uri,
+                        name=template.name or name,
+                        description=template.description,
+                        mimeType=template.mime_type,
+                    )
+                )
 
             return resources
 
@@ -356,6 +365,7 @@ class WidgetServer:
             ...     items = await fetch_products()
             ...     return ListViewPayload(items=items).to_structured_content()
         """
+
         def decorator(handler: WidgetHandler) -> WidgetHandler:
             self.register_widget(
                 name=name,
@@ -367,6 +377,7 @@ class WidgetServer:
                 session_ttl=session_ttl,
             )
             return handler
+
         return decorator
 
     def register_template(
@@ -480,7 +491,7 @@ class WidgetServerBuilder:
         self._state_store: StateStore | None = None
         self._session_ttl: int = 3600
 
-    def with_state_store(self, store: StateStore) -> "WidgetServerBuilder":
+    def with_state_store(self, store: StateStore) -> WidgetServerBuilder:
         """Set custom state store.
 
         Args:
@@ -492,7 +503,7 @@ class WidgetServerBuilder:
         self._state_store = store
         return self
 
-    def with_session_ttl(self, ttl: int) -> "WidgetServerBuilder":
+    def with_session_ttl(self, ttl: int) -> WidgetServerBuilder:
         """Set default session TTL.
 
         Args:
@@ -508,7 +519,7 @@ class WidgetServerBuilder:
         self,
         name: str,
         template: WidgetTemplate,
-    ) -> "WidgetServerBuilder":
+    ) -> WidgetServerBuilder:
         """Add a custom template.
 
         Args:
@@ -528,7 +539,7 @@ class WidgetServerBuilder:
         handler: WidgetHandler,
         description: str = "",
         input_schema: dict[str, Any] | None = None,
-    ) -> "WidgetServerBuilder":
+    ) -> WidgetServerBuilder:
         """Add a stateless widget.
 
         Args:
@@ -541,11 +552,18 @@ class WidgetServerBuilder:
         Returns:
             Self for chaining.
         """
-        self._widgets.append((name, template_uri, handler, {
-            "description": description,
-            "input_schema": input_schema,
-            "stateful": False,
-        }))
+        self._widgets.append(
+            (
+                name,
+                template_uri,
+                handler,
+                {
+                    "description": description,
+                    "input_schema": input_schema,
+                    "stateful": False,
+                },
+            )
+        )
         return self
 
     def with_stateful_widget(
@@ -556,7 +574,7 @@ class WidgetServerBuilder:
         description: str = "",
         input_schema: dict[str, Any] | None = None,
         session_ttl: int | None = None,
-    ) -> "WidgetServerBuilder":
+    ) -> WidgetServerBuilder:
         """Add a stateful widget.
 
         Args:
@@ -570,12 +588,19 @@ class WidgetServerBuilder:
         Returns:
             Self for chaining.
         """
-        self._widgets.append((name, template_uri, handler, {
-            "description": description,
-            "input_schema": input_schema,
-            "stateful": True,
-            "session_ttl": session_ttl or self._session_ttl,
-        }))
+        self._widgets.append(
+            (
+                name,
+                template_uri,
+                handler,
+                {
+                    "description": description,
+                    "input_schema": input_schema,
+                    "stateful": True,
+                    "session_ttl": session_ttl or self._session_ttl,
+                },
+            )
+        )
         return self
 
     def build(self) -> WidgetServer:

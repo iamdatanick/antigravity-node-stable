@@ -26,9 +26,10 @@ try:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
     from mcp.types import (
-        Tool,
         TextContent,
+        Tool,
     )
+
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
@@ -39,12 +40,13 @@ from agentic_workflows.observability.metrics import (
     Model,
 )
 
-
 # Global metrics collector instance
 _metrics: MetricsCollector | None = None
 
 
-def get_metrics(budget_usd: float | None = None, budget_tokens: int | None = None) -> MetricsCollector:
+def get_metrics(
+    budget_usd: float | None = None, budget_tokens: int | None = None
+) -> MetricsCollector:
     """Get or create the global metrics collector."""
     global _metrics
     if _metrics is None:
@@ -72,30 +74,24 @@ def create_server() -> "Server":
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "agent_id": {
-                            "type": "string",
-                            "description": "Agent identifier"
-                        },
+                        "agent_id": {"type": "string", "description": "Agent identifier"},
                         "model": {
                             "type": "string",
                             "enum": ["opus", "sonnet", "haiku"],
-                            "description": "Model used (opus, sonnet, haiku)"
+                            "description": "Model used (opus, sonnet, haiku)",
                         },
                         "input_tokens": {
                             "type": "integer",
-                            "description": "Number of input tokens"
+                            "description": "Number of input tokens",
                         },
                         "output_tokens": {
                             "type": "integer",
-                            "description": "Number of output tokens"
+                            "description": "Number of output tokens",
                         },
-                        "metadata": {
-                            "type": "object",
-                            "description": "Optional metadata"
-                        }
+                        "metadata": {"type": "object", "description": "Optional metadata"},
                     },
-                    "required": ["agent_id", "model", "input_tokens", "output_tokens"]
-                }
+                    "required": ["agent_id", "model", "input_tokens", "output_tokens"],
+                },
             ),
             Tool(
                 name="get_summary",
@@ -105,14 +101,14 @@ def create_server() -> "Server":
                     "properties": {
                         "start_time": {
                             "type": "number",
-                            "description": "Filter start timestamp (Unix epoch)"
+                            "description": "Filter start timestamp (Unix epoch)",
                         },
                         "end_time": {
                             "type": "number",
-                            "description": "Filter end timestamp (Unix epoch)"
-                        }
-                    }
-                }
+                            "description": "Filter end timestamp (Unix epoch)",
+                        },
+                    },
+                },
             ),
             Tool(
                 name="get_agent_usage",
@@ -120,29 +116,20 @@ def create_server() -> "Server":
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "agent_id": {
-                            "type": "string",
-                            "description": "Agent identifier"
-                        }
+                        "agent_id": {"type": "string", "description": "Agent identifier"}
                     },
-                    "required": ["agent_id"]
-                }
+                    "required": ["agent_id"],
+                },
             ),
             Tool(
                 name="get_remaining_budget",
                 description="Get remaining budget information (cost and tokens).",
-                inputSchema={
-                    "type": "object",
-                    "properties": {}
-                }
+                inputSchema={"type": "object", "properties": {}},
             ),
             Tool(
                 name="check_budget",
                 description="Check if budget limits have been exceeded.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {}
-                }
+                inputSchema={"type": "object", "properties": {}},
             ),
             Tool(
                 name="set_budget",
@@ -150,16 +137,10 @@ def create_server() -> "Server":
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "budget_usd": {
-                            "type": "number",
-                            "description": "Maximum budget in USD"
-                        },
-                        "budget_tokens": {
-                            "type": "integer",
-                            "description": "Maximum token budget"
-                        }
-                    }
-                }
+                        "budget_usd": {"type": "number", "description": "Maximum budget in USD"},
+                        "budget_tokens": {"type": "integer", "description": "Maximum token budget"},
+                    },
+                },
             ),
             Tool(
                 name="reset_metrics",
@@ -169,11 +150,11 @@ def create_server() -> "Server":
                     "properties": {
                         "confirm": {
                             "type": "boolean",
-                            "description": "Must be true to confirm reset"
+                            "description": "Must be true to confirm reset",
                         }
                     },
-                    "required": ["confirm"]
-                }
+                    "required": ["confirm"],
+                },
             ),
             Tool(
                 name="export_metrics",
@@ -184,10 +165,10 @@ def create_server() -> "Server":
                         "format": {
                             "type": "string",
                             "enum": ["json", "summary"],
-                            "description": "Export format (json for raw data, summary for formatted)"
+                            "description": "Export format (json for raw data, summary for formatted)",
                         }
-                    }
-                }
+                    },
+                },
             ),
         ]
 
@@ -198,10 +179,18 @@ def create_server() -> "Server":
             result = await _handle_tool(name, arguments)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         except Exception as e:
-            return [TextContent(type="text", text=json.dumps({
-                "error": str(e),
-                "tool": name,
-            }, indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "error": str(e),
+                            "tool": name,
+                        },
+                        indent=2,
+                    ),
+                )
+            ]
 
     return server
 
@@ -330,7 +319,7 @@ async def _handle_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "set_budget",
                 "reset_metrics",
                 "export_metrics",
-            ]
+            ],
         }
 
 
@@ -343,11 +332,7 @@ async def main():
     server = create_server()
 
     async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server.create_initialization_options()
-        )
+        await server.run(read_stream, write_stream, server.create_initialization_options())
 
 
 if __name__ == "__main__":

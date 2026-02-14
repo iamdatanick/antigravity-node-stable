@@ -12,31 +12,29 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from agentic_workflows.a2a.a2a_types import (
-    AgentCard,
-    AgentSkill,
-    AgentProvider,
     AgentCapabilities,
-    Task,
-    TaskState,
-    TaskStatus,
+    AgentCard,
+    AgentProvider,
+    AgentSkill,
+    Artifact,
     Message,
     MessageRole,
+    Task,
+    TaskState,
     TextPart,
-    Artifact,
 )
 from agentic_workflows.a2a.server import (
     A2AServer,
     AgentExecutor,
-    RequestContext,
     EventQueue,
-    InMemoryTaskStorage,
+    RequestContext,
 )
 
 if TYPE_CHECKING:
-    from agentic_workflows.agents.base import BaseAgent, AgentConfig, AgentResult
+    from agentic_workflows.agents.base import AgentConfig, BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +79,7 @@ class A2AIntegrationConfig:
     documentation_url: str = ""
     """URL to documentation."""
 
-    default_input_modes: list[str] = field(
-        default_factory=lambda: ["text/plain"]
-    )
+    default_input_modes: list[str] = field(default_factory=lambda: ["text/plain"])
     """Default input MIME types."""
 
     default_output_modes: list[str] = field(
@@ -185,7 +181,7 @@ class AgentCardBuilder:
         self._output_modes: list[str] = ["text/plain"]
         self._metadata: dict[str, Any] = {}
 
-    def from_config(self, config: "AgentConfig") -> AgentCardBuilder:
+    def from_config(self, config: AgentConfig) -> AgentCardBuilder:
         """Build from an AgentConfig.
 
         Args:
@@ -215,7 +211,7 @@ class AgentCardBuilder:
 
         return self
 
-    def from_agent(self, agent: "BaseAgent") -> AgentCardBuilder:
+    def from_agent(self, agent: BaseAgent) -> AgentCardBuilder:
         """Build from a BaseAgent instance.
 
         Args:
@@ -414,7 +410,7 @@ class AgentAdapterExecutor(AgentExecutor):
 
     def __init__(
         self,
-        agent: "BaseAgent",
+        agent: BaseAgent,
         streaming: bool = True,
     ):
         """Initialize adapter.
@@ -546,7 +542,7 @@ class A2AAgentAdapter:
 
     def __init__(
         self,
-        agent: "BaseAgent",
+        agent: BaseAgent,
         config: A2AIntegrationConfig | None = None,
     ):
         """Initialize adapter.
@@ -746,7 +742,7 @@ def from_a2a_task(task: Task) -> dict[str, Any]:
 
 
 def create_a2a_adapter(
-    agent: "BaseAgent",
+    agent: BaseAgent,
     base_url: str = "",
     organization: str = "Agentic Workflows",
     **config_kwargs,
@@ -772,7 +768,7 @@ def create_a2a_adapter(
 
 
 def create_a2a_server_for_agent(
-    agent: "BaseAgent",
+    agent: BaseAgent,
     base_url: str = "",
     organization: str = "Agentic Workflows",
     **config_kwargs,

@@ -7,33 +7,34 @@ Cloudflare edge stack (D1, R2, Vectorize, Workers AI, Queues).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 from enum import Enum
+from typing import Any
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig
 
 
 class PHUCOperation(Enum):
     """PHUC platform operations."""
+
     # Document operations
     UPLOAD_DOCUMENT = "upload_document"
     PROCESS_DOCUMENT = "process_document"
     EMBED_DOCUMENT = "embed_document"
-    
+
     # RAG operations
     RAG_SEARCH = "rag_search"
     RAG_CHAT = "rag_chat"
-    
+
     # Pharma data
     NPI_LOOKUP = "npi_lookup"
     NDC_LOOKUP = "ndc_lookup"
     DOCTOR_PROFILE = "doctor_profile"
-    
+
     # Analytics
     ATTRIBUTION = "attribution"
     CAMPAIGN_GENERATE = "campaign_generate"
     CAMPAIGN_OPTIMIZE = "campaign_optimize"
-    
+
     # Identity
     UID2_RESOLVE = "uid2_resolve"
     IDENTITY_GRAPH = "identity_graph"
@@ -42,46 +43,48 @@ class PHUCOperation(Enum):
 @dataclass
 class PHUCConfig(SpecialistConfig):
     """PHUC platform configuration."""
-    
+
     # Cloudflare
     cf_account_id: str = ""
     cf_api_token: str = ""
-    
+
     # D1 Database
     d1_database_id: str = "b2443c54-6ece-4d69-8239-fd2004a3861e"
-    
+
     # R2 Storage
     r2_bucket: str = "phucai"
     r2_knowledge_bucket: str = "phuc-knowledge-lake"
-    
+
     # Vectorize
     vectorize_index: str = "phuc-afancy-field-7cbb"
     embedding_dimensions: int = 768
-    
+
     # Workers AI
     chat_model: str = "@cf/meta/llama-3.1-8b-instruct"
     embedding_model: str = "@cf/baai/bge-base-en-v1.5"
-    
+
     # Platform URLs
     backend_url: str = "https://phuc-ai.nick-9a6.workers.dev"
     frontend_url: str = "https://phuc-ai-v2-frontend.pages.dev"
-    
+
     # Feature flags
     enable_attribution: bool = True
     enable_campaign_gen: bool = True
     enable_uid2: bool = False
-    
+
     # Pharma settings
-    pharma_settings: dict[str, Any] = field(default_factory=lambda: {
-        "npi_cache_ttl": 3600,
-        "ndc_cache_ttl": 86400,
-        "attribution_window_days": 90,
-    })
+    pharma_settings: dict[str, Any] = field(
+        default_factory=lambda: {
+            "npi_cache_ttl": 3600,
+            "ndc_cache_ttl": 86400,
+            "attribution_window_days": 90,
+        }
+    )
 
 
 class PHUCPlatformAgent(SpecialistAgent):
     """Specialist agent for PHUC Pharmaceutical Marketing Intelligence.
-    
+
     Orchestrates:
     - Document processing (R2 + Vectorize)
     - RAG search and chat
@@ -91,17 +94,17 @@ class PHUCPlatformAgent(SpecialistAgent):
     - Campaign generation
     - UID2/Trade Desk integration
     """
-    
+
     def __init__(self, config: PHUCConfig | None = None, **kwargs):
         self.phuc_config = config or PHUCConfig()
         super().__init__(config=self.phuc_config, **kwargs)
-        
+
         self._session = None
         self._d1_client = None
         self._r2_client = None
         self._vectorize_client = None
         self._ai_client = None
-        
+
         # Register handlers
         self.register_handler("upload_document", self._upload_document)
         self.register_handler("process_document", self._process_document)
@@ -113,7 +116,7 @@ class PHUCPlatformAgent(SpecialistAgent):
         self.register_handler("calculate_attribution", self._calculate_attribution)
         self.register_handler("generate_campaign", self._generate_campaign)
         self.register_handler("health_check", self._platform_health)
-    
+
     @property
     def capabilities(self) -> list[SpecialistCapability]:
         return [
@@ -124,40 +127,40 @@ class PHUCPlatformAgent(SpecialistAgent):
             SpecialistCapability.LLM_ORCHESTRATION,
             SpecialistCapability.INFERENCE,
         ]
-    
+
     @property
     def service_name(self) -> str:
         return "PHUC Platform"
-    
+
     async def _connect(self) -> None:
         """Initialize Cloudflare clients."""
         import aiohttp
-        
+
         headers = {
             "Authorization": f"Bearer {self.phuc_config.cf_api_token}",
             "Content-Type": "application/json",
         }
         self._session = aiohttp.ClientSession(headers=headers)
-        self._base_url = f"https://api.cloudflare.com/client/v4/accounts/{self.phuc_config.cf_account_id}"
-    
+        self._base_url = (
+            f"https://api.cloudflare.com/client/v4/accounts/{self.phuc_config.cf_account_id}"
+        )
+
     async def _disconnect(self) -> None:
         """Close connections."""
         if self._session:
             await self._session.close()
             self._session = None
-    
+
     async def _health_check(self) -> bool:
         """Check platform health."""
         if self._session is None:
             return False
         try:
-            async with self._session.get(
-                f"{self.phuc_config.backend_url}/api/health"
-            ) as resp:
+            async with self._session.get(f"{self.phuc_config.backend_url}/api/health") as resp:
                 return resp.status == 200
         except Exception:
             return False
-    
+
     # Document Operations
     async def _upload_document(
         self,
@@ -169,15 +172,15 @@ class PHUCPlatformAgent(SpecialistAgent):
         """Upload document to R2 storage."""
         if self._session is None:
             return {"error": "Not connected"}
-        
+
         # Upload to R2
         r2_key = f"documents/{filename}"
         url = f"{self._base_url}/r2/buckets/{self.phuc_config.r2_bucket}/objects/{r2_key}"
-        
+
         async with self._session.put(url, data=content) as resp:
             if resp.status != 200:
                 return {"error": f"Upload failed: {resp.status}"}
-        
+
         # Record in D1
         doc_record = {
             "filename": filename,
@@ -187,9 +190,9 @@ class PHUCPlatformAgent(SpecialistAgent):
             "metadata": metadata or {},
             "status": "uploaded",
         }
-        
+
         return {"success": True, "document": doc_record}
-    
+
     async def _process_document(
         self,
         document_id: str,
@@ -199,21 +202,21 @@ class PHUCPlatformAgent(SpecialistAgent):
         """Process document: parse, chunk, embed, index."""
         if self._session is None:
             return {"error": "Not connected"}
-        
+
         # 1. Get document from R2
         # 2. Parse content (PDF, DOCX, etc.)
         # 3. Chunk text
         # 4. Generate embeddings
         # 5. Store in Vectorize
         # 6. Update D1 status
-        
+
         return {
             "success": True,
             "document_id": document_id,
             "chunks_created": 0,
             "status": "processed",
         }
-    
+
     # RAG Operations
     async def _rag_search(
         self,
@@ -224,13 +227,13 @@ class PHUCPlatformAgent(SpecialistAgent):
         """Semantic search across document embeddings."""
         if self._session is None:
             return []
-        
+
         # 1. Embed query
         # 2. Query Vectorize
         # 3. Return ranked results
-        
+
         return []
-    
+
     async def _rag_chat(
         self,
         message: str,
@@ -240,23 +243,23 @@ class PHUCPlatformAgent(SpecialistAgent):
         """RAG-powered chat with document context."""
         if self._session is None:
             return {"error": "Not connected"}
-        
+
         # 1. Search for relevant context
         context_results = await self._rag_search(message, top_k=5)
-        
+
         # 2. Build prompt with context
         context_text = "\n".join([r.get("content", "") for r in context_results])
-        
+
         # 3. Call Workers AI
         prompt = f"""Context:\n{context_text}\n\nQuestion: {message}\n\nAnswer:"""
-        
+
         # 4. Return response with citations
         return {
             "response": "",
             "citations": context_results,
             "session_id": session_id,
         }
-    
+
     # Pharma Data Operations
     async def _npi_lookup(
         self,
@@ -268,7 +271,7 @@ class PHUCPlatformAgent(SpecialistAgent):
         """Lookup NPI (National Provider Identifier) records."""
         if self._session is None:
             return {"error": "Not connected"}
-        
+
         if npi:
             # Direct lookup by NPI
             sql = "SELECT * FROM npi_registry WHERE npi = ?"
@@ -286,13 +289,13 @@ class PHUCPlatformAgent(SpecialistAgent):
             if state:
                 conditions.append("state = ?")
                 params.append(state)
-            
+
             where_clause = " AND ".join(conditions) if conditions else "1=1"
             sql = f"SELECT * FROM npi_registry WHERE {where_clause} LIMIT 100"
-        
+
         # Execute D1 query
         return []
-    
+
     async def _ndc_lookup(
         self,
         ndc: str | None = None,
@@ -302,10 +305,10 @@ class PHUCPlatformAgent(SpecialistAgent):
         """Lookup NDC (National Drug Code) records."""
         if self._session is None:
             return {"error": "Not connected"}
-        
+
         # Execute D1 query for NDC data
         return []
-    
+
     async def _doctor_profile(
         self,
         npi: str,
@@ -315,7 +318,7 @@ class PHUCPlatformAgent(SpecialistAgent):
         """Generate Doctor DNA profile."""
         if self._session is None:
             return {"error": "Not connected"}
-        
+
         profile = {
             "npi": npi,
             "demographics": {},
@@ -337,9 +340,9 @@ class PHUCPlatformAgent(SpecialistAgent):
             },
             "segment": "unclassified",
         }
-        
+
         return profile
-    
+
     # Analytics Operations
     async def _calculate_attribution(
         self,
@@ -351,7 +354,7 @@ class PHUCPlatformAgent(SpecialistAgent):
         """Calculate marketing attribution."""
         if self._session is None:
             return {"error": "Not connected"}
-        
+
         return {
             "campaign_id": campaign_id,
             "period": {"start": start_date, "end": end_date},
@@ -366,7 +369,7 @@ class PHUCPlatformAgent(SpecialistAgent):
             },
             "channel_breakdown": {},
         }
-    
+
     async def _generate_campaign(
         self,
         therapeutic_area: str,
@@ -377,15 +380,15 @@ class PHUCPlatformAgent(SpecialistAgent):
         """Generate AI-driven campaign strategy."""
         if self._session is None:
             return {"error": "Not connected"}
-        
+
         # Use Workers AI to generate campaign
         prompt = f"""
         Generate a pharmaceutical marketing campaign strategy:
         
         Therapeutic Area: {therapeutic_area}
-        Target Segments: {', '.join(target_segments)}
+        Target Segments: {", ".join(target_segments)}
         Budget: ${budget:,.2f}
-        Objectives: {', '.join(objectives)}
+        Objectives: {", ".join(objectives)}
         
         Provide:
         1. Campaign name and objective
@@ -396,12 +399,12 @@ class PHUCPlatformAgent(SpecialistAgent):
         
         Format as JSON.
         """
-        
+
         return {
             "campaign": {},
             "generated_at": "",
         }
-    
+
     async def _platform_health(self) -> dict[str, Any]:
         """Get comprehensive platform health."""
         return {

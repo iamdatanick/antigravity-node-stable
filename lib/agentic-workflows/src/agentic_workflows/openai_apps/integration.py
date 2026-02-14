@@ -13,34 +13,31 @@ functionality and the OpenAI Apps SDK widget system.
 from __future__ import annotations
 
 import asyncio
-import inspect
-import json
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Awaitable, TypeVar, Generic
+from typing import Any, TypeVar
 
-from .widget_types import (
-    WidgetPayload,
-    WidgetMeta,
-    WidgetState,
-    StructuredContent,
-)
-from .widget_server import WidgetServer, WidgetHandler
-from .state import WidgetSessionManager, StateStore, InMemoryStateStore
 from .components import (
-    ListViewPayload,
-    ListItem,
-    StatusPayload,
-    StatusType,
-    ChartPayload,
+    CarouselItem,
+    CarouselPayload,
     ChartDataset,
+    ChartPayload,
     ChartType,
-    FormPayload,
     FormField,
     FormFieldType,
-    CarouselPayload,
-    CarouselItem,
+    FormPayload,
+    ListItem,
+    ListViewPayload,
+    StatusPayload,
+    StatusType,
+)
+from .state import InMemoryStateStore, StateStore, WidgetSessionManager
+from .widget_server import WidgetHandler, WidgetServer
+from .widget_types import (
+    StructuredContent,
+    WidgetState,
 )
 
 logger = logging.getLogger(__name__)
@@ -140,10 +137,7 @@ class ToolWidgetMapper:
         if mapping:
             if mapping.template_uri:
                 return mapping.template_uri
-            return self.CATEGORY_TEMPLATES.get(
-                mapping.widget_category,
-                "widget://status"
-            )
+            return self.CATEGORY_TEMPLATES.get(mapping.widget_category, "widget://status")
         return "widget://status"
 
     def map_output(
@@ -249,14 +243,16 @@ class ToolWidgetMapper:
         items = []
         for item in raw_items:
             if isinstance(item, dict):
-                items.append(ListItem(
-                    id=str(item.get("id", id(item))),
-                    title=item.get("title") or item.get("name") or str(item),
-                    subtitle=item.get("subtitle") or item.get("description", "")[:100],
-                    description=item.get("description", ""),
-                    image_url=item.get("image_url") or item.get("imageUrl", ""),
-                    badge=item.get("badge", ""),
-                ))
+                items.append(
+                    ListItem(
+                        id=str(item.get("id", id(item))),
+                        title=item.get("title") or item.get("name") or str(item),
+                        subtitle=item.get("subtitle") or item.get("description", "")[:100],
+                        description=item.get("description", ""),
+                        image_url=item.get("image_url") or item.get("imageUrl", ""),
+                        badge=item.get("badge", ""),
+                    )
+                )
             else:
                 items.append(ListItem(id=str(id(item)), title=str(item)))
 
@@ -309,11 +305,13 @@ class ToolWidgetMapper:
             raw_datasets = [{"label": "Data", "data": output["data"]}]
 
         for ds in raw_datasets:
-            datasets.append(ChartDataset(
-                label=ds.get("label", ""),
-                data=ds.get("data", []),
-                color=ds.get("color", ""),
-            ))
+            datasets.append(
+                ChartDataset(
+                    label=ds.get("label", ""),
+                    data=ds.get("data", []),
+                    color=ds.get("color", ""),
+                )
+            )
 
         payload = ChartPayload(
             chart_type=chart_type,
@@ -336,18 +334,17 @@ class ToolWidgetMapper:
                 "select": FormFieldType.SELECT,
                 "checkbox": FormFieldType.CHECKBOX,
             }
-            field_type = field_type_map.get(
-                f.get("type", "text").lower(),
-                FormFieldType.TEXT
+            field_type = field_type_map.get(f.get("type", "text").lower(), FormFieldType.TEXT)
+            fields.append(
+                FormField(
+                    name=f.get("name", ""),
+                    type=field_type,
+                    label=f.get("label", ""),
+                    placeholder=f.get("placeholder", ""),
+                    required=f.get("required", False),
+                    options=f.get("options", []),
+                )
             )
-            fields.append(FormField(
-                name=f.get("name", ""),
-                type=field_type,
-                label=f.get("label", ""),
-                placeholder=f.get("placeholder", ""),
-                required=f.get("required", False),
-                options=f.get("options", []),
-            ))
 
         payload = FormPayload(
             fields=fields,
@@ -365,17 +362,21 @@ class ToolWidgetMapper:
         items = []
         for item in raw_items:
             if isinstance(item, dict):
-                items.append(CarouselItem(
-                    id=str(item.get("id", id(item))),
-                    title=item.get("title", ""),
-                    description=item.get("description", ""),
-                    image_url=item.get("url") or item.get("image_url", ""),
-                ))
+                items.append(
+                    CarouselItem(
+                        id=str(item.get("id", id(item))),
+                        title=item.get("title", ""),
+                        description=item.get("description", ""),
+                        image_url=item.get("url") or item.get("image_url", ""),
+                    )
+                )
             elif isinstance(item, str):
-                items.append(CarouselItem(
-                    id=str(id(item)),
-                    image_url=item,
-                ))
+                items.append(
+                    CarouselItem(
+                        id=str(id(item)),
+                        image_url=item,
+                    )
+                )
 
         payload = CarouselPayload(
             items=items,
@@ -467,6 +468,7 @@ class WidgetRouter:
         try:
             # Apply middleware chain
             if self._middleware:
+
                 async def chain(h: WidgetHandler) -> StructuredContent:
                     return await h(arguments, state)
 
@@ -590,13 +592,15 @@ class OpenAIAppsAdapter:
             template_uri: Custom template URI.
             stateful: Whether widget is stateful.
         """
-        self._mapper.register_mapping(ToolOutputMapping(
-            tool_name=tool_name,
-            widget_category=category,
-            field_mappings=field_mappings or {},
-            template_uri=template_uri,
-            stateful=stateful,
-        ))
+        self._mapper.register_mapping(
+            ToolOutputMapping(
+                tool_name=tool_name,
+                widget_category=category,
+                field_mappings=field_mappings or {},
+                template_uri=template_uri,
+                stateful=stateful,
+            )
+        )
 
     def set_custom_transformer(
         self,
@@ -613,10 +617,12 @@ class OpenAIAppsAdapter:
         if existing:
             existing.transformer = transformer
         else:
-            self._mapper.register_mapping(ToolOutputMapping(
-                tool_name=tool_name,
-                transformer=transformer,
-            ))
+            self._mapper.register_mapping(
+                ToolOutputMapping(
+                    tool_name=tool_name,
+                    transformer=transformer,
+                )
+            )
 
     def create_server(self) -> WidgetServer:
         """Create a WidgetServer with registered tools.
@@ -711,6 +717,7 @@ def widget_tool(
         ...     products = await fetch_products(category)
         ...     return {"items": products}
     """
+
     def decorator(func: Callable) -> Callable:
         # Store metadata on function
         func._widget_metadata = {
@@ -721,6 +728,7 @@ def widget_tool(
             "description": description or func.__doc__ or "",
         }
         return func
+
     return decorator
 
 

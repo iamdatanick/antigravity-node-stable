@@ -13,8 +13,9 @@ Usage:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Union
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class AutoGenAgentConfig:
     model: str = "gpt-4o"
     temperature: float = 0.7
     max_tokens: int = 4096
-    seed: Optional[int] = None
+    seed: int | None = None
     timeout: int = 600
     max_consecutive_auto_reply: int = 10
 
@@ -40,11 +41,11 @@ class AutoGenAgent:
 
     name: str
     system_message: str = ""
-    llm_config: Optional[Dict[str, Any]] = None
+    llm_config: dict[str, Any] | None = None
     human_input_mode: str = "NEVER"  # ALWAYS, TERMINATE, NEVER
-    is_termination_msg: Optional[Callable[[Dict], bool]] = None
-    code_execution_config: Optional[Dict[str, Any]] = None
-    function_map: Optional[Dict[str, Callable]] = None
+    is_termination_msg: Callable[[dict], bool] | None = None
+    code_execution_config: dict[str, Any] | None = None
+    function_map: dict[str, Callable] | None = None
 
     def __post_init__(self):
         """Set defaults."""
@@ -71,7 +72,7 @@ class AutoGenAdapter:
         result = adapter.run_conversation(chat, "Hello")
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         """Initialize adapter.
 
         Args:
@@ -84,6 +85,7 @@ class AutoGenAdapter:
         """Check if AutoGen is available."""
         try:
             import autogen
+
             return True
         except ImportError:
             logger.warning("autogen package not installed")
@@ -114,7 +116,7 @@ class AutoGenAdapter:
             human_input_mode="NEVER",
         )
 
-    def from_autogen(self, autogen_agent: Any) -> Dict[str, Any]:
+    def from_autogen(self, autogen_agent: Any) -> dict[str, Any]:
         """Convert AutoGen agent to our format.
 
         Args:
@@ -126,14 +128,16 @@ class AutoGenAdapter:
         return {
             "name": getattr(autogen_agent, "name", "agent"),
             "instructions": getattr(autogen_agent, "system_message", ""),
-            "model": autogen_agent.llm_config.get("model", "gpt-4o") if autogen_agent.llm_config else "gpt-4o",
+            "model": autogen_agent.llm_config.get("model", "gpt-4o")
+            if autogen_agent.llm_config
+            else "gpt-4o",
         }
 
     def create_assistant(
         self,
         name: str,
         system_message: str,
-        llm_config: Optional[Dict[str, Any]] = None,
+        llm_config: dict[str, Any] | None = None,
     ) -> Any:
         """Create an AutoGen AssistantAgent.
 
@@ -160,7 +164,7 @@ class AutoGenAdapter:
         self,
         name: str = "user_proxy",
         human_input_mode: str = "NEVER",
-        code_execution_config: Optional[Dict[str, Any]] = None,
+        code_execution_config: dict[str, Any] | None = None,
     ) -> Any:
         """Create an AutoGen UserProxyAgent.
 
@@ -185,7 +189,7 @@ class AutoGenAdapter:
 
     def create_group_chat(
         self,
-        agents: List[Any],
+        agents: list[Any],
         max_round: int = 10,
         speaker_selection_method: str = "auto",
     ) -> Any:
@@ -208,22 +212,26 @@ class AutoGenAdapter:
         autogen_agents = []
         for agent in agents:
             if isinstance(agent, AutoGenAgent):
-                autogen_agents.append(self.create_assistant(
-                    name=agent.name,
-                    system_message=agent.system_message,
-                    llm_config=agent.llm_config,
-                ))
+                autogen_agents.append(
+                    self.create_assistant(
+                        name=agent.name,
+                        system_message=agent.system_message,
+                        llm_config=agent.llm_config,
+                    )
+                )
             elif hasattr(agent, "name") and hasattr(agent, "llm_config"):
                 # Already an AutoGen agent
                 autogen_agents.append(agent)
             else:
                 # Convert from our format
                 ag = self.to_autogen(agent)
-                autogen_agents.append(self.create_assistant(
-                    name=ag.name,
-                    system_message=ag.system_message,
-                    llm_config=ag.llm_config,
-                ))
+                autogen_agents.append(
+                    self.create_assistant(
+                        name=ag.name,
+                        system_message=ag.system_message,
+                        llm_config=ag.llm_config,
+                    )
+                )
 
         # Create group chat
         group_chat = GroupChat(

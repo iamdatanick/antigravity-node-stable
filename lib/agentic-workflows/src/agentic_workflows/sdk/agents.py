@@ -407,15 +407,12 @@ ALL_SDK_AGENTS: dict[str, dict[str, Any]] = {
     "expert-analyst": EXPERT_ANALYST_AGENT,
     "expert-architect": EXPERT_ARCHITECT_AGENT,
     "risk-assessor": RISK_ASSESSOR_AGENT,
-
     # Execution
     "note-taker": NOTE_TAKER_AGENT,
     "checker": CHECKER_AGENT,
     "corrector": CORRECTOR_AGENT,
-
     # Meta
     "orchestrator": ORCHESTRATOR_AGENT,
-
     # Specialized
     "security-auditor": SECURITY_AUDITOR_AGENT,
     "code-reviewer": CODE_REVIEWER_AGENT,
@@ -455,11 +452,7 @@ def get_agents_by_model(model: str) -> dict[str, dict[str, Any]]:
     Returns:
         Dictionary of agents using that model
     """
-    return {
-        name: agent
-        for name, agent in ALL_SDK_AGENTS.items()
-        if agent.get("model") == model
-    }
+    return {name: agent for name, agent in ALL_SDK_AGENTS.items() if agent.get("model") == model}
 
 
 def get_agent_for_task(task_description: str) -> str | None:

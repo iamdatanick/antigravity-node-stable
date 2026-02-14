@@ -15,10 +15,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import subprocess
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Union
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +28,13 @@ class MCPMessage:
     """MCP JSON-RPC message."""
 
     jsonrpc: str = "2.0"
-    id: Optional[Union[str, int]] = None
-    method: Optional[str] = None
-    params: Optional[Dict[str, Any]] = None
-    result: Optional[Any] = None
-    error: Optional[Dict[str, Any]] = None
+    id: str | int | None = None
+    method: str | None = None
+    params: dict[str, Any] | None = None
+    result: Any | None = None
+    error: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         msg = {"jsonrpc": self.jsonrpc}
         if self.id is not None:
@@ -50,7 +50,7 @@ class MCPMessage:
         return msg
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MCPMessage":
+    def from_dict(cls, data: dict[str, Any]) -> MCPMessage:
         """Create from dictionary."""
         return cls(
             jsonrpc=data.get("jsonrpc", "2.0"),
@@ -66,7 +66,7 @@ class MCPMessage:
         return json.dumps(self.to_dict())
 
     @classmethod
-    def from_json(cls, data: str) -> "MCPMessage":
+    def from_json(cls, data: str) -> MCPMessage:
         """Deserialize from JSON."""
         return cls.from_dict(json.loads(data))
 
@@ -85,12 +85,12 @@ class BaseTransport(ABC):
         pass
 
     @abstractmethod
-    async def send(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def send(self, message: dict[str, Any]) -> dict[str, Any] | None:
         """Send message and wait for response."""
         pass
 
     @abstractmethod
-    async def receive(self) -> AsyncIterator[Dict[str, Any]]:
+    async def receive(self) -> AsyncIterator[dict[str, Any]]:
         """Receive messages (for notifications)."""
         pass
 
@@ -118,9 +118,9 @@ class StdioTransport(BaseTransport):
     def __init__(
         self,
         command: str,
-        args: Optional[List[str]] = None,
-        env: Optional[Dict[str, str]] = None,
-        cwd: Optional[str] = None,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
+        cwd: str | None = None,
     ):
         """Initialize stdio transport.
 
@@ -134,10 +134,10 @@ class StdioTransport(BaseTransport):
         self.args = args or []
         self.env = env or {}
         self.cwd = cwd
-        self._process: Optional[asyncio.subprocess.Process] = None
+        self._process: asyncio.subprocess.Process | None = None
         self._message_id = 0
-        self._pending: Dict[Union[str, int], asyncio.Future] = {}
-        self._read_task: Optional[asyncio.Task] = None
+        self._pending: dict[str | int, asyncio.Future] = {}
+        self._read_task: asyncio.Task | None = None
 
     @property
     def is_connected(self) -> bool:
@@ -202,7 +202,7 @@ class StdioTransport(BaseTransport):
                 future.cancel()
         self._pending.clear()
 
-    async def send(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def send(self, message: dict[str, Any]) -> dict[str, Any] | None:
         """Send message and wait for response.
 
         Args:
@@ -279,7 +279,7 @@ class StdioTransport(BaseTransport):
         except Exception as e:
             logger.error(f"Error in read loop: {e}")
 
-    async def receive(self) -> AsyncIterator[Dict[str, Any]]:
+    async def receive(self) -> AsyncIterator[dict[str, Any]]:
         """Receive messages (notifications)."""
         # For stdio, notifications come through the read loop
         # This is a placeholder for external consumers
@@ -301,8 +301,8 @@ class SSETransport(BaseTransport):
     def __init__(
         self,
         url: str,
-        headers: Optional[Dict[str, str]] = None,
-        auth_token: Optional[str] = None,
+        headers: dict[str, str] | None = None,
+        auth_token: str | None = None,
     ):
         """Initialize SSE transport.
 
@@ -316,7 +316,7 @@ class SSETransport(BaseTransport):
         self.auth_token = auth_token
         self._connected = False
         self._event_queue: asyncio.Queue = asyncio.Queue()
-        self._listen_task: Optional[asyncio.Task] = None
+        self._listen_task: asyncio.Task | None = None
 
     @property
     def is_connected(self) -> bool:
@@ -371,7 +371,7 @@ class SSETransport(BaseTransport):
             logger.error(f"SSE error: {e}")
             self._connected = False
 
-    async def send(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def send(self, message: dict[str, Any]) -> dict[str, Any] | None:
         """Send message via POST (SSE is receive-only, POST for requests)."""
         try:
             import httpx
@@ -396,7 +396,7 @@ class SSETransport(BaseTransport):
             logger.error(f"Failed to send message: {e}")
             return None
 
-    async def receive(self) -> AsyncIterator[Dict[str, Any]]:
+    async def receive(self) -> AsyncIterator[dict[str, Any]]:
         """Receive SSE events."""
         while self._connected:
             try:
@@ -421,8 +421,8 @@ class HTTPTransport(BaseTransport):
     def __init__(
         self,
         url: str,
-        headers: Optional[Dict[str, str]] = None,
-        auth_token: Optional[str] = None,
+        headers: dict[str, str] | None = None,
+        auth_token: str | None = None,
         timeout: float = 30.0,
     ):
         """Initialize HTTP transport.
@@ -453,7 +453,7 @@ class HTTPTransport(BaseTransport):
         """Mark as disconnected."""
         self._connected = False
 
-    async def send(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def send(self, message: dict[str, Any]) -> dict[str, Any] | None:
         """Send HTTP request and get response.
 
         Args:
@@ -482,7 +482,7 @@ class HTTPTransport(BaseTransport):
             logger.error(f"HTTP request failed: {e}")
             return None
 
-    async def receive(self) -> AsyncIterator[Dict[str, Any]]:
+    async def receive(self) -> AsyncIterator[dict[str, Any]]:
         """HTTP is request/response only - no streaming receive."""
         # HTTP doesn't support server-push
         return

@@ -33,30 +33,30 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any
 
+from agentic_workflows.openai_skills.loader import LoaderConfig, SkillLoader
 from agentic_workflows.openai_skills.skill_types import (
     SkillCategory,
     SkillManifest,
     SkillTrigger,
 )
-from agentic_workflows.openai_skills.loader import SkillLoader, LoaderConfig
-
 
 logger = logging.getLogger(__name__)
 
 
 class SearchMode(Enum):
     """Search mode for skill discovery."""
-    EXACT = "exact"          # Exact name match
-    PREFIX = "prefix"        # Name starts with query
-    CONTAINS = "contains"    # Name or description contains query
-    FUZZY = "fuzzy"          # Fuzzy matching with scoring
-    TRIGGER = "trigger"      # Match trigger keywords
+
+    EXACT = "exact"  # Exact name match
+    PREFIX = "prefix"  # Name starts with query
+    CONTAINS = "contains"  # Name or description contains query
+    FUZZY = "fuzzy"  # Fuzzy matching with scoring
+    TRIGGER = "trigger"  # Match trigger keywords
 
 
 @dataclass
@@ -68,6 +68,7 @@ class SearchResult:
         score: Relevance score (higher is better).
         matched_fields: Fields that matched the query.
     """
+
     manifest: SkillManifest
     score: float = 0.0
     matched_fields: list[str] = field(default_factory=list)
@@ -95,6 +96,7 @@ class RegistryConfig:
         default_search_mode: Default search mode.
         integrate_agentic: Whether to integrate with agentic_workflows.skills.
     """
+
     auto_index: bool = True
     enable_caching: bool = True
     cache_ttl: int = 300  # 5 minutes
@@ -400,11 +402,13 @@ class OpenAISkillRegistry:
                 )
 
                 if score > 0:
-                    results.append(SearchResult(
-                        manifest=manifest,
-                        score=score,
-                        matched_fields=matched,
-                    ))
+                    results.append(
+                        SearchResult(
+                            manifest=manifest,
+                            score=score,
+                            matched_fields=matched,
+                        )
+                    )
 
         # Sort by score descending
         results.sort(key=lambda r: r.score, reverse=True)
@@ -504,10 +508,7 @@ class OpenAISkillRegistry:
 
         return score, matched
 
-    def _get_cached(
-        self,
-        key: str
-    ) -> list[SearchResult] | None:
+    def _get_cached(self, key: str) -> list[SearchResult] | None:
         """Get cached search results.
 
         Args:
@@ -528,11 +529,7 @@ class OpenAISkillRegistry:
 
         return results
 
-    def _set_cached(
-        self,
-        key: str,
-        results: list[SearchResult]
-    ) -> None:
+    def _set_cached(self, key: str, results: list[SearchResult]) -> None:
         """Cache search results.
 
         Args:
@@ -582,10 +579,7 @@ class OpenAISkillRegistry:
         Returns:
             Dictionary mapping names to context strings.
         """
-        return {
-            name: self.get_skill_context(name, include_resources)
-            for name in names
-        }
+        return {name: self.get_skill_context(name, include_resources) for name in names}
 
     def find_matching_skills(self, user_input: str) -> list[SkillManifest]:
         """Find skills that match user input using triggers.
@@ -732,10 +726,7 @@ class OpenAISkillRegistry:
             Dictionary with statistics.
         """
         with self._lock:
-            by_category = {
-                cat.value: len(names)
-                for cat, names in self._by_category.items()
-            }
+            by_category = {cat.value: len(names) for cat, names in self._by_category.items()}
 
             return {
                 "total_skills": len(self._skills),
@@ -763,10 +754,7 @@ class OpenAISkillRegistry:
             return iter(list(self._skills.values()))
 
     def __repr__(self) -> str:
-        return (
-            f"OpenAISkillRegistry(skills={len(self)}, "
-            f"domains={len(self._by_domain)})"
-        )
+        return f"OpenAISkillRegistry(skills={len(self)}, domains={len(self._by_domain)})"
 
 
 # Global registry instance

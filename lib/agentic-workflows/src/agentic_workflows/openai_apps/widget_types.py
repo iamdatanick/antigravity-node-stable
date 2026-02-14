@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, TypeVar, Generic
+from typing import Any, Generic, TypeVar
 
 
 class WidgetDisplayMode(str, Enum):
@@ -231,7 +231,7 @@ class WidgetState:
     expires_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def update(self, new_data: dict[str, Any]) -> "WidgetState":
+    def update(self, new_data: dict[str, Any]) -> WidgetState:
         """Replace state data completely.
 
         Args:
@@ -245,7 +245,7 @@ class WidgetState:
         self.updated_at = datetime.utcnow()
         return self
 
-    def merge(self, partial_data: dict[str, Any]) -> "WidgetState":
+    def merge(self, partial_data: dict[str, Any]) -> WidgetState:
         """Merge partial data into current state.
 
         Performs a shallow merge of partial_data into state_data.
@@ -262,7 +262,7 @@ class WidgetState:
         self.updated_at = datetime.utcnow()
         return self
 
-    def merge_deep(self, partial_data: dict[str, Any]) -> "WidgetState":
+    def merge_deep(self, partial_data: dict[str, Any]) -> WidgetState:
         """Deep merge partial data into current state.
 
         Recursively merges nested dictionaries.
@@ -282,11 +282,7 @@ class WidgetState:
         """Recursively merge update into base."""
         result = base.copy()
         for key, value in update.items():
-            if (
-                key in result
-                and isinstance(result[key], dict)
-                and isinstance(value, dict)
-            ):
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = self._deep_merge(result[key], value)
             else:
                 result[key] = value
@@ -304,7 +300,7 @@ class WidgetState:
         """
         return self.state_data.get(key, default)
 
-    def set(self, key: str, value: Any) -> "WidgetState":
+    def set(self, key: str, value: Any) -> WidgetState:
         """Set a single value in state data.
 
         Args:
@@ -346,7 +342,7 @@ class WidgetState:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WidgetState":
+    def from_dict(cls, data: dict[str, Any]) -> WidgetState:
         """Create state from dictionary.
 
         Args:

@@ -8,19 +8,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from mcp.server import Server
+from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp.server.lowlevel.server import NotificationOptions
 from mcp.types import (
-    Tool,
     TextContent,
-    EmbeddedResource,
-    CallToolResult,
-    ListToolsResult,
+    Tool,
 )
 
 from agentic_workflows.skills import (
@@ -80,76 +76,98 @@ class AgenticWorkflowsMCPServer:
         tools = []
 
         # Add tool search tool
-        tools.append(Tool(
-            name="skill_search",
-            description="Search for skills by keyword or category. Use this to find relevant skills before invoking them.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query (keyword or regex pattern)"
+        tools.append(
+            Tool(
+                name="skill_search",
+                description="Search for skills by keyword or category. Use this to find relevant skills before invoking them.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Search query (keyword or regex pattern)",
+                        },
+                        "category": {
+                            "type": "string",
+                            "description": "Filter by category (code, data, ops, research, writing, business, creative, communication, specialized, meta, phuc)",
+                            "enum": [
+                                "code",
+                                "data",
+                                "ops",
+                                "research",
+                                "writing",
+                                "business",
+                                "creative",
+                                "communication",
+                                "specialized",
+                                "meta",
+                                "phuc",
+                            ],
+                        },
                     },
-                    "category": {
-                        "type": "string",
-                        "description": "Filter by category (code, data, ops, research, writing, business, creative, communication, specialized, meta, phuc)",
-                        "enum": ["code", "data", "ops", "research", "writing", "business", "creative", "communication", "specialized", "meta", "phuc"]
-                    }
+                    "required": ["query"],
                 },
-                "required": ["query"]
-            }
-        ))
+            )
+        )
 
         # Add skill invocation tool
-        tools.append(Tool(
-            name="skill_invoke",
-            description="Invoke a skill by name with provided context. The skill will return guidance for the requested task.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "skill_name": {
-                        "type": "string",
-                        "description": "Name of the skill to invoke"
+        tools.append(
+            Tool(
+                name="skill_invoke",
+                description="Invoke a skill by name with provided context. The skill will return guidance for the requested task.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "skill_name": {
+                            "type": "string",
+                            "description": "Name of the skill to invoke",
+                        },
+                        "context": {
+                            "type": "string",
+                            "description": "Context or query to pass to the skill",
+                        },
                     },
-                    "context": {
-                        "type": "string",
-                        "description": "Context or query to pass to the skill"
-                    }
+                    "required": ["skill_name"],
                 },
-                "required": ["skill_name"]
-            }
-        ))
+            )
+        )
 
         # Add skill list tool
-        tools.append(Tool(
-            name="skill_list",
-            description="List all available skills grouped by domain.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "domain": {
-                        "type": "string",
-                        "description": "Filter by domain (phuc, lifesci, devops, agentic-workflows)"
-                    }
-                }
-            }
-        ))
+        tools.append(
+            Tool(
+                name="skill_list",
+                description="List all available skills grouped by domain.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "domain": {
+                            "type": "string",
+                            "description": "Filter by domain (phuc, lifesci, devops, agentic-workflows)",
+                        }
+                    },
+                },
+            )
+        )
 
         # Add registered skills as individual tools (deferred loading)
         if self._registry:
             for name, skill in self._registry._skills.items():
                 if skill.defer_loading:
                     # Deferred skills get added with minimal schema
-                    tools.append(Tool(
-                        name=f"skill_{name}",
-                        description=skill.description[:200] if skill.description else f"Invoke {name} skill",
-                        inputSchema={
-                            "type": "object",
-                            "properties": {
-                                "context": {"type": "string", "description": "Task context"}
-                            }
-                        }
-                    ))
+                    tools.append(
+                        Tool(
+                            name=f"skill_{name}",
+                            description=skill.description[:200]
+                            if skill.description
+                            else f"Invoke {name} skill",
+                            inputSchema={
+                                "type": "object",
+                                "properties": {
+                                    "context": {"type": "string", "description": "Task context"}
+                                },
+                            },
+                        )
+                    )
 
         return tools
 
@@ -163,24 +181,29 @@ class AgenticWorkflowsMCPServer:
             # Search directly in registry since ToolSearchTool needs the registry
             results = []
             import re
+
             pattern = re.compile(query, re.IGNORECASE)
 
             for skill_name, skill in self._registry._skills.items():
                 if category and skill.domain != category:
                     continue
 
-                if pattern.search(skill_name) or (skill.description and pattern.search(skill.description)):
-                    results.append({
-                        "name": skill_name,
-                        "level": skill.level,
-                        "domain": skill.domain,
-                        "description": skill.description[:100] if skill.description else ""
-                    })
+                if pattern.search(skill_name) or (
+                    skill.description and pattern.search(skill.description)
+                ):
+                    results.append(
+                        {
+                            "name": skill_name,
+                            "level": skill.level,
+                            "domain": skill.domain,
+                            "description": skill.description[:100] if skill.description else "",
+                        }
+                    )
 
             return {
                 "status": "success",
                 "count": len(results),
-                "results": results[:10]  # Limit to 10
+                "results": results[:10],  # Limit to 10
             }
 
         elif name == "skill_invoke":
@@ -202,7 +225,7 @@ class AgenticWorkflowsMCPServer:
                 "level": skill.level,
                 "domain": skill.domain,
                 "allowed_tools": skill.allowed_tools,
-                "context": skill_context[:5000] if skill_context else None  # Truncate for safety
+                "context": skill_context[:5000] if skill_context else None,  # Truncate for safety
             }
 
         elif name == "skill_list":
@@ -219,17 +242,19 @@ class AgenticWorkflowsMCPServer:
                 if skill.domain not in skills_by_domain:
                     skills_by_domain[skill.domain] = []
 
-                skills_by_domain[skill.domain].append({
-                    "name": skill_name,
-                    "level": skill.level,
-                    "description": skill.description[:100] if skill.description else ""
-                })
+                skills_by_domain[skill.domain].append(
+                    {
+                        "name": skill_name,
+                        "level": skill.level,
+                        "description": skill.description[:100] if skill.description else "",
+                    }
+                )
 
             return {
                 "status": "success",
                 "domains": list(skills_by_domain.keys()),
                 "total_count": sum(len(v) for v in skills_by_domain.values()),
-                "skills": skills_by_domain
+                "skills": skills_by_domain,
             }
 
         elif name.startswith("skill_"):
@@ -248,7 +273,7 @@ class AgenticWorkflowsMCPServer:
             return {
                 "status": "success",
                 "skill": skill_name,
-                "context": skill_context[:5000] if skill_context else None
+                "context": skill_context[:5000] if skill_context else None,
             }
 
         return {"status": "error", "message": f"Unknown tool: {name}"}
@@ -264,13 +289,11 @@ class AgenticWorkflowsMCPServer:
                     server_version="5.0.0",
                     capabilities=self.server.get_capabilities(
                         notification_options=NotificationOptions(
-                            prompts_changed=False,
-                            resources_changed=False,
-                            tools_changed=True
+                            prompts_changed=False, resources_changed=False, tools_changed=True
                         ),
-                        experimental_capabilities={}
-                    )
-                )
+                        experimental_capabilities={},
+                    ),
+                ),
             )
 
 

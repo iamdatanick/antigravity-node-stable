@@ -92,89 +92,88 @@ await manager.merge_state(session_id, {"cart": {"total": 99.99}})
 __version__ = "1.0.0"
 
 # Widget Types
-from .widget_types import (
-    # Core types
-    WidgetTemplate,
-    WidgetPayload,
-    WidgetMeta,
-    WidgetState,
-    # Enums
-    WidgetDisplayMode,
-    WidgetTheme,
-    # Type aliases
-    StructuredContent,
-    WidgetMetaDict,
-)
-
-# State Management
-from .state import (
-    # Managers
-    WidgetSessionManager,
-    # Stores
-    StateStore,
-    StateStoreConfig,
-    InMemoryStateStore,
-    RedisStateStore,
-    D1StateStore,
-)
-
 # Widget Components
 from .components import (
-    # List View
-    ListViewPayload,
-    ListItem,
-    ListStyle,
-    # Carousel
-    CarouselPayload,
+    CAROUSEL_TEMPLATE,
+    CHART_TEMPLATE,
+    FORM_TEMPLATE,
+    LIST_VIEW_TEMPLATE,
+    STATUS_TEMPLATE,
+    # Templates
+    WIDGET_TEMPLATES,
     CarouselItem,
     CarouselItemType,
-    # Form
-    FormPayload,
+    # Carousel
+    CarouselPayload,
+    ChartDataset,
+    # Chart
+    ChartPayload,
+    ChartType,
     FormField,
     FormFieldType,
+    # Form
+    FormPayload,
+    ListItem,
+    ListStyle,
+    # List View
+    ListViewPayload,
     # Status
     StatusPayload,
     StatusStep,
     StatusType,
-    # Chart
-    ChartPayload,
-    ChartDataset,
-    ChartType,
-    # Templates
-    WIDGET_TEMPLATES,
-    LIST_VIEW_TEMPLATE,
-    CAROUSEL_TEMPLATE,
-    FORM_TEMPLATE,
-    STATUS_TEMPLATE,
-    CHART_TEMPLATE,
     get_template,
     register_template,
-)
-
-# Widget Server
-from .widget_server import (
-    WidgetServer,
-    WidgetServerBuilder,
-    WidgetRegistration,
-    WidgetHandler,
-    create_widget_server,
 )
 
 # Integration
 from .integration import (
     # Adapter
     OpenAIAppsAdapter,
+    ToolOutputMapping,
     # Mapper
     ToolWidgetMapper,
-    ToolOutputMapping,
     WidgetCategory,
     # Router
     WidgetRouter,
     # Factory
     create_apps_adapter,
+    register_widget_tools,
     # Decorators
     widget_tool,
-    register_widget_tools,
+)
+
+# State Management
+from .state import (
+    D1StateStore,
+    InMemoryStateStore,
+    RedisStateStore,
+    # Stores
+    StateStore,
+    StateStoreConfig,
+    # Managers
+    WidgetSessionManager,
+)
+
+# Widget Server
+from .widget_server import (
+    WidgetHandler,
+    WidgetRegistration,
+    WidgetServer,
+    WidgetServerBuilder,
+    create_widget_server,
+)
+from .widget_types import (
+    # Type aliases
+    StructuredContent,
+    # Enums
+    WidgetDisplayMode,
+    WidgetMeta,
+    WidgetMetaDict,
+    WidgetPayload,
+    WidgetState,
+    # Core types
+    WidgetTemplate,
+    WidgetTheme,
 )
 
 
@@ -262,6 +261,7 @@ def create_apps_server(
     # Start cleanup task for in-memory store
     if enable_cleanup and isinstance(store, InMemoryStateStore):
         import asyncio
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():

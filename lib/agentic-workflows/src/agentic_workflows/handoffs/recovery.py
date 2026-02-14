@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -15,13 +16,13 @@ T = TypeVar("T")
 class RecoveryStrategy(Enum):
     """Recovery strategies."""
 
-    RETRY = "retry"                # Simple retry
-    FALLBACK = "fallback"          # Use fallback function
-    ROLLBACK = "rollback"          # Revert to previous state
-    SKIP = "skip"                  # Skip and continue
-    ESCALATE = "escalate"          # Escalate to human
-    COMPENSATE = "compensate"      # Run compensation logic
-    RESTART = "restart"            # Restart from beginning
+    RETRY = "retry"  # Simple retry
+    FALLBACK = "fallback"  # Use fallback function
+    ROLLBACK = "rollback"  # Revert to previous state
+    SKIP = "skip"  # Skip and continue
+    ESCALATE = "escalate"  # Escalate to human
+    COMPENSATE = "compensate"  # Run compensation logic
+    RESTART = "restart"  # Restart from beginning
 
 
 class RecoveryStatus(Enum):
@@ -39,11 +40,13 @@ class RecoveryConfig:
     """Recovery configuration."""
 
     # Strategies to try in order
-    strategies: list[RecoveryStrategy] = field(default_factory=lambda: [
-        RecoveryStrategy.RETRY,
-        RecoveryStrategy.FALLBACK,
-        RecoveryStrategy.ESCALATE,
-    ])
+    strategies: list[RecoveryStrategy] = field(
+        default_factory=lambda: [
+            RecoveryStrategy.RETRY,
+            RecoveryStrategy.FALLBACK,
+            RecoveryStrategy.ESCALATE,
+        ]
+    )
 
     # Retry settings
     max_retries: int = 3
@@ -284,9 +287,7 @@ class RecoveryOrchestrator:
                             None, self._try_rollback, context
                         )
                     elif strategy == RecoveryStrategy.SKIP:
-                        recovered_result = await loop.run_in_executor(
-                            None, self._try_skip, context
-                        )
+                        recovered_result = await loop.run_in_executor(None, self._try_skip, context)
                     elif strategy == RecoveryStrategy.COMPENSATE:
                         recovered_result = await loop.run_in_executor(
                             None, self._try_compensate, context

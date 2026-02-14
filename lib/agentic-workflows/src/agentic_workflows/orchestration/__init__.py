@@ -6,6 +6,15 @@ from agentic_workflows.orchestration.circuit_breaker import (
     CircuitBreakerOpen,
     CircuitState,
 )
+from agentic_workflows.orchestration.parallel import (
+    ParallelExecutor,
+    ParallelResult,
+)
+from agentic_workflows.orchestration.pipeline import (
+    Pipeline,
+    PipelineResult,
+    PipelineStage,
+)
 from agentic_workflows.orchestration.retry import (
     Retrier,
     RetryConfig,
@@ -17,24 +26,23 @@ from agentic_workflows.orchestration.supervisor import (
     TaskResult,
     TaskStatus,
 )
-from agentic_workflows.orchestration.pipeline import (
-    Pipeline,
-    PipelineStage,
-    PipelineResult,
-)
-from agentic_workflows.orchestration.parallel import (
-    ParallelExecutor,
-    ParallelResult,
-)
 
 # PHUC Orchestrator (lazy import to avoid circular dependency)
 _phuc_cache = {}
 
+
 def __getattr__(name):
-    if name in ("PhucOrchestrator", "PhucPipeline", "SecurityGate", "OrchestrationResult",
-                "get_orchestrator", "execute_pipeline"):
+    if name in (
+        "PhucOrchestrator",
+        "PhucPipeline",
+        "SecurityGate",
+        "OrchestrationResult",
+        "get_orchestrator",
+        "execute_pipeline",
+    ):
         if name not in _phuc_cache:
             from agentic_workflows.orchestration import phuc_orchestrator
+
             _phuc_cache["PhucOrchestrator"] = phuc_orchestrator.PhucOrchestrator
             _phuc_cache["PhucPipeline"] = phuc_orchestrator.PhucPipeline
             _phuc_cache["SecurityGate"] = phuc_orchestrator.SecurityGate
@@ -43,6 +51,7 @@ def __getattr__(name):
             _phuc_cache["execute_pipeline"] = phuc_orchestrator.execute_pipeline
         return _phuc_cache[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # Circuit Breaker

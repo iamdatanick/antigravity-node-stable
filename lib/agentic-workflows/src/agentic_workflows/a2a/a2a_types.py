@@ -18,8 +18,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, TypeVar, Generic
-
+from typing import Any
 
 # =============================================================================
 # Enums
@@ -208,6 +207,7 @@ class FileContent:
             result["uri"] = self.uri
         if self.bytes_data:
             import base64
+
             result["bytes"] = base64.b64encode(self.bytes_data).decode("utf-8")
         return result
 
@@ -217,6 +217,7 @@ class FileContent:
         bytes_data = None
         if "bytes" in data:
             import base64
+
             bytes_data = base64.b64decode(data["bytes"])
         return cls(
             name=data.get("name"),
@@ -696,9 +697,7 @@ class AgentCard:
         if self.documentation_url:
             result["documentationUrl"] = self.documentation_url
         if self.security_schemes:
-            result["securitySchemes"] = {
-                k: v.to_dict() for k, v in self.security_schemes.items()
-            }
+            result["securitySchemes"] = {k: v.to_dict() for k, v in self.security_schemes.items()}
         if self.security:
             result["security"] = self.security
         if self.metadata:
@@ -710,10 +709,7 @@ class AgentCard:
     def from_dict(cls, data: dict[str, Any]) -> AgentCard:
         """Create from dictionary."""
         skills = [AgentSkill.from_dict(s) for s in data.get("skills", [])]
-        interfaces = [
-            AgentInterface.from_dict(i)
-            for i in data.get("additionalInterfaces", [])
-        ]
+        interfaces = [AgentInterface.from_dict(i) for i in data.get("additionalInterfaces", [])]
 
         provider = None
         if "provider" in data:
@@ -744,6 +740,7 @@ class AgentCard:
     def to_json(self, indent: int = 2) -> str:
         """Convert to JSON string."""
         import json
+
         return json.dumps(self.to_dict(), indent=indent)
 
     def get_skill(self, skill_id: str) -> AgentSkill | None:
@@ -1189,7 +1186,9 @@ class JSONRPCError:
         return result
 
     @classmethod
-    def from_code(cls, code: A2AErrorCode, message: str | None = None, data: Any = None) -> JSONRPCError:
+    def from_code(
+        cls, code: A2AErrorCode, message: str | None = None, data: Any = None
+    ) -> JSONRPCError:
         """Create from error code enum."""
         default_messages = {
             A2AErrorCode.PARSE_ERROR: "Parse error",

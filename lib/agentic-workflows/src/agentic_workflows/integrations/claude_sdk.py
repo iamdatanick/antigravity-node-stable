@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,9 @@ class ClaudeAgentConfig:
 
     model: str = "claude-sonnet-4-20250514"
     max_tokens: int = 4096
-    temperature: Optional[float] = None
-    top_p: Optional[float] = None
-    stop_sequences: Optional[List[str]] = None
+    temperature: float | None = None
+    top_p: float | None = None
+    stop_sequences: list[str] | None = None
     stream: bool = False
 
 
@@ -48,7 +48,7 @@ class ClaudeAgent:
 
     name: str
     instructions: str = ""
-    tools: List[Dict[str, Any]] = field(default_factory=list)
+    tools: list[dict[str, Any]] = field(default_factory=list)
     config: ClaudeAgentConfig = field(default_factory=ClaudeAgentConfig)
 
     def get_system_prompt(self) -> str:
@@ -62,9 +62,9 @@ class ClaudeResult:
 
     content: str = ""
     role: str = "assistant"
-    stop_reason: Optional[str] = None
-    tool_use: Optional[Dict[str, Any]] = None
-    usage: Optional[Dict[str, int]] = None
+    stop_reason: str | None = None
+    tool_use: dict[str, Any] | None = None
+    usage: dict[str, int] | None = None
     model: str = ""
 
 
@@ -79,7 +79,7 @@ class ClaudeSDK:
         ])
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """Initialize SDK.
 
         Args:
@@ -105,8 +105,8 @@ class ClaudeSDK:
     async def run(
         self,
         agent: ClaudeAgent,
-        messages: List[Dict[str, Any]],
-        context: Optional[Dict[str, Any]] = None,
+        messages: list[dict[str, Any]],
+        context: dict[str, Any] | None = None,
     ) -> ClaudeResult:
         """Run agent with messages.
 
@@ -124,6 +124,7 @@ class ClaudeSDK:
         system = agent.get_system_prompt()
         if context:
             import json
+
             system = f"{system}\n\nContext:\n{json.dumps(context, indent=2)}"
 
         # Build request
@@ -177,7 +178,7 @@ class ClaudeSDK:
     async def stream(
         self,
         agent: ClaudeAgent,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
     ):
         """Stream response from agent.
 
@@ -204,7 +205,7 @@ class ClaudeSDK:
             for text in stream.text_stream:
                 yield text
 
-    def count_tokens(self, text: str, model: Optional[str] = None) -> int:
+    def count_tokens(self, text: str, model: str | None = None) -> int:
         """Count tokens in text.
 
         Args:

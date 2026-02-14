@@ -6,11 +6,12 @@ Provides centralized management and orchestration of all specialists.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Type
+from typing import Any
 
-from .base import SpecialistAgent, SpecialistConfig, SpecialistCapability, SpecialistResult
+from .base import SpecialistAgent, SpecialistCapability, SpecialistConfig, SpecialistResult
 
 
 class RoutingStrategy(Enum):
@@ -98,10 +99,9 @@ class StackSupervisor:
         self._semaphore = asyncio.Semaphore(self.config.concurrent_limit)
 
         # Initialize all specialists
-        await asyncio.gather(*[
-            self._initialize_specialist(name, reg)
-            for name, reg in self._specialists.items()
-        ])
+        await asyncio.gather(
+            *[self._initialize_specialist(name, reg) for name, reg in self._specialists.items()]
+        )
 
         # Start health monitoring
         if self.config.health_check_interval > 0:
@@ -120,10 +120,10 @@ class StackSupervisor:
                 pass
 
         # Shutdown all specialists
-        await asyncio.gather(*[
-            reg.specialist.shutdown()
-            for reg in self._specialists.values()
-        ], return_exceptions=True)
+        await asyncio.gather(
+            *[reg.specialist.shutdown() for reg in self._specialists.values()],
+            return_exceptions=True,
+        )
 
     async def _initialize_specialist(
         self,
@@ -439,16 +439,13 @@ class StackSupervisor:
                 if capability in reg.specialist.capabilities and reg.enabled
             ]
         else:
-            targets = [
-                (name, reg)
-                for name, reg in self._specialists.items()
-                if reg.enabled
-            ]
+            targets = [(name, reg) for name, reg in self._specialists.items() if reg.enabled]
 
         results = {}
         tasks = []
 
         for name, reg in targets:
+
             async def execute_one(n: str, r: SpecialistRegistration):
                 try:
                     return n, await r.specialist.execute(operation, **kwargs)
@@ -462,7 +459,7 @@ class StackSupervisor:
 
         return results
 
-    async def __aenter__(self) -> "StackSupervisor":
+    async def __aenter__(self) -> StackSupervisor:
         """Async context manager entry."""
         await self.start()
         return self
@@ -483,19 +480,19 @@ def create_phuc_stack_supervisor(
     Returns:
         Configured supervisor.
     """
-    from .minio_agent import MinIOAgent, MinIOConfig
-    from .kafka_agent import KafkaAgent, KafkaConfig
-    from .starrocks_agent import StarRocksAgent, StarRocksConfig
-    from .unomi_agent import UnomiAgent, UnomiConfig
-    from .milvus_agent import MilvusAgent, MilvusConfig
-    from .ovms_agent import OVMSAgent, OVMSConfig
     from .airflow_agent import AirflowAgent, AirflowConfig
-    from .openmetadata_agent import OpenMetadataAgent, OpenMetadataConfig
+    from .cloudflare_agent import CloudflareAgent, CloudflareConfig
+    from .kafka_agent import KafkaAgent, KafkaConfig
+    from .keycloak_agent import KeycloakAgent, KeycloakConfig
     from .langchain_agent import LangChainAgent, LangChainConfig
     from .mcp_agent import MCPSpecialistAgent, MCPSpecialistConfig
-    from .keycloak_agent import KeycloakAgent, KeycloakConfig
+    from .milvus_agent import MilvusAgent, MilvusConfig
+    from .minio_agent import MinIOAgent, MinIOConfig
+    from .openmetadata_agent import OpenMetadataAgent, OpenMetadataConfig
+    from .ovms_agent import OVMSAgent, OVMSConfig
+    from .starrocks_agent import StarRocksAgent, StarRocksConfig
+    from .unomi_agent import UnomiAgent, UnomiConfig
     from .vault_agent import VaultAgent, VaultConfig
-    from .cloudflare_agent import CloudflareAgent, CloudflareConfig
 
     configs = configs or {}
 

@@ -15,13 +15,13 @@ Reference: https://github.com/openai/openai-agents-python
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, TypeVar, Generic, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 if TYPE_CHECKING:
     from agentic_workflows.openai_agents.agent import OpenAIAgent
-    from agentic_workflows.openai_agents.guardrails import InputGuardrail, OutputGuardrail
 
 
 # Type variable for structured output
@@ -89,7 +89,8 @@ class ToolConfig:
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": self.parameters or {
+                "parameters": self.parameters
+                or {
                     "type": "object",
                     "properties": {},
                     "required": [],
@@ -106,7 +107,8 @@ class ToolConfig:
         return {
             "name": self.name,
             "description": self.description,
-            "input_schema": self.parameters or {
+            "input_schema": self.parameters
+            or {
                 "type": "object",
                 "properties": {},
                 "required": [],
@@ -153,7 +155,7 @@ class HandoffConfig:
         on_handoff: Callback when handoff occurs.
     """
 
-    target_agent: "OpenAIAgent | str"
+    target_agent: OpenAIAgent | str
     description: str = ""
     strategy: HandoffStrategy = HandoffStrategy.IMMEDIATE
     conditions: list[Callable[[dict[str, Any]], bool]] = field(default_factory=list)

@@ -18,12 +18,11 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
-import json
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field
-from typing import Any, Callable, ParamSpec, TypeVar, overload
+from collections.abc import Callable
+from typing import Any, ParamSpec, TypeVar
 
 from agentic_workflows.openai_agents.agent_types import (
     AgentConfig,
@@ -32,8 +31,6 @@ from agentic_workflows.openai_agents.agent_types import (
     HandoffRequest,
     MCPServerConfig,
     Message,
-    RunConfig,
-    RunResult,
     ToolCall,
     ToolConfig,
 )
@@ -163,9 +160,7 @@ def _python_type_to_json(python_type: type) -> dict[str, Any]:
         return {"type": "null"}
 
     # Handle Union (including Optional)
-    if hasattr(python_type, "__origin__") and python_type.__origin__ is type(
-        int | str
-    ):
+    if hasattr(python_type, "__origin__") and python_type.__origin__ is type(int | str):
         args = python_type.__args__
         # Check for Optional (Union with None)
         non_none_args = [a for a in args if a is not type(None)]
@@ -212,7 +207,7 @@ class OpenAIAgent:
         instructions: str = "",
         model: str = "gpt-4o",
         tools: list[ToolConfig | Callable[..., Any]] | None = None,
-        handoffs: list["OpenAIAgent | HandoffConfig"] | None = None,
+        handoffs: list[OpenAIAgent | HandoffConfig] | None = None,
         guardrails: list[GuardrailConfig] | None = None,
         mcp_servers: list[MCPServerConfig] | None = None,
         config: AgentConfig | None = None,
@@ -355,7 +350,7 @@ class OpenAIAgent:
             handler=func,
         )
 
-    def _register_handoff(self, handoff: "OpenAIAgent | HandoffConfig") -> None:
+    def _register_handoff(self, handoff: OpenAIAgent | HandoffConfig) -> None:
         """Register a handoff target.
 
         Args:
@@ -392,17 +387,13 @@ class OpenAIAgent:
                 tools = await self._connect_mcp_server(server_config)
                 for tool in tools:
                     self._mcp_tools[tool.name] = tool
-                logger.info(
-                    f"Loaded {len(tools)} tools from MCP server: {server_config.name}"
-                )
+                logger.info(f"Loaded {len(tools)} tools from MCP server: {server_config.name}")
             except Exception as e:
                 logger.error(f"Failed to connect to MCP server {server_config.name}: {e}")
 
         self._mcp_initialized = True
 
-    async def _connect_mcp_server(
-        self, config: MCPServerConfig
-    ) -> list[ToolConfig]:
+    async def _connect_mcp_server(self, config: MCPServerConfig) -> list[ToolConfig]:
         """Connect to an MCP server and get available tools.
 
         Args:
@@ -543,11 +534,7 @@ class OpenAIAgent:
             raise ValueError(f"No handoff configured for: {target_name}")
 
         # Filter context if configured
-        filtered_context = (
-            handoff_config.filter_context(context or {})
-            if context
-            else {}
-        )
+        filtered_context = handoff_config.filter_context(context or {}) if context else {}
 
         return HandoffRequest(
             target_agent=target_name,
@@ -587,23 +574,25 @@ class OpenAIAgent:
 
         # Add handoff as tools
         for name, config in self._handoffs.items():
-            schemas.append({
-                "type": "function",
-                "function": {
-                    "name": f"handoff_to_{name}",
-                    "description": config.description or f"Hand off to {name}",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "reason": {
-                                "type": "string",
-                                "description": "Reason for the handoff",
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": f"handoff_to_{name}",
+                        "description": config.description or f"Hand off to {name}",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "reason": {
+                                    "type": "string",
+                                    "description": "Reason for the handoff",
+                                },
                             },
+                            "required": ["reason"],
                         },
-                        "required": ["reason"],
                     },
-                },
-            })
+                }
+            )
 
         return schemas
 
@@ -648,7 +637,7 @@ class OpenAIAgent:
         name: str | None = None,
         instructions: str | None = None,
         **overrides: Any,
-    ) -> "OpenAIAgent":
+    ) -> OpenAIAgent:
         """Create a clone of this agent with modifications.
 
         Args:

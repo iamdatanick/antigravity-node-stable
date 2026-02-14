@@ -9,9 +9,10 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 
 import httpx
 
@@ -382,9 +383,7 @@ class A2AClient:
 
         # Fetch agent card from well-known location
         try:
-            response = await self._http_client.get(
-                f"{target_url}/.well-known/agent.json"
-            )
+            response = await self._http_client.get(f"{target_url}/.well-known/agent.json")
             response.raise_for_status()
 
             card_data = response.json()
@@ -466,7 +465,9 @@ class A2AClient:
         result = response.json()
 
         if "error" in result:
-            raise RuntimeError(f"Task creation failed: {result['error'].get('message', 'Unknown error')}")
+            raise RuntimeError(
+                f"Task creation failed: {result['error'].get('message', 'Unknown error')}"
+            )
 
         task = A2ATask.from_dict(result.get("result", {}))
 

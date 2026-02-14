@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from agentic_workflows.artifacts.generator import (
     Artifact,
     ArtifactGenerator,
-    ArtifactMetadata,
     ArtifactType,
 )
 from agentic_workflows.artifacts.storage import ArtifactStorage, MemoryStorage
@@ -236,10 +236,7 @@ class ArtifactManager:
         with self._lock:
             version_ids = self._versions.get(name, [])
 
-        return [
-            a for a in (self.storage.load(aid) for aid in version_ids)
-            if a is not None
-        ]
+        return [a for a in (self.storage.load(aid) for aid in version_ids) if a is not None]
 
     def get_latest_version(self, name: str) -> Artifact | None:
         """Get latest version of an artifact.
@@ -295,9 +292,7 @@ class ArtifactManager:
         """
         with self._lock:
             if collection_name not in self._collections:
-                self._collections[collection_name] = ArtifactCollection(
-                    name=collection_name
-                )
+                self._collections[collection_name] = ArtifactCollection(name=collection_name)
 
             collection = self._collections[collection_name]
             if artifact_id not in collection.artifact_ids:
@@ -321,10 +316,7 @@ class ArtifactManager:
                 return []
             artifact_ids = list(collection.artifact_ids)
 
-        return [
-            a for a in (self.storage.load(aid) for aid in artifact_ids)
-            if a is not None
-        ]
+        return [a for a in (self.storage.load(aid) for aid in artifact_ids) if a is not None]
 
     def search(
         self,
@@ -392,7 +384,9 @@ class ArtifactManager:
             "created_at": collection.created_at,
             "metadata": collection.metadata,
             "artifacts": [
-                a.to_dict() if include_content else {
+                a.to_dict()
+                if include_content
+                else {
                     "id": a.id,
                     "name": a.name,
                     "type": a.artifact_type.value,

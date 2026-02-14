@@ -7,17 +7,18 @@ Supports hierarchical review where stronger models validate weaker models.
 from __future__ import annotations
 
 import asyncio
-import json
 import time
-from dataclasses import dataclass, field
+from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 
 # Optional anthropic import - allows module to load without SDK
 try:
     import anthropic
     from anthropic import AsyncAnthropic
-    from anthropic.types import Message, MessageParam, ContentBlock
+    from anthropic.types import ContentBlock, Message, MessageParam
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
@@ -29,6 +30,7 @@ except ImportError:
 
 class LLMProvider(Enum):
     """Supported LLM providers."""
+
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
     GOOGLE = "google"
@@ -37,10 +39,11 @@ class LLMProvider(Enum):
 
 class ModelTier(Enum):
     """Model tiers by capability."""
-    FAST = "fast"           # Haiku - quick tasks, classification
-    BALANCED = "balanced"   # Sonnet - most tasks
-    POWERFUL = "powerful"   # Opus - complex reasoning, review
-    THINKING = "thinking"   # Extended thinking models
+
+    FAST = "fast"  # Haiku - quick tasks, classification
+    BALANCED = "balanced"  # Sonnet - most tasks
+    POWERFUL = "powerful"  # Opus - complex reasoning, review
+    THINKING = "thinking"  # Extended thinking models
 
 
 @dataclass
@@ -198,24 +201,49 @@ class MultiLLMRouter:
 
         # Fast tier indicators
         fast_indicators = [
-            "classify", "categorize", "extract", "summarize briefly",
-            "yes or no", "true or false", "simple", "quick",
-            "format", "convert", "translate short",
+            "classify",
+            "categorize",
+            "extract",
+            "summarize briefly",
+            "yes or no",
+            "true or false",
+            "simple",
+            "quick",
+            "format",
+            "convert",
+            "translate short",
         ]
 
         # Powerful tier indicators
         powerful_indicators = [
-            "analyze deeply", "complex", "multi-step", "research",
-            "design", "architect", "review code", "security audit",
-            "debug", "optimize", "refactor large", "explain thoroughly",
-            "creative writing", "long-form", "comprehensive",
+            "analyze deeply",
+            "complex",
+            "multi-step",
+            "research",
+            "design",
+            "architect",
+            "review code",
+            "security audit",
+            "debug",
+            "optimize",
+            "refactor large",
+            "explain thoroughly",
+            "creative writing",
+            "long-form",
+            "comprehensive",
         ]
 
         # Extended thinking indicators
         thinking_indicators = [
-            "prove", "derive", "mathematical", "formal verification",
-            "complex reasoning", "step by step logic", "theorem",
-            "multi-constraint optimization", "game theory",
+            "prove",
+            "derive",
+            "mathematical",
+            "formal verification",
+            "complex reasoning",
+            "step by step logic",
+            "theorem",
+            "multi-constraint optimization",
+            "game theory",
         ]
 
         # Check indicators
@@ -271,16 +299,10 @@ class MultiLLMRouter:
         model_config = self.models[model_key]
 
         # Determine if extended thinking should be used
-        use_thinking = (
-            tier == ModelTier.THINKING and
-            model_config.supports_extended_thinking
-        )
+        use_thinking = tier == ModelTier.THINKING and model_config.supports_extended_thinking
 
         # Determine if review is needed
-        review_required = (
-            self.enable_review and
-            tier in (ModelTier.FAST, ModelTier.BALANCED)
-        )
+        review_required = self.enable_review and tier in (ModelTier.FAST, ModelTier.BALANCED)
 
         # Estimate tokens
         estimated_tokens = len(task.split()) * 2  # Rough estimate
@@ -357,11 +379,7 @@ class MultiLLMRouter:
             # Use caching for system prompts when supported
             if decision.use_caching:
                 params["system"] = [
-                    {
-                        "type": "text",
-                        "text": system,
-                        "cache_control": {"type": "ephemeral"}
-                    }
+                    {"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}
                 ]
             else:
                 params["system"] = system
@@ -396,11 +414,13 @@ class MultiLLMRouter:
             elif block.type == "thinking":
                 thinking_content = block.thinking
             elif block.type == "tool_use":
-                tool_calls.append({
-                    "id": block.id,
-                    "name": block.name,
-                    "input": block.input,
-                })
+                tool_calls.append(
+                    {
+                        "id": block.id,
+                        "name": block.name,
+                        "input": block.input,
+                    }
+                )
 
         # Track usage
         self._track_usage(
@@ -473,31 +493,38 @@ class MultiLLMRouter:
             for tool_call in response.tool_calls:
                 try:
                     result = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: tool_executor(tool_call["name"], tool_call["input"])
+                        None, lambda: tool_executor(tool_call["name"], tool_call["input"])
                     )
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_call["id"],
-                        "content": str(result),
-                    })
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_call["id"],
+                            "content": str(result),
+                        }
+                    )
                 except Exception as e:
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_call["id"],
-                        "content": f"Error: {str(e)}",
-                        "is_error": True,
-                    })
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_call["id"],
+                            "content": f"Error: {str(e)}",
+                            "is_error": True,
+                        }
+                    )
 
             # Add assistant response and tool results
-            current_messages.append({
-                "role": "assistant",
-                "content": response.tool_calls,
-            })
-            current_messages.append({
-                "role": "user",
-                "content": tool_results,
-            })
+            current_messages.append(
+                {
+                    "role": "assistant",
+                    "content": response.tool_calls,
+                }
+            )
+            current_messages.append(
+                {
+                    "role": "user",
+                    "content": tool_results,
+                }
+            )
 
         return response
 
@@ -622,10 +649,9 @@ If it needs changes, provide the corrected/improved response.
             # Find model config
             for config in self.models.values():
                 if config.model_id == model_key:
-                    cost = (
-                        (usage["input_tokens"] / 1000) * config.cost_per_1k_input +
-                        (usage["output_tokens"] / 1000) * config.cost_per_1k_output
-                    )
+                    cost = (usage["input_tokens"] / 1000) * config.cost_per_1k_input + (
+                        usage["output_tokens"] / 1000
+                    ) * config.cost_per_1k_output
                     total_cost += cost
                     break
 

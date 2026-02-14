@@ -42,7 +42,10 @@ async def check_dependencies(loop_id: int) -> str:
     checks = {
         "etcd": (f"http://{os.environ.get('ETCD_HOST', 'etcd')}:{os.environ.get('ETCD_PORT', '2379')}/health", [200]),
         "seaweedfs": (f"http://{os.environ.get('S3_HOST', 'seaweedfs')}:9333/cluster/status", [200]),
-        "ovms": (f"http://{os.environ.get('OVMS_HOST', 'ovms')}:{os.environ.get('OVMS_REST_PORT', '8000')}/v1/config", [200]),
+        "ovms": (
+            f"http://{os.environ.get('OVMS_HOST', 'ovms')}:{os.environ.get('OVMS_REST_PORT', '8000')}/v1/config",
+            [200],
+        ),
         "openbao": (f"{os.environ.get('OPENBAO_ADDR', 'http://openbao:8200')}/v1/sys/health", [200]),
     }
     results = {}

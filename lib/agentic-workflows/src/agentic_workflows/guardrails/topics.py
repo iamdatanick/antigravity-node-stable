@@ -15,7 +15,6 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +67,12 @@ class TopicMatch:
 
     category: TopicCategory
     confidence: float
-    triggers: List[str] = field(default_factory=list)
+    triggers: list[str] = field(default_factory=list)
     context: str = ""
 
 
 # Topic patterns (keyword-based)
-TOPIC_PATTERNS: Dict[TopicCategory, List[str]] = {
+TOPIC_PATTERNS: dict[TopicCategory, list[str]] = {
     TopicCategory.VIOLENCE: [
         r"\b(kill|murder|assassinate|attack|bomb|explode|shoot|stab)\b",
         r"\b(violence|violent|assault|hurt|harm|destroy)\b",
@@ -136,9 +135,9 @@ class TopicFilter:
 
     def __init__(
         self,
-        blocked_topics: Optional[List[TopicCategory]] = None,
-        allowed_topics: Optional[List[TopicCategory]] = None,
-        custom_patterns: Optional[Dict[TopicCategory, List[str]]] = None,
+        blocked_topics: list[TopicCategory] | None = None,
+        allowed_topics: list[TopicCategory] | None = None,
+        custom_patterns: dict[TopicCategory, list[str]] | None = None,
         min_confidence: float = 0.5,
     ):
         """Initialize filter.
@@ -154,19 +153,16 @@ class TopicFilter:
         self.min_confidence = min_confidence
 
         # Compile patterns
-        self.patterns: Dict[TopicCategory, List[re.Pattern]] = {}
+        self.patterns: dict[TopicCategory, list[re.Pattern]] = {}
 
         for category in TopicCategory:
             patterns = TOPIC_PATTERNS.get(category, [])
             if custom_patterns and category in custom_patterns:
                 patterns = patterns + custom_patterns[category]
 
-            self.patterns[category] = [
-                re.compile(p, re.IGNORECASE)
-                for p in patterns
-            ]
+            self.patterns[category] = [re.compile(p, re.IGNORECASE) for p in patterns]
 
-    def detect_topics(self, text: str) -> List[TopicMatch]:
+    def detect_topics(self, text: str) -> list[TopicMatch]:
         """Detect topics in text.
 
         Args:
@@ -188,18 +184,20 @@ class TopicFilter:
                 # Calculate confidence based on number of triggers
                 confidence = min(1.0, len(triggers) * 0.2 + 0.4)
 
-                matches.append(TopicMatch(
-                    category=category,
-                    confidence=confidence,
-                    triggers=list(set(triggers)),
-                ))
+                matches.append(
+                    TopicMatch(
+                        category=category,
+                        confidence=confidence,
+                        triggers=list(set(triggers)),
+                    )
+                )
 
         # Filter by confidence
         matches = [m for m in matches if m.confidence >= self.min_confidence]
 
         return matches
 
-    def check(self, text: str) -> "TopicFilterResult":
+    def check(self, text: str) -> TopicFilterResult:
         """Check text against topic filter.
 
         Args:
@@ -211,9 +209,7 @@ class TopicFilter:
         detected = self.detect_topics(text)
 
         # Check blocked topics
-        blocked_matches = [
-            m for m in detected if m.category in self.blocked_topics
-        ]
+        blocked_matches = [m for m in detected if m.category in self.blocked_topics]
 
         if blocked_matches:
             return TopicFilterResult(
@@ -260,8 +256,8 @@ class TopicFilterResult:
     passed: bool
     blocked: bool = False
     reason: str = ""
-    detected_topics: List[TopicMatch] = field(default_factory=list)
-    blocked_topics: List[TopicMatch] = field(default_factory=list)
+    detected_topics: list[TopicMatch] = field(default_factory=list)
+    blocked_topics: list[TopicMatch] = field(default_factory=list)
 
     def __bool__(self) -> bool:
         return self.passed
@@ -274,13 +270,15 @@ def create_safe_filter() -> TopicFilter:
     Returns:
         TopicFilter with safe defaults.
     """
-    return TopicFilter(blocked_topics=[
-        TopicCategory.VIOLENCE,
-        TopicCategory.HATE_SPEECH,
-        TopicCategory.SELF_HARM,
-        TopicCategory.ILLEGAL_ACTIVITIES,
-        TopicCategory.HACKING,
-    ])
+    return TopicFilter(
+        blocked_topics=[
+            TopicCategory.VIOLENCE,
+            TopicCategory.HATE_SPEECH,
+            TopicCategory.SELF_HARM,
+            TopicCategory.ILLEGAL_ACTIVITIES,
+            TopicCategory.HACKING,
+        ]
+    )
 
 
 __all__ = [

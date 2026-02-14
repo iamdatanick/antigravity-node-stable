@@ -13,30 +13,27 @@ import json
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable, TypeVar, Generic
+from typing import Any
 
 import httpx
 
 from agentic_workflows.a2a.a2a_types import (
+    A2AErrorCode,
     AgentCard,
-    AgentSkill,
-    Task,
-    TaskState,
-    TaskStatus,
-    Message,
-    MessageRole,
-    TextPart,
     Artifact,
+    ArtifactEvent,
+    JSONRPCError,
     JSONRPCRequest,
     JSONRPCResponse,
-    JSONRPCError,
-    A2AErrorCode,
-    TransportProtocol,
-    StreamEvent,
-    TaskStatusEvent,
+    Message,
     MessageEvent,
-    ArtifactEvent,
+    StreamEvent,
+    Task,
+    TaskStatus,
+    TaskStatusEvent,
+    TransportProtocol,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,9 +77,7 @@ class ClientConfig:
     retry_delay: float = 1.0
     """Delay between retries in seconds."""
 
-    transports: list[TransportProtocol] = field(
-        default_factory=lambda: [TransportProtocol.JSONRPC]
-    )
+    transports: list[TransportProtocol] = field(default_factory=lambda: [TransportProtocol.JSONRPC])
     """Preferred transport protocols in order."""
 
     headers: dict[str, str] = field(default_factory=dict)
@@ -718,9 +713,7 @@ class A2AClient:
             if timeout:
                 elapsed = asyncio.get_event_loop().time() - start_time
                 if elapsed >= timeout:
-                    raise TimeoutError(
-                        f"Task {task_id} did not complete within {timeout}s"
-                    )
+                    raise TimeoutError(f"Task {task_id} did not complete within {timeout}s")
 
             await asyncio.sleep(self.config.polling_interval)
 

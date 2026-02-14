@@ -7,10 +7,11 @@ import json
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 
 class CheckpointStatus(Enum):
@@ -27,8 +28,8 @@ class CheckpointStatus(Enum):
 class CheckpointType(Enum):
     """Types of checkpoints."""
 
-    APPROVAL = "approval"      # Simple yes/no
-    REVIEW = "review"          # Review with feedback
+    APPROVAL = "approval"  # Simple yes/no
+    REVIEW = "review"  # Review with feedback
     MODIFICATION = "modification"  # Allow changes
     CONFIRMATION = "confirmation"  # Confirm understanding
 
@@ -449,18 +450,14 @@ class CheckpointManager:
             List of pending checkpoints.
         """
         checkpoints = [
-            cp for cp in self._checkpoints.values()
-            if cp.status == CheckpointStatus.WAITING
+            cp for cp in self._checkpoints.values() if cp.status == CheckpointStatus.WAITING
         ]
 
         if agent_id:
             checkpoints = [cp for cp in checkpoints if cp.agent_id == agent_id]
 
         if tags:
-            checkpoints = [
-                cp for cp in checkpoints
-                if any(t in cp.tags for t in tags)
-            ]
+            checkpoints = [cp for cp in checkpoints if any(t in cp.tags for t in tags)]
 
         return sorted(checkpoints, key=lambda cp: (-cp.priority, cp.created_at))
 
@@ -566,8 +563,7 @@ class CheckpointManager:
 
             resolved = [cp for cp in self._checkpoints.values() if cp.responded_at]
             avg_wait = (
-                sum(cp.wait_time_seconds for cp in resolved) / len(resolved)
-                if resolved else 0
+                sum(cp.wait_time_seconds for cp in resolved) / len(resolved) if resolved else 0
             )
 
             return {

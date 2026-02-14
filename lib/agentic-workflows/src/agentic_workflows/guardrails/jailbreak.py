@@ -17,7 +17,6 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +71,7 @@ class JailbreakResult:
 
     detected: bool
     risk_score: float = 0.0
-    detections: List[JailbreakDetection] = field(default_factory=list)
+    detections: list[JailbreakDetection] = field(default_factory=list)
     blocked: bool = False
     reason: str = ""
 
@@ -81,7 +80,7 @@ class JailbreakResult:
 
 
 # Jailbreak patterns
-JAILBREAK_PATTERNS: Dict[JailbreakType, List[Tuple[str, float]]] = {
+JAILBREAK_PATTERNS: dict[JailbreakType, list[tuple[str, float]]] = {
     JailbreakType.DAN_MODE: [
         (r"(?i)\bDAN\b.*mode", 0.9),
         (r"(?i)do\s+anything\s+now", 0.95),
@@ -96,13 +95,19 @@ JAILBREAK_PATTERNS: Dict[JailbreakType, List[Tuple[str, float]]] = {
         (r"(?i)from\s+now\s+on\s+you\s+(?:are|will)", 0.75),
     ],
     JailbreakType.IGNORE_PREVIOUS: [
-        (r"(?i)ignore\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|prompts?|rules?)", 0.95),
+        (
+            r"(?i)ignore\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|prompts?|rules?)",
+            0.95,
+        ),
         (r"(?i)disregard\s+(?:all\s+)?(?:previous|prior|above)", 0.9),
         (r"(?i)forget\s+(?:all\s+)?(?:previous|prior|your)\s+(?:instructions?|rules?)", 0.9),
         (r"(?i)override\s+(?:all\s+)?(?:previous|prior|your)\s+(?:instructions?|rules?)", 0.95),
     ],
     JailbreakType.SYSTEM_PROMPT_LEAK: [
-        (r"(?i)(?:show|reveal|tell|display|print|output)\s+(?:me\s+)?(?:your\s+)?(?:system\s+)?(?:prompt|instructions?|rules?)", 0.9),
+        (
+            r"(?i)(?:show|reveal|tell|display|print|output)\s+(?:me\s+)?(?:your\s+)?(?:system\s+)?(?:prompt|instructions?|rules?)",
+            0.9,
+        ),
         (r"(?i)what\s+(?:are|is)\s+your\s+(?:system\s+)?(?:prompt|instructions?|rules?)", 0.85),
         (r"(?i)repeat\s+(?:your\s+)?(?:system\s+)?(?:prompt|instructions?)", 0.9),
     ],
@@ -132,7 +137,10 @@ JAILBREAK_PATTERNS: Dict[JailbreakType, List[Tuple[str, float]]] = {
     JailbreakType.CHARACTER_OVERRIDE: [
         (r"(?i)(?:your|the)\s+(?:new\s+)?(?:name|identity)\s+is", 0.8),
         (r"(?i)you\s+(?:are\s+)?(?:no\s+longer|not)\s+(?:an?\s+)?(?:AI|assistant|claude)", 0.85),
-        (r"(?i)(?:switch|change)\s+(?:to|into)\s+(?:a\s+)?(?:new\s+)?(?:character|persona|mode)", 0.8),
+        (
+            r"(?i)(?:switch|change)\s+(?:to|into)\s+(?:a\s+)?(?:new\s+)?(?:character|persona|mode)",
+            0.8,
+        ),
     ],
     JailbreakType.CONTEXT_MANIPULATION: [
         (r"(?i)(?:in\s+)?(?:this|the\s+following)\s+(?:scenario|context|situation)", 0.5),
@@ -160,7 +168,7 @@ class JailbreakDetector:
         self,
         risk_threshold: float = 0.6,
         block_on_detection: bool = True,
-        custom_patterns: Optional[Dict[JailbreakType, List[Tuple[str, float]]]] = None,
+        custom_patterns: dict[JailbreakType, list[tuple[str, float]]] | None = None,
     ):
         """Initialize detector.
 
@@ -173,17 +181,14 @@ class JailbreakDetector:
         self.block_on_detection = block_on_detection
 
         # Compile patterns
-        self.patterns: Dict[JailbreakType, List[Tuple[re.Pattern, float]]] = {}
+        self.patterns: dict[JailbreakType, list[tuple[re.Pattern, float]]] = {}
 
         for jb_type in JailbreakType:
             patterns = JAILBREAK_PATTERNS.get(jb_type, [])
             if custom_patterns and jb_type in custom_patterns:
                 patterns = patterns + custom_patterns[jb_type]
 
-            self.patterns[jb_type] = [
-                (re.compile(p), conf)
-                for p, conf in patterns
-            ]
+            self.patterns[jb_type] = [(re.compile(p), conf) for p, conf in patterns]
 
     def detect(self, text: str) -> JailbreakResult:
         """Detect jailbreak attempts in text.
@@ -200,14 +205,16 @@ class JailbreakDetector:
         for jb_type, patterns in self.patterns.items():
             for pattern, confidence in patterns:
                 for match in pattern.finditer(text):
-                    detections.append(JailbreakDetection(
-                        jailbreak_type=jb_type,
-                        confidence=confidence,
-                        pattern=pattern.pattern,
-                        matched_text=match.group(),
-                        start=match.start(),
-                        end=match.end(),
-                    ))
+                    detections.append(
+                        JailbreakDetection(
+                            jailbreak_type=jb_type,
+                            confidence=confidence,
+                            pattern=pattern.pattern,
+                            matched_text=match.group(),
+                            start=match.start(),
+                            end=match.end(),
+                        )
+                    )
                     max_confidence = max(max_confidence, confidence)
 
         if not detections:
@@ -267,7 +274,7 @@ class JailbreakDetector:
 
         sanitized = text
         for detection in detections:
-            sanitized = sanitized[:detection.start] + replacement + sanitized[detection.end:]
+            sanitized = sanitized[: detection.start] + replacement + sanitized[detection.end :]
 
         return sanitized
 

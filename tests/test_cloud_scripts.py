@@ -1,11 +1,14 @@
 """Tests for cloud deployment scripts (bash, validated via subprocess)."""
+
 import os
 
 import pytest
 
 SCRIPTS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(__file__)),
-    "deployment", "cloud-test", "scripts",
+    "deployment",
+    "cloud-test",
+    "scripts",
 )
 
 
@@ -39,7 +42,9 @@ class TestRequirements:
         """asyncpg, pymilvus, nats-py must NOT be in cloud requirements."""
         req_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
-            "deployment", "cloud-test", "requirements.txt",
+            "deployment",
+            "cloud-test",
+            "requirements.txt",
         )
         if not os.path.exists(req_path):
             pytest.skip("Cloud requirements.txt not yet created")
@@ -52,7 +57,9 @@ class TestRequirements:
         """etcd3, aioboto3, tenacity must be in cloud requirements."""
         req_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
-            "deployment", "cloud-test", "requirements.txt",
+            "deployment",
+            "cloud-test",
+            "requirements.txt",
         )
         if not os.path.exists(req_path):
             pytest.skip("Cloud requirements.txt not yet created")
@@ -64,5 +71,6 @@ class TestRequirements:
     def test_smoke_imports(self):
         """Verify core packages are importable (CG-101 smoke test)."""
         import importlib
+
         for pkg in ["fastapi", "pydantic", "tenacity", "httpx"]:
             importlib.import_module(pkg)

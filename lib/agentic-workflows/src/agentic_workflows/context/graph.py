@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import time
 import uuid
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Iterator, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -515,9 +516,7 @@ class ContextGraph:
         # If still over limit, remove oldest non-root nodes
         if len(self._nodes) > self.max_nodes:
             non_roots = [
-                (nid, n.created_at)
-                for nid, n in self._nodes.items()
-                if nid not in self._roots
+                (nid, n.created_at) for nid, n in self._nodes.items() if nid not in self._roots
             ]
             non_roots.sort(key=lambda x: x[1])
 
@@ -539,7 +538,8 @@ class ContextGraph:
             "type_counts": type_counts,
             "avg_trust": (
                 sum(n.trust_score for n in self._nodes.values()) / len(self._nodes)
-                if self._nodes else 0
+                if self._nodes
+                else 0
             ),
             "expired_count": sum(1 for n in self._nodes.values() if n.is_expired),
         }
@@ -731,6 +731,7 @@ class ContextGraph:
     def _deep_copy(self, obj: Any) -> Any:
         """Deep copy an object for checkpointing."""
         import copy
+
         try:
             return copy.deepcopy(obj)
         except Exception:

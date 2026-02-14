@@ -20,10 +20,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Iterator, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +271,7 @@ class AgentTracer:
         if enable_observability:
             try:
                 from agentic_workflows.observability.tracing import get_tracer
+
                 self._obs_tracer = get_tracer()
             except ImportError:
                 logger.debug("Observability module not available")
@@ -384,6 +386,7 @@ class AgentTracer:
 
             if obs_span and self._obs_tracer:
                 from agentic_workflows.observability.tracing import SpanStatus
+
                 status = SpanStatus.OK if span.status == "success" else SpanStatus.ERROR
                 self._obs_tracer.end_span(obs_span, status=status, error=span.error)
 
@@ -570,8 +573,7 @@ def export_trace_to_otlp(trace: AgentTrace) -> dict[str, Any]:
             "startTimeUnixNano": int(span.start_time * 1e9),
             "endTimeUnixNano": int((span.end_time or time.time()) * 1e9),
             "attributes": [
-                {"key": k, "value": {"stringValue": str(v)}}
-                for k, v in span.attributes.items()
+                {"key": k, "value": {"stringValue": str(v)}} for k, v in span.attributes.items()
             ],
             "status": {
                 "code": "STATUS_CODE_OK" if span.status == "success" else "STATUS_CODE_ERROR",
@@ -582,8 +584,7 @@ def export_trace_to_otlp(trace: AgentTrace) -> dict[str, Any]:
                     "name": e.event_type.value,
                     "timeUnixNano": int(e.timestamp * 1e9),
                     "attributes": [
-                        {"key": k, "value": {"stringValue": str(v)}}
-                        for k, v in e.data.items()
+                        {"key": k, "value": {"stringValue": str(v)}} for k, v in e.data.items()
                     ],
                 }
                 for e in span.events
@@ -627,39 +628,45 @@ def export_trace_to_chrome(trace: AgentTrace) -> list[dict[str, Any]]:
 
     for span in trace.spans:
         # Begin event
-        events.append({
-            "name": span.name,
-            "cat": "agent",
-            "ph": "B",  # Begin
-            "ts": span.start_time * 1e6,  # Microseconds
-            "pid": pid,
-            "tid": hash(span.span_id) % 10,
-            "args": span.attributes,
-        })
+        events.append(
+            {
+                "name": span.name,
+                "cat": "agent",
+                "ph": "B",  # Begin
+                "ts": span.start_time * 1e6,  # Microseconds
+                "pid": pid,
+                "tid": hash(span.span_id) % 10,
+                "args": span.attributes,
+            }
+        )
 
         # End event
         end_time = span.end_time or time.time()
-        events.append({
-            "name": span.name,
-            "cat": "agent",
-            "ph": "E",  # End
-            "ts": end_time * 1e6,
-            "pid": pid,
-            "tid": hash(span.span_id) % 10,
-        })
+        events.append(
+            {
+                "name": span.name,
+                "cat": "agent",
+                "ph": "E",  # End
+                "ts": end_time * 1e6,
+                "pid": pid,
+                "tid": hash(span.span_id) % 10,
+            }
+        )
 
         # Add span events as instant events
         for event in span.events:
-            events.append({
-                "name": event.event_type.value,
-                "cat": "event",
-                "ph": "i",  # Instant
-                "ts": event.timestamp * 1e6,
-                "pid": pid,
-                "tid": hash(span.span_id) % 10,
-                "s": "t",  # Thread scope
-                "args": event.data,
-            })
+            events.append(
+                {
+                    "name": event.event_type.value,
+                    "cat": "event",
+                    "ph": "i",  # Instant
+                    "ts": event.timestamp * 1e6,
+                    "pid": pid,
+                    "tid": hash(span.span_id) % 10,
+                    "s": "t",  # Thread scope
+                    "args": event.data,
+                }
+            )
 
     return events
 
@@ -688,6 +695,7 @@ def traced(name: str | None = None):
         span_name = name or func.__name__
 
         if asyncio.iscoroutinefunction(func):
+
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 tracer = get_tracer()
@@ -696,8 +704,10 @@ def traced(name: str | None = None):
                         return await func(*args, **kwargs)
                 else:
                     return await func(*args, **kwargs)
+
             return async_wrapper  # type: ignore
         else:
+
             @functools.wraps(func)
             def sync_wrapper(*args, **kwargs):
                 tracer = get_tracer()
@@ -706,6 +716,7 @@ def traced(name: str | None = None):
                         return func(*args, **kwargs)
                 else:
                     return func(*args, **kwargs)
+
             return sync_wrapper  # type: ignore
 
     return decorator

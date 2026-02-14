@@ -13,28 +13,28 @@ import json
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, AsyncIterator, Callable, TypeVar, Generic
+from typing import Any
 
 from agentic_workflows.a2a.a2a_types import (
+    A2AErrorCode,
     AgentCard,
     AgentSkill,
+    Artifact,
+    ArtifactEvent,
+    JSONRPCError,
+    JSONRPCResponse,
+    Message,
+    MessageEvent,
+    MessageRole,
+    StreamEvent,
     Task,
     TaskState,
     TaskStatus,
-    Message,
-    MessageRole,
-    TextPart,
-    Artifact,
-    JSONRPCRequest,
-    JSONRPCResponse,
-    JSONRPCError,
-    A2AErrorCode,
-    StreamEvent,
     TaskStatusEvent,
-    MessageEvent,
-    ArtifactEvent,
+    TextPart,
 )
 
 logger = logging.getLogger(__name__)
@@ -499,8 +499,7 @@ class A2AServer:
             from fastapi.responses import JSONResponse, StreamingResponse
         except ImportError:
             raise ImportError(
-                "FastAPI is required for A2A server. "
-                "Install with: pip install fastapi"
+                "FastAPI is required for A2A server. Install with: pip install fastapi"
             )
 
         # Well-known agent card endpoint

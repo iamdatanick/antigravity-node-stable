@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Callable
 
 
 class KillSwitchTriggered(Exception):
@@ -407,24 +407,32 @@ class KillSwitch:
 
             if self.config.max_cost_usd:
                 pct = (state.current_cost_usd / self.config.max_cost_usd) * 100
-                lines.append(f"Cost: ${state.current_cost_usd:.4f} / ${self.config.max_cost_usd:.4f} ({pct:.1f}%)")
+                lines.append(
+                    f"Cost: ${state.current_cost_usd:.4f} / ${self.config.max_cost_usd:.4f} ({pct:.1f}%)"
+                )
             else:
                 lines.append(f"Cost: ${state.current_cost_usd:.4f}")
 
             if self.config.max_tokens:
                 pct = (state.current_tokens / self.config.max_tokens) * 100
-                lines.append(f"Tokens: {state.current_tokens:,} / {self.config.max_tokens:,} ({pct:.1f}%)")
+                lines.append(
+                    f"Tokens: {state.current_tokens:,} / {self.config.max_tokens:,} ({pct:.1f}%)"
+                )
             else:
                 lines.append(f"Tokens: {state.current_tokens:,}")
 
             runtime = state.runtime_seconds
             if self.config.max_runtime_seconds:
                 pct = (runtime / self.config.max_runtime_seconds) * 100
-                lines.append(f"Runtime: {runtime:.1f}s / {self.config.max_runtime_seconds:.1f}s ({pct:.1f}%)")
+                lines.append(
+                    f"Runtime: {runtime:.1f}s / {self.config.max_runtime_seconds:.1f}s ({pct:.1f}%)"
+                )
             else:
                 lines.append(f"Runtime: {runtime:.1f}s")
 
-            lines.append(f"Errors: {state.total_errors} total, {state.consecutive_errors} consecutive")
+            lines.append(
+                f"Errors: {state.total_errors} total, {state.consecutive_errors} consecutive"
+            )
 
             if state.is_active:
                 lines.append(f"\nKILL SWITCH ACTIVE: {state.trigger_message}")

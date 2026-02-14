@@ -18,9 +18,10 @@ import fnmatch
 import logging
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -81,11 +82,11 @@ class HookConfig:
 
     matcher: str  # Pattern to match (glob or regex)
     type: HookType = HookType.COMMAND
-    command: Optional[str] = None  # For command type
-    mcp_tool: Optional[str] = None  # For MCP type
-    prompt: Optional[str] = None  # For prompt type
-    agent_name: Optional[str] = None  # For agent type
-    function: Optional[Callable] = None  # For function type
+    command: str | None = None  # For command type
+    mcp_tool: str | None = None  # For MCP type
+    prompt: str | None = None  # For prompt type
+    agent_name: str | None = None  # For agent type
+    function: Callable | None = None  # For function type
     once: bool = False  # Only run once per session
     timeout_ms: int = 30000  # Timeout in milliseconds
     enabled: bool = True  # Whether hook is active
@@ -115,17 +116,17 @@ class HookSpecificOutput:
     """Claude SDK hookSpecificOutput fields for middleware control."""
 
     # Permission control
-    permission_decision: Optional[str] = None  # "allow" | "deny" | "ask"
-    permission_decision_reason: Optional[str] = None
+    permission_decision: str | None = None  # "allow" | "deny" | "ask"
+    permission_decision_reason: str | None = None
 
     # Input modification (middleware pattern)
-    updated_input: Optional[Dict[str, Any]] = None
+    updated_input: dict[str, Any] | None = None
 
     # Output suppression
     suppress_output: bool = False
 
     # System message injection
-    system_message: Optional[str] = None
+    system_message: str | None = None
 
 
 @dataclass
@@ -133,14 +134,14 @@ class HookResult:
     """Result of hook execution."""
 
     decision: HookDecision = HookDecision.APPROVE
-    modified_input: Optional[Dict[str, Any]] = None
-    reason: Optional[str] = None
-    error: Optional[str] = None
-    output: Optional[str] = None
+    modified_input: dict[str, Any] | None = None
+    reason: str | None = None
+    error: str | None = None
+    output: str | None = None
     duration_ms: float = 0.0
 
     # Claude SDK specific output
-    hook_specific_output: Optional[HookSpecificOutput] = None
+    hook_specific_output: HookSpecificOutput | None = None
 
     @property
     def should_proceed(self) -> bool:
@@ -148,7 +149,7 @@ class HookResult:
         return self.decision in (HookDecision.APPROVE, HookDecision.MODIFY, HookDecision.SKIP)
 
     @property
-    def permission_decision(self) -> Optional[str]:
+    def permission_decision(self) -> str | None:
         """Get permission decision from hook specific output."""
         if self.hook_specific_output:
             return self.hook_specific_output.permission_decision
@@ -160,7 +161,7 @@ class HookMatcher:
     """Claude SDK HookMatcher for pattern-based hook registration."""
 
     matcher: str  # Regex pattern to match tool names
-    hooks: List["HookCallback"] = field(default_factory=list)
+    hooks: list[HookCallback] = field(default_factory=list)
     timeout: int = 60  # Timeout in seconds
 
     def matches(self, value: str) -> bool:
@@ -193,15 +194,15 @@ class HookContext:
     """Context passed to hooks."""
 
     event: HookEvent
-    tool_name: Optional[str] = None
-    tool_input: Optional[Dict[str, Any]] = None
-    tool_output: Optional[Any] = None
-    agent_id: Optional[str] = None
-    session_id: Optional[str] = None
-    error: Optional[Exception] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    tool_name: str | None = None
+    tool_input: dict[str, Any] | None = None
+    tool_output: Any | None = None
+    agent_id: str | None = None
+    session_id: str | None = None
+    error: Exception | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_env_vars(self) -> Dict[str, str]:
+    def to_env_vars(self) -> dict[str, str]:
         """Convert context to environment variables for shell hooks."""
         env = {
             "HOOK_EVENT": self.event.value,
@@ -211,10 +212,16 @@ class HookContext:
         }
         if self.tool_input:
             import json
+
             env["HOOK_TOOL_INPUT"] = json.dumps(self.tool_input)
         if self.tool_output:
             import json
-            env["HOOK_TOOL_OUTPUT"] = json.dumps(self.tool_output) if isinstance(self.tool_output, dict) else str(self.tool_output)
+
+            env["HOOK_TOOL_OUTPUT"] = (
+                json.dumps(self.tool_output)
+                if isinstance(self.tool_output, dict)
+                else str(self.tool_output)
+            )
         return env
 
 
@@ -243,9 +250,9 @@ class HookRegistry:
     """
 
     def __init__(self):
-        self._hooks: Dict[HookEvent, List[HookConfig]] = {event: [] for event in HookEvent}
+        self._hooks: dict[HookEvent, list[HookConfig]] = {event: [] for event in HookEvent}
         self._executed_once: set = set()
-        self._functions: Dict[str, Callable] = {}
+        self._functions: dict[str, Callable] = {}
 
     def register(self, event: HookEvent, config: HookConfig) -> None:
         """Register a hook configuration.
@@ -263,7 +270,7 @@ class HookRegistry:
         self,
         event: HookEvent,
         matcher: str,
-        func: Callable[[HookContext], Union[HookResult, asyncio.coroutine]],
+        func: Callable[[HookContext], HookResult | asyncio.coroutine],
         priority: int = 0,
         once: bool = False,
     ) -> None:
@@ -287,7 +294,7 @@ class HookRegistry:
         )
         self.register(event, config)
 
-    def register_from_yaml(self, hooks_config: Dict[str, Any]) -> None:
+    def register_from_yaml(self, hooks_config: dict[str, Any]) -> None:
         """Register hooks from YAML configuration.
 
         Args:
@@ -346,7 +353,7 @@ class HookRegistry:
         if not matching_hooks:
             return HookResult(decision=HookDecision.APPROVE)
 
-        last_result: Optional[HookResult] = None
+        last_result: HookResult | None = None
         total_duration = 0.0
 
         for hook in matching_hooks:
@@ -382,16 +389,22 @@ class HookRegistry:
                 )
             except Exception as e:
                 logger.error(f"Hook error: {e}")
-                return HookResult(decision=HookDecision.DENY, error=str(e), duration_ms=total_duration)
+                return HookResult(
+                    decision=HookDecision.DENY, error=str(e), duration_ms=total_duration
+                )
 
         # Return last result if it was MODIFY, otherwise APPROVE with accumulated duration
         if last_result and last_result.decision == HookDecision.MODIFY:
             last_result.duration_ms = total_duration
             return last_result
 
-        return HookResult(decision=HookDecision.APPROVE, duration_ms=total_duration, output=last_result.output if last_result else None)
+        return HookResult(
+            decision=HookDecision.APPROVE,
+            duration_ms=total_duration,
+            output=last_result.output if last_result else None,
+        )
 
-    def _get_matching_hooks(self, event: HookEvent, context: HookContext) -> List[HookConfig]:
+    def _get_matching_hooks(self, event: HookEvent, context: HookContext) -> list[HookConfig]:
         """Get hooks matching the event and context."""
         hooks = self._hooks.get(event, [])
         matching = []
@@ -410,6 +423,7 @@ class HookRegistry:
     async def _execute_hook(self, hook: HookConfig, context: HookContext) -> HookResult:
         """Execute a single hook."""
         import time
+
         start = time.time()
 
         try:
@@ -497,7 +511,7 @@ class HookRegistry:
         logger.info(f"Agent hook: {hook.agent_name}")
         return HookResult(decision=HookDecision.APPROVE)
 
-    def clear(self, event: Optional[HookEvent] = None) -> None:
+    def clear(self, event: HookEvent | None = None) -> None:
         """Clear registered hooks.
 
         Args:
@@ -509,7 +523,7 @@ class HookRegistry:
             self._hooks = {e: [] for e in HookEvent}
             self._executed_once.clear()
 
-    def get_hooks(self, event: Optional[HookEvent] = None) -> Dict[HookEvent, List[HookConfig]]:
+    def get_hooks(self, event: HookEvent | None = None) -> dict[HookEvent, list[HookConfig]]:
         """Get registered hooks.
 
         Args:

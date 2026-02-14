@@ -27,15 +27,16 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from agentic_workflows.storage.base import StorageBackend
 
-from .scratchpad import Scratchpad
-from .context_graph import LearningContextGraph
 from agentic_workflows.context.graph import ContextGraph
+
+from .context_graph import LearningContextGraph
+from .scratchpad import Scratchpad
 
 
 @dataclass
@@ -72,7 +73,7 @@ class ContextPersistence:
 
     def __init__(
         self,
-        storage: "StorageBackend",
+        storage: StorageBackend,
         config: PersistenceConfig | None = None,
     ):
         """Initialize persistence layer.
@@ -380,6 +381,7 @@ class FileContextPersistence:
             base_dir: Directory for storing context files
         """
         import os
+
         self.base_dir = base_dir
         os.makedirs(base_dir, exist_ok=True)
         os.makedirs(f"{base_dir}/scratchpads", exist_ok=True)
@@ -407,6 +409,7 @@ class FileContextPersistence:
     def load_scratchpad(self, session_id: str) -> Scratchpad | None:
         """Load scratchpad from file."""
         import os
+
         filename = f"{self.base_dir}/scratchpads/{self._safe_filename(session_id)}.json"
         if not os.path.exists(filename):
             return None
@@ -435,6 +438,7 @@ class FileContextPersistence:
     def load_learning_graph(self, agent_id: str) -> LearningContextGraph | None:
         """Load learning graph from file."""
         import os
+
         filename = f"{self.base_dir}/learning/{self._safe_filename(agent_id)}.json"
         if not os.path.exists(filename):
             return None
@@ -463,6 +467,7 @@ class FileContextPersistence:
     def load_context_graph(self, workflow_id: str) -> ContextGraph | None:
         """Load context graph from file."""
         import os
+
         filename = f"{self.base_dir}/context/{self._safe_filename(workflow_id)}.json"
         if not os.path.exists(filename):
             return None

@@ -18,12 +18,14 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import builtins
 import logging
 import mimetypes
 import re
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -34,11 +36,11 @@ class ResourceContent:
     """Content of a resource."""
 
     uri: str
-    mimeType: Optional[str] = None
-    text: Optional[str] = None
-    blob: Optional[bytes] = None
+    mimeType: str | None = None
+    text: str | None = None
+    blob: bytes | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to MCP format."""
         result = {"uri": self.uri}
         if self.mimeType:
@@ -47,6 +49,7 @@ class ResourceContent:
             result["text"] = self.text
         if self.blob is not None:
             import base64
+
             result["blob"] = base64.b64encode(self.blob).decode()
         return result
 
@@ -67,11 +70,11 @@ class Resource:
 
     uri: str
     name: str
-    description: Optional[str] = None
-    mimeType: Optional[str] = None
-    annotations: Optional[Dict[str, Any]] = None
+    description: str | None = None
+    mimeType: str | None = None
+    annotations: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to MCP format."""
         result = {
             "uri": self.uri,
@@ -86,7 +89,7 @@ class Resource:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Resource":
+    def from_dict(cls, data: dict[str, Any]) -> Resource:
         """Create from MCP format."""
         return cls(
             uri=data["uri"],
@@ -97,7 +100,7 @@ class Resource:
         )
 
     @classmethod
-    def from_file(cls, path: Union[str, Path], base_uri: str = "file://") -> "Resource":
+    def from_file(cls, path: str | Path, base_uri: str = "file://") -> Resource:
         """Create resource from a file path.
 
         Args:
@@ -131,11 +134,11 @@ class ResourceTemplate:
 
     uriTemplate: str
     name: str
-    description: Optional[str] = None
-    mimeType: Optional[str] = None
-    annotations: Optional[Dict[str, Any]] = None
+    description: str | None = None
+    mimeType: str | None = None
+    annotations: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to MCP format."""
         result = {
             "uriTemplate": self.uriTemplate,
@@ -149,7 +152,7 @@ class ResourceTemplate:
             result["annotations"] = self.annotations
         return result
 
-    def matches(self, uri: str) -> Optional[Dict[str, str]]:
+    def matches(self, uri: str) -> dict[str, str] | None:
         """Check if URI matches template and extract variables.
 
         Args:
@@ -177,7 +180,7 @@ class ResourceTemplate:
 
 
 # Type for resource handlers
-ResourceHandler = Callable[[str], Union[ResourceContent, None]]
+ResourceHandler = Callable[[str], ResourceContent | None]
 
 
 class ResourceManager:
@@ -209,10 +212,10 @@ class ResourceManager:
 
     def __init__(self):
         """Initialize resource manager."""
-        self._resources: Dict[str, Resource] = {}
-        self._templates: List[ResourceTemplate] = []
-        self._handlers: Dict[str, ResourceHandler] = {}
-        self._subscriptions: Dict[str, List[Callable]] = {}
+        self._resources: dict[str, Resource] = {}
+        self._templates: list[ResourceTemplate] = []
+        self._handlers: dict[str, ResourceHandler] = {}
+        self._subscriptions: dict[str, list[Callable]] = {}
 
     def register(self, resource: Resource) -> None:
         """Register a static resource.
@@ -255,7 +258,7 @@ class ResourceManager:
         """
         self._handlers[uri_prefix] = handler
 
-    async def list(self, cursor: Optional[str] = None) -> Dict[str, Any]:
+    async def list(self, cursor: str | None = None) -> dict[str, Any]:
         """List available resources.
 
         Args:
@@ -270,7 +273,7 @@ class ResourceManager:
             "resources": resources,
         }
 
-    async def list_templates(self) -> Dict[str, Any]:
+    async def list_templates(self) -> dict[str, Any]:
         """List resource templates.
 
         Returns:
@@ -282,7 +285,7 @@ class ResourceManager:
             "resourceTemplates": templates,
         }
 
-    async def read(self, uri: str) -> Dict[str, Any]:
+    async def read(self, uri: str) -> dict[str, Any]:
         """Read resource content.
 
         Args:
@@ -392,7 +395,7 @@ class ResourceManager:
                 except Exception as e:
                     logger.error(f"Subscription callback error: {e}")
 
-    def get(self, uri: str) -> Optional[Resource]:
+    def get(self, uri: str) -> Resource | None:
         """Get a resource by URI.
 
         Args:
@@ -403,7 +406,7 @@ class ResourceManager:
         """
         return self._resources.get(uri)
 
-    def list_uris(self) -> List[str]:
+    def list_uris(self) -> builtins.list[str]:
         """Get list of registered resource URIs.
 
         Returns:

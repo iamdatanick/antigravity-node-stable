@@ -20,28 +20,30 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
 
 from agentic_workflows.hooks import (
-    HookRegistry,
-    HookEvent,
-    HookDecision,
     HookContext as AWHookContext,
+)
+from agentic_workflows.hooks import (
+    HookDecision,
+    HookEvent,
+    HookRegistry,
+)
+from agentic_workflows.hooks import (
     HookResult as AWHookResult,
-    HookConfig,
-    HookType as AWHookType,
 )
 from agentic_workflows.security import (
-    PromptInjectionDefense,
-    ScopeValidator,
-    RateLimiter as AWRateLimiter,
     KillSwitch,
-    ThreatLevel,
+    PromptInjectionDefense,
     Scope,
+    ScopeValidator,
+    ThreatLevel,
+)
+from agentic_workflows.security import (
+    RateLimiter as AWRateLimiter,
 )
 from agentic_workflows.security.rate_limiter import RateLimitConfig
 
@@ -52,9 +54,11 @@ logger = logging.getLogger("agentic_workflows.bridge")
 # PLATFORM HOOK ADAPTER
 # =============================================================================
 
+
 @dataclass
 class PlatformHookConfig:
     """Configuration for platform-level hooks."""
+
     enable_audit: bool = True
     enable_rate_limiter: bool = True
     enable_security_scanner: bool = True
@@ -65,7 +69,7 @@ class PlatformHookConfig:
     kill_switch_enabled: bool = True
 
 
-def create_platform_hooks(config: Optional[PlatformHookConfig] = None) -> HookRegistry:
+def create_platform_hooks(config: PlatformHookConfig | None = None) -> HookRegistry:
     """
     Create a HookRegistry pre-configured with production hooks that bridge
     the agentic-workflows security layer into the platform hook pattern.
@@ -83,6 +87,7 @@ def create_platform_hooks(config: Optional[PlatformHookConfig] = None) -> HookRe
 
     # Audit logger (priority 0 = highest, runs first)
     if config.enable_audit:
+
         async def audit_hook(ctx: AWHookContext) -> AWHookResult:
             logger.info(
                 f"[AUDIT] {ctx.event.value}: tool={ctx.tool_name} "
@@ -95,6 +100,7 @@ def create_platform_hooks(config: Optional[PlatformHookConfig] = None) -> HookRe
 
     # Kill switch (priority 90)
     if config.kill_switch_enabled:
+
         async def kill_switch_hook(ctx: AWHookContext) -> AWHookResult:
             if kill_switch.is_active:
                 return AWHookResult(
@@ -107,6 +113,7 @@ def create_platform_hooks(config: Optional[PlatformHookConfig] = None) -> HookRe
 
     # Injection defense (priority 80)
     if config.enable_injection_defense:
+
         async def injection_hook(ctx: AWHookContext) -> AWHookResult:
             if ctx.tool_input:
                 text = str(ctx.tool_input)
@@ -175,40 +182,61 @@ def create_platform_hooks(config: Optional[PlatformHookConfig] = None) -> HookRe
 # ORCHESTRATOR CONFIGURATION
 # =============================================================================
 
+
 @dataclass
 class OrchestratorConfig:
     """Unified orchestrator configuration for all platform services."""
 
     # Service endpoints (auto-discovered from env or explicit)
     starrocks_host: str = field(default_factory=lambda: os.getenv("STARROCKS_HOST", "starrocks"))
-    starrocks_port: int = field(default_factory=lambda: int(os.getenv("STARROCKS_HTTP_PORT", "8030")))
+    starrocks_port: int = field(
+        default_factory=lambda: int(os.getenv("STARROCKS_HTTP_PORT", "8030"))
+    )
     milvus_host: str = field(default_factory=lambda: os.getenv("MILVUS_HOST", "milvus"))
     milvus_port: int = field(default_factory=lambda: int(os.getenv("MILVUS_PORT", "19530")))
     nats_url: str = field(default_factory=lambda: os.getenv("NATS_URL", "nats://nats:4222"))
     valkey_url: str = field(default_factory=lambda: os.getenv("VALKEY_URL", "redis://valkey:6379"))
-    keycloak_url: str = field(default_factory=lambda: os.getenv("KEYCLOAK_URL", "http://keycloak:8080"))
-    openbao_addr: str = field(default_factory=lambda: os.getenv("OPENBAO_ADDR", "http://openbao:8200"))
-    marquez_url: str = field(default_factory=lambda: os.getenv("OPENLINEAGE_URL", "http://marquez:5000"))
+    keycloak_url: str = field(
+        default_factory=lambda: os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
+    )
+    openbao_addr: str = field(
+        default_factory=lambda: os.getenv("OPENBAO_ADDR", "http://openbao:8200")
+    )
+    marquez_url: str = field(
+        default_factory=lambda: os.getenv("OPENLINEAGE_URL", "http://marquez:5000")
+    )
     ovms_rest: str = field(default_factory=lambda: os.getenv("OVMS_REST", "http://ovms:8000"))
     ollama_url: str = field(default_factory=lambda: os.getenv("OLLAMA_URL", "http://ollama:11434"))
-    budget_proxy_url: str = field(default_factory=lambda: os.getenv("LITELLM_URL", "http://budget-proxy:4000"))
-    zerotrust_url: str = field(default_factory=lambda: os.getenv("ZEROTRUST_GATE_URL", "http://zerotrust-gate:8150"))
+    budget_proxy_url: str = field(
+        default_factory=lambda: os.getenv("LITELLM_URL", "http://budget-proxy:4000")
+    )
+    zerotrust_url: str = field(
+        default_factory=lambda: os.getenv("ZEROTRUST_GATE_URL", "http://zerotrust-gate:8150")
+    )
 
     # MCP servers
-    mcp_starrocks: str = field(default_factory=lambda: os.getenv("STARROCKS_MCP_URL", "http://starrocks-mcp:8101"))
-    mcp_milvus: str = field(default_factory=lambda: os.getenv("MILVUS_MCP_URL", "http://milvus-mcp:8102"))
-    mcp_camara: str = field(default_factory=lambda: os.getenv("CAMARA_MCP_URL", "http://camara-mcp:8103"))
+    mcp_starrocks: str = field(
+        default_factory=lambda: os.getenv("STARROCKS_MCP_URL", "http://starrocks-mcp:8101")
+    )
+    mcp_milvus: str = field(
+        default_factory=lambda: os.getenv("MILVUS_MCP_URL", "http://milvus-mcp:8102")
+    )
+    mcp_camara: str = field(
+        default_factory=lambda: os.getenv("CAMARA_MCP_URL", "http://camara-mcp:8103")
+    )
     mcp_uid2: str = field(default_factory=lambda: os.getenv("UID2_MCP_URL", "http://uid2-mcp:8104"))
 
     # LLM
     llm_provider: str = field(default_factory=lambda: os.getenv("LLM_PROVIDER", "anthropic"))
-    llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "claude-sonnet-4-20250514"))
+    llm_model: str = field(
+        default_factory=lambda: os.getenv("LLM_MODEL", "claude-sonnet-4-20250514")
+    )
 
     # Security
     security_scope: str = "elevated"
     max_iterations: int = 50
 
-    def get_mcp_servers(self) -> Dict[str, str]:
+    def get_mcp_servers(self) -> dict[str, str]:
         """Return MCP server URLs for GooseBlockRunner."""
         return {
             "starrocks": self.mcp_starrocks,
@@ -218,7 +246,7 @@ class OrchestratorConfig:
             "marquez": self.marquez_url,
         }
 
-    def to_env(self) -> Dict[str, str]:
+    def to_env(self) -> dict[str, str]:
         """Export as environment variables."""
         return {
             "STARROCKS_HOST": self.starrocks_host,

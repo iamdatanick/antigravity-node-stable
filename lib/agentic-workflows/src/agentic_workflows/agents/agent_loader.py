@@ -20,20 +20,20 @@ Location: C:\\Users\\NickV\\agentic-workflows\\agentic-workflows\\src\\agentic_w
 """
 
 from __future__ import annotations
-import os
+
 import re
-from pathlib import Path
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Any, Optional
-import yaml
+from pathlib import Path
+from typing import Any
 
 # SDK imports
-from agentic_workflows.agents.base import BaseAgent, AgentConfig, AgentResult
+from agentic_workflows.agents.base import AgentConfig, BaseAgent
 from agentic_workflows.protocols.mcp_client import MCPClient
 
 try:
     from anthropic import AsyncAnthropic
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
@@ -50,8 +50,10 @@ MCP_ENDPOINT = "https://agentic-workflows-mcp.nick-9a6.workers.dev"
 # ENUMS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class AgentCategory(Enum):
     """Agent categories from ~/.claude/agents/"""
+
     CODE = "code"
     DATA = "data"
     OPS = "ops"
@@ -68,19 +70,21 @@ class AgentCategory(Enum):
 # AGENT DEFINITION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class AgentDefinition:
     """Parsed agent definition from markdown file (SKILL.md v4.1 compliant)"""
+
     # Identity
     name: str
     category: AgentCategory
     description: str
     system_prompt: str
     # Tools & Skills
-    skills: List[str] = field(default_factory=list)
-    tools: List[str] = field(default_factory=list)
-    examples: List[str] = field(default_factory=list)
-    file_path: Optional[Path] = None
+    skills: list[str] = field(default_factory=list)
+    tools: list[str] = field(default_factory=list)
+    examples: list[str] = field(default_factory=list)
+    file_path: Path | None = None
     # Config
     model: str = "sonnet"
     permission_mode: str = "dontAsk"
@@ -89,23 +93,32 @@ class AgentDefinition:
     timeout: int = 30000
     max_iterations: int = 10
     recovery: str = "retry"
-    guardrails: List[str] = field(default_factory=list)
+    guardrails: list[str] = field(default_factory=list)
     # v4.1 Governance Fields
     telemetry: bool = True
     memory: str = "session"
     context_mode: str = "focused"
     cost_tier: str = "standard"
-    constitutional: List[str] = field(default_factory=list)
+    constitutional: list[str] = field(default_factory=list)
     is_async: bool = True
-    delegates_to: List[str] = field(default_factory=list)
+    delegates_to: list[str] = field(default_factory=list)
     # Raw frontmatter for audit
-    _raw_fields: Dict = field(default_factory=dict)
+    _raw_fields: dict = field(default_factory=dict)
 
     # All v4.1 required fields
     V41_REQUIRED_FIELDS = [
-        "security_scope", "timeout", "max_iterations", "recovery",
-        "guardrails", "telemetry", "memory", "context_mode",
-        "cost_tier", "constitutional", "async", "delegates_to",
+        "security_scope",
+        "timeout",
+        "max_iterations",
+        "recovery",
+        "guardrails",
+        "telemetry",
+        "memory",
+        "context_mode",
+        "cost_tier",
+        "constitutional",
+        "async",
+        "delegates_to",
     ]
 
     @staticmethod
@@ -113,28 +126,29 @@ class AgentDefinition:
         """Parse YAML frontmatter from markdown content.
         Returns (fields_dict, body_text).
         """
-        match = re.match(r'^---\n(.*?)\n---\n(.*)', content, re.DOTALL)
+        match = re.match(r"^---\n(.*?)\n---\n(.*)", content, re.DOTALL)
         if not match:
             return {}, content
 
         yaml_str = match.group(1)
         body = match.group(2)
         fields = {}
-        for line in yaml_str.split('\n'):
+        for line in yaml_str.split("\n"):
             line = line.strip()
-            if not line or line.startswith('#'):
+            if not line or line.startswith("#"):
                 continue
-            if ':' in line:
-                key, _, value = line.partition(':')
+            if ":" in line:
+                key, _, value = line.partition(":")
                 key = key.strip()
                 value = value.strip()
-                if value.startswith('[') and value.endswith(']'):
-                    items = value[1:-1].split(',')
-                    fields[key] = [item.strip().strip('"').strip("'")
-                                   for item in items if item.strip()]
-                elif value.lower() == 'true':
+                if value.startswith("[") and value.endswith("]"):
+                    items = value[1:-1].split(",")
+                    fields[key] = [
+                        item.strip().strip('"').strip("'") for item in items if item.strip()
+                    ]
+                elif value.lower() == "true":
                     fields[key] = True
-                elif value.lower() == 'false':
+                elif value.lower() == "false":
                     fields[key] = False
                 elif value.isdigit():
                     fields[key] = int(value)
@@ -143,45 +157,45 @@ class AgentDefinition:
         return fields, body
 
     @classmethod
-    def from_markdown(cls, file_path: Path) -> "AgentDefinition":
+    def from_markdown(cls, file_path: Path) -> AgentDefinition:
         """Parse agent definition from markdown file with full v4.1 fields"""
         content = file_path.read_text(encoding="utf-8")
         fm, body = cls._parse_yaml_frontmatter(content)
 
         # Identity
-        name = fm.get('name', file_path.stem)
+        name = fm.get("name", file_path.stem)
         category_name = file_path.parent.name
         try:
             category = AgentCategory(category_name)
         except ValueError:
             category = AgentCategory.SPECIALIZED
 
-        description = fm.get('description', name)
+        description = fm.get("description", name)
 
         # Parse list fields
-        skills_raw = fm.get('skills', '')
+        skills_raw = fm.get("skills", "")
         if isinstance(skills_raw, str):
-            skills = [s.strip() for s in skills_raw.split(',') if s.strip()]
+            skills = [s.strip() for s in skills_raw.split(",") if s.strip()]
         else:
             skills = skills_raw
 
-        tools_raw = fm.get('tools', '')
+        tools_raw = fm.get("tools", "")
         if isinstance(tools_raw, str):
-            tools = [t.strip() for t in tools_raw.split(',') if t.strip()]
+            tools = [t.strip() for t in tools_raw.split(",") if t.strip()]
         else:
             tools = tools_raw
 
-        guardrails = fm.get('guardrails', [])
+        guardrails = fm.get("guardrails", [])
         if isinstance(guardrails, str):
-            guardrails = [g.strip() for g in guardrails.split(',') if g.strip()]
+            guardrails = [g.strip() for g in guardrails.split(",") if g.strip()]
 
-        constitutional = fm.get('constitutional', [])
+        constitutional = fm.get("constitutional", [])
         if isinstance(constitutional, str):
-            constitutional = [c.strip() for c in constitutional.split(',') if c.strip()]
+            constitutional = [c.strip() for c in constitutional.split(",") if c.strip()]
 
-        delegates_to = fm.get('delegates_to', [])
+        delegates_to = fm.get("delegates_to", [])
         if isinstance(delegates_to, str):
-            delegates_to = [d.strip() for d in delegates_to.split(',') if d.strip()]
+            delegates_to = [d.strip() for d in delegates_to.split(",") if d.strip()]
 
         return cls(
             name=name,
@@ -191,33 +205,33 @@ class AgentDefinition:
             skills=skills,
             tools=tools,
             file_path=file_path,
-            model=fm.get('model', 'sonnet'),
-            permission_mode=fm.get('permissionMode', 'dontAsk'),
-            security_scope=fm.get('security_scope', 'minimal'),
-            timeout=int(fm.get('timeout', 30000)),
-            max_iterations=int(fm.get('max_iterations', 10)),
-            recovery=fm.get('recovery', 'retry'),
+            model=fm.get("model", "sonnet"),
+            permission_mode=fm.get("permissionMode", "dontAsk"),
+            security_scope=fm.get("security_scope", "minimal"),
+            timeout=int(fm.get("timeout", 30000)),
+            max_iterations=int(fm.get("max_iterations", 10)),
+            recovery=fm.get("recovery", "retry"),
             guardrails=guardrails,
-            telemetry=fm.get('telemetry', True),
-            memory=fm.get('memory', 'session'),
-            context_mode=fm.get('context_mode', 'focused'),
-            cost_tier=fm.get('cost_tier', 'standard'),
+            telemetry=fm.get("telemetry", True),
+            memory=fm.get("memory", "session"),
+            context_mode=fm.get("context_mode", "focused"),
+            cost_tier=fm.get("cost_tier", "standard"),
             constitutional=constitutional,
-            is_async=fm.get('async', True),
+            is_async=fm.get("async", True),
             delegates_to=delegates_to,
             _raw_fields=fm,
         )
 
-    def validate_v41(self) -> List[str]:
+    def validate_v41(self) -> list[str]:
         """Validate this agent has all v4.1 required fields.
         Returns list of missing field names (empty = compliant).
         """
         missing = []
         for f in self.V41_REQUIRED_FIELDS:
-            attr = 'is_async' if f == 'async' else f
+            attr = "is_async" if f == "async" else f
             if not hasattr(self, attr):
                 missing.append(f)
-            elif f in ('guardrails', 'constitutional', 'delegates_to'):
+            elif f in ("guardrails", "constitutional", "delegates_to"):
                 pass  # Empty lists are valid
             elif getattr(self, attr) is None:
                 missing.append(f)
@@ -231,6 +245,7 @@ class AgentDefinition:
 # ═══════════════════════════════════════════════════════════════════════════════
 # LOADED AGENT (Runnable)
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class LoadedAgent(BaseAgent):
     """
@@ -247,12 +262,14 @@ class LoadedAgent(BaseAgent):
     }
 
     def __init__(self, definition: AgentDefinition):
-        super().__init__(AgentConfig(
-            name=definition.name,
-            description=definition.description,
-            model=self.MODEL_MAP.get(definition.model, "claude-sonnet-4-5-20250929"),
-            max_runtime_seconds=definition.timeout / 1000.0,
-        ))
+        super().__init__(
+            AgentConfig(
+                name=definition.name,
+                description=definition.description,
+                model=self.MODEL_MAP.get(definition.model, "claude-sonnet-4-5-20250929"),
+                max_runtime_seconds=definition.timeout / 1000.0,
+            )
+        )
         self.definition = definition
         self.category = definition.category
         self.system_prompt = definition.system_prompt
@@ -269,9 +286,13 @@ class LoadedAgent(BaseAgent):
         self.max_iterations = definition.max_iterations
         self.telemetry_enabled = definition.telemetry
 
-    async def _execute(self, input_data: Any) -> Dict[str, Any]:
+    async def _execute(self, input_data: Any) -> dict[str, Any]:
         """Execute the agent with its system prompt"""
-        user_message = str(input_data) if not isinstance(input_data, dict) else input_data.get("prompt", str(input_data))
+        user_message = (
+            str(input_data)
+            if not isinstance(input_data, dict)
+            else input_data.get("prompt", str(input_data))
+        )
 
         if not self.claude:
             return {
@@ -329,37 +350,38 @@ class LoadedAgent(BaseAgent):
 # AGENT LOADER
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class AgentLoader:
     """
     Loads and manages all agents from ~/.claude/agents/
-    
+
     Usage:
         loader = AgentLoader()
         loader.load_all()
-        
+
         # Get by name
         agent = loader.get("code_reviewer")
         result = await agent.run("Review this code...")
-        
+
         # Get by category
         code_agents = loader.get_by_category(AgentCategory.CODE)
-        
+
         # List all
         all_agents = loader.list_agents()
     """
-    
+
     def __init__(self, agents_dir: Path = CLAUDE_AGENTS_DIR):
         self.agents_dir = agents_dir
-        self.definitions: Dict[str, AgentDefinition] = {}
-        self.agents: Dict[str, LoadedAgent] = {}
+        self.definitions: dict[str, AgentDefinition] = {}
+        self.agents: dict[str, LoadedAgent] = {}
         self._loaded = False
-    
+
     def load_all(self) -> int:
         """Load all agents from the agents directory"""
         if not self.agents_dir.exists():
             print(f"Warning: Agents directory not found: {self.agents_dir}")
             return 0
-        
+
         count = 0
         for category_dir in self.agents_dir.iterdir():
             if category_dir.is_dir() and not category_dir.name.startswith("."):
@@ -371,56 +393,58 @@ class AgentLoader:
                         count += 1
                     except Exception as e:
                         print(f"Warning: Failed to load {agent_file}: {e}")
-        
+
         self._loaded = True
         return count
-    
-    def get(self, name: str) -> Optional[LoadedAgent]:
+
+    def get(self, name: str) -> LoadedAgent | None:
         """Get an agent by name"""
         if not self._loaded:
             self.load_all()
-        
+
         # Normalize name
         normalized = name.replace("-", "_").replace(" ", "_").lower()
         return self.agents.get(normalized)
-    
-    def get_by_category(self, category: AgentCategory) -> List[LoadedAgent]:
+
+    def get_by_category(self, category: AgentCategory) -> list[LoadedAgent]:
         """Get all agents in a category"""
         if not self._loaded:
             self.load_all()
-        
+
         return [a for a in self.agents.values() if a.category == category]
-    
-    def list_agents(self) -> Dict[str, List[str]]:
+
+    def list_agents(self) -> dict[str, list[str]]:
         """List all agents grouped by category"""
         if not self._loaded:
             self.load_all()
-        
-        result: Dict[str, List[str]] = {}
+
+        result: dict[str, list[str]] = {}
         for agent in self.agents.values():
             cat = agent.category.value
             if cat not in result:
                 result[cat] = []
             result[cat].append(agent.definition.name)
-        
+
         return result
-    
+
     def count(self) -> int:
         """Get total agent count"""
         if not self._loaded:
             self.load_all()
         return len(self.agents)
-    
-    def search(self, query: str) -> List[LoadedAgent]:
+
+    def search(self, query: str) -> list[LoadedAgent]:
         """Search agents by name or description"""
         if not self._loaded:
             self.load_all()
-        
+
         query_lower = query.lower()
         results = []
         for agent in self.agents.values():
-            if (query_lower in agent.definition.name.lower() or 
-                query_lower in agent.definition.description.lower()):
+            if (
+                query_lower in agent.definition.name.lower()
+                or query_lower in agent.definition.description.lower()
+            ):
                 results.append(agent)
         return results
 
@@ -430,7 +454,8 @@ class AgentLoader:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Global loader instance
-_loader: Optional[AgentLoader] = None
+_loader: AgentLoader | None = None
+
 
 def get_loader() -> AgentLoader:
     """Get or create the global agent loader"""
@@ -440,39 +465,48 @@ def get_loader() -> AgentLoader:
         _loader.load_all()
     return _loader
 
-def get_agent(name: str) -> Optional[LoadedAgent]:
+
+def get_agent(name: str) -> LoadedAgent | None:
     """Quick access to get an agent by name"""
     return get_loader().get(name)
 
-def list_all_agents() -> Dict[str, List[str]]:
+
+def list_all_agents() -> dict[str, list[str]]:
     """Quick access to list all agents"""
     return get_loader().list_agents()
 
-def search_agents(query: str) -> List[LoadedAgent]:
+
+def search_agents(query: str) -> list[LoadedAgent]:
     """Quick access to search agents"""
     return get_loader().search(query)
 
-def get_code_agents() -> List[LoadedAgent]:
+
+def get_code_agents() -> list[LoadedAgent]:
     """Get all code agents"""
     return get_loader().get_by_category(AgentCategory.CODE)
 
-def get_data_agents() -> List[LoadedAgent]:
+
+def get_data_agents() -> list[LoadedAgent]:
     """Get all data agents"""
     return get_loader().get_by_category(AgentCategory.DATA)
 
-def get_ops_agents() -> List[LoadedAgent]:
+
+def get_ops_agents() -> list[LoadedAgent]:
     """Get all ops agents"""
     return get_loader().get_by_category(AgentCategory.OPS)
 
-def get_business_agents() -> List[LoadedAgent]:
+
+def get_business_agents() -> list[LoadedAgent]:
     """Get all business agents"""
     return get_loader().get_by_category(AgentCategory.BUSINESS)
 
-def get_creative_agents() -> List[LoadedAgent]:
+
+def get_creative_agents() -> list[LoadedAgent]:
     """Get all creative agents"""
     return get_loader().get_by_category(AgentCategory.CREATIVE)
 
-def get_research_agents() -> List[LoadedAgent]:
+
+def get_research_agents() -> list[LoadedAgent]:
     """Get all research agents"""
     return get_loader().get_by_category(AgentCategory.RESEARCH)
 

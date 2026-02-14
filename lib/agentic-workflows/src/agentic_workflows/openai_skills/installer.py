@@ -29,10 +29,7 @@ Version: 1.0.0
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import os
 import re
 import shutil
 import subprocess
@@ -42,29 +39,29 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
+from agentic_workflows.openai_skills.loader import SkillLoader
 from agentic_workflows.openai_skills.skill_types import (
     SkillCategory,
     SkillManifest,
 )
-from agentic_workflows.openai_skills.loader import SkillLoader
-
 
 logger = logging.getLogger(__name__)
 
 
 class InstallTarget(Enum):
     """Target location for skill installation."""
+
     USER_CLAUDE = "user_claude"  # ~/.claude/skills
-    USER_CODEX = "user_codex"   # ~/.codex/skills
+    USER_CODEX = "user_codex"  # ~/.codex/skills
     PROJECT_CLAUDE = "project_claude"  # ./.claude/skills
-    PROJECT_CODEX = "project_codex"    # ./.codex/skills
+    PROJECT_CODEX = "project_codex"  # ./.codex/skills
     CUSTOM = "custom"
 
 
 class InstallStatus(Enum):
     """Status of an installation operation."""
+
     SUCCESS = "success"
     ALREADY_EXISTS = "already_exists"
     UPDATED = "updated"
@@ -86,6 +83,7 @@ class InstallResult:
         dependencies: List of dependency skill names.
         timestamp: Installation timestamp.
     """
+
     skill_name: str
     status: InstallStatus
     target_path: Path | None = None
@@ -125,23 +123,18 @@ class InstallerConfig:
         verify_signature: Whether to verify skill signatures.
         timeout: Git operation timeout in seconds.
     """
+
     default_target: InstallTarget = InstallTarget.USER_CLAUDE
-    user_claude_path: Path = field(
-        default_factory=lambda: Path.home() / ".claude" / "skills"
+    user_claude_path: Path = field(default_factory=lambda: Path.home() / ".claude" / "skills")
+    user_codex_path: Path = field(default_factory=lambda: Path.home() / ".codex" / "skills")
+    project_claude_path: Path = field(default_factory=lambda: Path.cwd() / ".claude" / "skills")
+    project_codex_path: Path = field(default_factory=lambda: Path.cwd() / ".codex" / "skills")
+    catalog_repos: list[str] = field(
+        default_factory=lambda: [
+            "openai/skills",
+            "anthropics/skills",
+        ]
     )
-    user_codex_path: Path = field(
-        default_factory=lambda: Path.home() / ".codex" / "skills"
-    )
-    project_claude_path: Path = field(
-        default_factory=lambda: Path.cwd() / ".claude" / "skills"
-    )
-    project_codex_path: Path = field(
-        default_factory=lambda: Path.cwd() / ".codex" / "skills"
-    )
-    catalog_repos: list[str] = field(default_factory=lambda: [
-        "openai/skills",
-        "anthropics/skills",
-    ])
     auto_resolve_deps: bool = True
     overwrite: bool = False
     verify_signature: bool = False
@@ -161,6 +154,7 @@ class SkillSource:
         url: Original URL.
         category: Skill category based on path.
     """
+
     source_type: str
     repo: str = ""
     branch: str = "main"
@@ -170,7 +164,7 @@ class SkillSource:
     category: SkillCategory = SkillCategory.USER
 
     @classmethod
-    def parse(cls, source: str) -> "SkillSource":
+    def parse(cls, source: str) -> SkillSource:
         """Parse a source string into SkillSource.
 
         Supports formats:
@@ -855,10 +849,7 @@ class SkillInstaller:
         finally:
             self.config.overwrite = original_overwrite
 
-    def list_installed(
-        self,
-        target: InstallTarget | None = None
-    ) -> list[SkillManifest]:
+    def list_installed(self, target: InstallTarget | None = None) -> list[SkillManifest]:
         """List all installed skills.
 
         Args:
@@ -949,6 +940,7 @@ class SkillInstaller:
 
 
 # Convenience functions
+
 
 def install_skill(
     source: str,

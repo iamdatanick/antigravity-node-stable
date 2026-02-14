@@ -11,18 +11,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import asyncio
-import json
 import sys
-from pathlib import Path
 
+from agentic_workflows.agents import create_agent_loader
 from agentic_workflows.skills import (
-    SkillRegistry,
     discover_default_skills,
     get_registry,
 )
 from agentic_workflows.tools import ToolSearchTool, create_tool_search_config
-from agentic_workflows.agents import AgentSkillLoader, create_agent_loader
 
 
 def cmd_discover(args):
@@ -45,7 +41,11 @@ def cmd_discover(args):
         print(f"[{domain}] ({len(skills)} skills)")
         for name, skill in sorted(skills, key=lambda x: x[0]):
             level = skill.level or "L1"
-            desc = (skill.description[:60] + "...") if skill.description and len(skill.description) > 60 else (skill.description or "")
+            desc = (
+                (skill.description[:60] + "...")
+                if skill.description and len(skill.description) > 60
+                else (skill.description or "")
+            )
             print(f"  - {name} ({level}): {desc}")
         print()
 
@@ -67,7 +67,7 @@ def cmd_search(args):
     print(f"Found {len(results)} skills matching '{args.query}':\n")
     for r in results:
         print(f"  [{r.get('category', 'unknown')}] {r['name']}")
-        if r.get('description'):
+        if r.get("description"):
             print(f"      {r['description'][:80]}")
         print()
 
@@ -162,6 +162,7 @@ def cmd_validate(args):
 def cmd_mcp(args):
     """Start MCP server."""
     from agentic_workflows.protocols.mcp_server import main as mcp_main
+
     mcp_main()
 
 
@@ -169,7 +170,7 @@ def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="agentic-cli",
-        description="Agentic Workflows CLI - Manage skills, agents, and orchestration"
+        description="Agentic Workflows CLI - Manage skills, agents, and orchestration",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 

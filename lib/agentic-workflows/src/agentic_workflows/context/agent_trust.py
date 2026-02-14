@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from .trust import TrustCalculator, TrustScore, TrustDecayConfig
+from .trust import TrustCalculator, TrustScore
 
 
 class InteractionType(Enum):
@@ -100,7 +100,9 @@ class AgentReputation:
         n = self.total_interactions
         self.avg_data_quality = ((self.avg_data_quality * (n - 1)) + record.data_quality) / n
         self.avg_response_time = ((self.avg_response_time * (n - 1)) + record.response_time) / n
-        self.avg_policy_compliance = ((self.avg_policy_compliance * (n - 1)) + record.policy_compliance) / n
+        self.avg_policy_compliance = (
+            (self.avg_policy_compliance * (n - 1)) + record.policy_compliance
+        ) / n
 
         # Update type-specific scores
         if record.interaction_type not in self.type_scores:
@@ -118,7 +120,7 @@ class AgentReputation:
         # Maintain recent history
         self.recent_interactions.append(record)
         if len(self.recent_interactions) > self.max_history:
-            self.recent_interactions = self.recent_interactions[-self.max_history:]
+            self.recent_interactions = self.recent_interactions[-self.max_history :]
 
     @property
     def success_rate(self) -> float:
@@ -275,7 +277,7 @@ class AgentTrustCalculator:
         delta = outcome_deltas.get(record.outcome, 0)
 
         # Adjust by quality metrics
-        delta *= (0.5 + 0.5 * record.data_quality)
+        delta *= 0.5 + 0.5 * record.data_quality
         delta *= record.policy_compliance
 
         # Apply change
@@ -320,7 +322,9 @@ class AgentTrustCalculator:
             factors.append(f"Success rate: {rep.success_rate:.2f}")
         else:
             scores["success_rate"] = 0.5  # Neutral for new agents
-            factors.append(f"Insufficient history ({rep.total_interactions}/{self.config.min_interactions_for_trust})")
+            factors.append(
+                f"Insufficient history ({rep.total_interactions}/{self.config.min_interactions_for_trust})"
+            )
 
         # Data quality component
         scores["data_quality"] = rep.avg_data_quality
@@ -343,11 +347,11 @@ class AgentTrustCalculator:
 
         # Weighted combination
         base_score = (
-            scores["success_rate"] * self.config.success_rate_weight +
-            scores["data_quality"] * self.config.data_quality_weight +
-            scores["response_time"] * self.config.response_time_weight +
-            scores["policy_compliance"] * self.config.policy_compliance_weight +
-            scores["history"] * self.config.history_weight
+            scores["success_rate"] * self.config.success_rate_weight
+            + scores["data_quality"] * self.config.data_quality_weight
+            + scores["response_time"] * self.config.response_time_weight
+            + scores["policy_compliance"] * self.config.policy_compliance_weight
+            + scores["history"] * self.config.history_weight
         )
 
         # Apply time decay
@@ -394,7 +398,9 @@ class AgentTrustCalculator:
 
         for i, record in enumerate(rep.recent_interactions):
             # Exponential decay for older interactions
-            age_factor = self.config.interaction_decay_factor ** (len(rep.recent_interactions) - i - 1)
+            age_factor = self.config.interaction_decay_factor ** (
+                len(rep.recent_interactions) - i - 1
+            )
 
             outcome_scores = {
                 InteractionOutcome.SUCCESS: 1.0,
@@ -547,7 +553,10 @@ class AgentTrustCalculator:
         if interaction_type and interaction_type in rep.type_scores:
             type_trust = rep.type_scores[interaction_type]
             if type_trust < self.config.trust_threshold:
-                return False, f"Low trust for {interaction_type.value} interactions ({type_trust:.2f})"
+                return (
+                    False,
+                    f"Low trust for {interaction_type.value} interactions ({type_trust:.2f})",
+                )
 
         if score.final_score >= self.config.trust_threshold:
             return True, f"Trust score {score.final_score:.2f} meets threshold"

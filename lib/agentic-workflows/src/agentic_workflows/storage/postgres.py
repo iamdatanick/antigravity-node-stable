@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-import time
 from dataclasses import dataclass
 from typing import Any
 
-from .base import StorageBackend, StorageConfig, TransactionalStorage
+from .base import StorageConfig, TransactionalStorage
 
 # Try to import asyncpg
 try:
@@ -69,7 +68,9 @@ class PostgresStorage(TransactionalStorage[Any]):
             config: PostgreSQL configuration.
         """
         if not ASYNCPG_AVAILABLE:
-            raise ImportError("asyncpg is required for PostgreSQL storage. Install with: pip install asyncpg")
+            raise ImportError(
+                "asyncpg is required for PostgreSQL storage. Install with: pip install asyncpg"
+            )
 
         self.pg_config = config or PostgresConfig()
         super().__init__(self.pg_config)
@@ -333,7 +334,7 @@ class PostgresStorage(TransactionalStorage[Any]):
             await self._pool.close()
             self._pool = None
 
-    async def __aenter__(self) -> "PostgresStorage":
+    async def __aenter__(self) -> PostgresStorage:
         """Async context manager entry."""
         await self.connect()
         return self

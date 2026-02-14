@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +29,13 @@ class CrewAIAgent:
     role: str
     goal: str
     backstory: str = ""
-    tools: List[Any] = field(default_factory=list)
-    llm: Optional[str] = None
+    tools: list[Any] = field(default_factory=list)
+    llm: str | None = None
     verbose: bool = False
     allow_delegation: bool = True
     memory: bool = True
     max_iter: int = 15
-    max_rpm: Optional[int] = None
+    max_rpm: int | None = None
 
 
 @dataclass
@@ -45,8 +45,8 @@ class CrewAITask:
     description: str
     agent: CrewAIAgent
     expected_output: str = ""
-    context: Optional[List["CrewAITask"]] = None
-    tools: Optional[List[Any]] = None
+    context: list[CrewAITask] | None = None
+    tools: list[Any] | None = None
     async_execution: bool = False
 
 
@@ -82,6 +82,7 @@ class CrewAIAdapter:
         """Check if CrewAI is available."""
         try:
             import crewai
+
             return True
         except ImportError:
             logger.warning("crewai package not installed")
@@ -112,7 +113,7 @@ class CrewAIAdapter:
             memory=True,
         )
 
-    def from_crewai(self, crew_agent: Any) -> Dict[str, Any]:
+    def from_crewai(self, crew_agent: Any) -> dict[str, Any]:
         """Convert CrewAI agent to our format.
 
         Args:
@@ -130,8 +131,8 @@ class CrewAIAdapter:
 
     def create_crew(
         self,
-        agents: List[Any],
-        tasks: List[Dict[str, Any]],
+        agents: list[Any],
+        tasks: list[dict[str, Any]],
         process: str = "sequential",
         verbose: bool = False,
     ) -> Any:
@@ -149,34 +150,38 @@ class CrewAIAdapter:
         if not self._crewai_available:
             raise RuntimeError("crewai package not installed")
 
-        from crewai import Agent, Crew, Task, Process
+        from crewai import Agent, Crew, Process, Task
 
         # Convert agents
         crew_agents = []
         for agent in agents:
             if isinstance(agent, CrewAIAgent):
-                crew_agents.append(Agent(
-                    role=agent.role,
-                    goal=agent.goal,
-                    backstory=agent.backstory,
-                    tools=agent.tools,
-                    verbose=agent.verbose,
-                    allow_delegation=agent.allow_delegation,
-                    memory=agent.memory,
-                ))
+                crew_agents.append(
+                    Agent(
+                        role=agent.role,
+                        goal=agent.goal,
+                        backstory=agent.backstory,
+                        tools=agent.tools,
+                        verbose=agent.verbose,
+                        allow_delegation=agent.allow_delegation,
+                        memory=agent.memory,
+                    )
+                )
             elif hasattr(agent, "role"):
                 # Already a CrewAI agent
                 crew_agents.append(agent)
             else:
                 # Convert from our format
                 ca = self.to_crewai(agent)
-                crew_agents.append(Agent(
-                    role=ca.role,
-                    goal=ca.goal,
-                    backstory=ca.backstory,
-                    tools=ca.tools,
-                    verbose=ca.verbose,
-                ))
+                crew_agents.append(
+                    Agent(
+                        role=ca.role,
+                        goal=ca.goal,
+                        backstory=ca.backstory,
+                        tools=ca.tools,
+                        verbose=ca.verbose,
+                    )
+                )
 
         # Create tasks
         crew_tasks = []
@@ -186,11 +191,13 @@ class CrewAIAdapter:
             agent_role = task_def.get("agent", crew_agents[0].role)
             task_agent = agent_map.get(agent_role, crew_agents[0])
 
-            crew_tasks.append(Task(
-                description=task_def.get("description", ""),
-                agent=task_agent,
-                expected_output=task_def.get("expected_output", ""),
-            ))
+            crew_tasks.append(
+                Task(
+                    description=task_def.get("description", ""),
+                    agent=task_agent,
+                    expected_output=task_def.get("expected_output", ""),
+                )
+            )
 
         # Create crew
         process_type = Process.sequential if process == "sequential" else Process.hierarchical
@@ -202,7 +209,7 @@ class CrewAIAdapter:
             verbose=verbose,
         )
 
-    def run_crew(self, crew: Any, inputs: Optional[Dict[str, Any]] = None) -> str:
+    def run_crew(self, crew: Any, inputs: dict[str, Any] | None = None) -> str:
         """Run a CrewAI crew.
 
         Args:

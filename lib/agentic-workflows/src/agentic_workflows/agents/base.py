@@ -6,9 +6,10 @@ import asyncio
 import time
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from agentic_workflows.security.scope_validator import Scope
 
@@ -125,7 +126,7 @@ class BaseAgent(ABC):
         self,
         config: AgentConfig,
         on_state_change: Callable[[AgentState, AgentState], None] | None = None,
-        artifact_manager: "ArtifactManager | None" = None,
+        artifact_manager: ArtifactManager | None = None,
     ):
         """Initialize agent.
 
@@ -206,7 +207,7 @@ class BaseAgent(ABC):
             self._set_state(AgentState.READY)
             return True
 
-        except Exception as e:
+        except Exception:
             self._set_state(AgentState.FAILED)
             raise
 
@@ -298,7 +299,10 @@ class BaseAgent(ABC):
         if self.config.max_tokens_total and self._total_tokens >= self.config.max_tokens_total:
             return False
 
-        if self.config.max_runtime_seconds and self.runtime_seconds >= self.config.max_runtime_seconds:
+        if (
+            self.config.max_runtime_seconds
+            and self.runtime_seconds >= self.config.max_runtime_seconds
+        ):
             return False
 
         return True

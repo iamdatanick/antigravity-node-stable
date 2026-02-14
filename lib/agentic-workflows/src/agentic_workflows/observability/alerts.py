@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 
 class AlertSeverity(Enum):
@@ -18,7 +19,12 @@ class AlertSeverity(Enum):
     CRITICAL = "critical"
 
     def __ge__(self, other: AlertSeverity) -> bool:
-        order = [AlertSeverity.INFO, AlertSeverity.WARNING, AlertSeverity.ERROR, AlertSeverity.CRITICAL]
+        order = [
+            AlertSeverity.INFO,
+            AlertSeverity.WARNING,
+            AlertSeverity.ERROR,
+            AlertSeverity.CRITICAL,
+        ]
         return order.index(self) >= order.index(other)
 
 
@@ -215,9 +221,7 @@ class AlertManager:
     def _cleanup_metrics(self, key: str, max_age: float = 3600.0) -> None:
         """Remove old metric data."""
         cutoff = time.time() - max_age
-        self._metrics[key] = [
-            (t, v) for t, v in self._metrics[key] if t > cutoff
-        ]
+        self._metrics[key] = [(t, v) for t, v in self._metrics[key] if t > cutoff]
 
     def _create_alert(
         self,
@@ -303,10 +307,7 @@ class AlertManager:
             List of active alerts.
         """
         with self._lock:
-            alerts = [
-                a for a in self._alerts.values()
-                if a.status == AlertStatus.ACTIVE
-            ]
+            alerts = [a for a in self._alerts.values() if a.status == AlertStatus.ACTIVE]
 
             if severity:
                 alerts = [a for a in alerts if a.severity >= severity]
@@ -394,13 +395,16 @@ class AlertManager:
         with self._lock:
             total_alerts = len(self._alerts)
             active = sum(1 for a in self._alerts.values() if a.status == AlertStatus.ACTIVE)
-            acknowledged = sum(1 for a in self._alerts.values() if a.status == AlertStatus.ACKNOWLEDGED)
+            acknowledged = sum(
+                1 for a in self._alerts.values() if a.status == AlertStatus.ACKNOWLEDGED
+            )
             resolved = sum(1 for a in self._alerts.values() if a.status == AlertStatus.RESOLVED)
 
             by_severity = {}
             for severity in AlertSeverity:
                 by_severity[severity.value] = sum(
-                    1 for a in self._alerts.values()
+                    1
+                    for a in self._alerts.values()
                     if a.severity == severity and a.status == AlertStatus.ACTIVE
                 )
 

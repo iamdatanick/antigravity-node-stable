@@ -13,12 +13,12 @@ Usage:
     )
 """
 
-from agentic_workflows.integrations.claude_sdk import ClaudeSDK, ClaudeAgent
-from agentic_workflows.integrations.openai_sdk import OpenAISDK, OpenAIAgent
-from agentic_workflows.integrations.crewai_adapter import CrewAIAdapter, CrewAIAgent
 from agentic_workflows.integrations.autogen_adapter import AutoGenAdapter, AutoGenAgent
-from agentic_workflows.integrations.dspy_optimizer import DSPyOptimizer, DSPyModule
+from agentic_workflows.integrations.claude_sdk import ClaudeAgent, ClaudeSDK
+from agentic_workflows.integrations.crewai_adapter import CrewAIAdapter, CrewAIAgent
+from agentic_workflows.integrations.dspy_optimizer import DSPyModule, DSPyOptimizer
 from agentic_workflows.integrations.llama_index import LlamaIndexAdapter, LlamaIndexAgent
+from agentic_workflows.integrations.openai_sdk import OpenAIAgent, OpenAISDK
 
 __all__ = [
     # Claude SDK

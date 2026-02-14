@@ -23,7 +23,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class PKCEChallenge:
     code_challenge_method: str = "S256"
 
     @classmethod
-    def generate(cls) -> "PKCEChallenge":
+    def generate(cls) -> PKCEChallenge:
         """Generate a new PKCE challenge.
 
         Returns:
@@ -82,16 +82,16 @@ class TokenSet:
 
     access_token: str
     token_type: str = "Bearer"
-    expires_in: Optional[int] = None
-    refresh_token: Optional[str] = None
-    scope: Optional[str] = None
-    id_token: Optional[str] = None
+    expires_in: int | None = None
+    refresh_token: str | None = None
+    scope: str | None = None
+    id_token: str | None = None
 
     # Computed fields
     issued_at: float = field(default_factory=time.time)
 
     @property
-    def expires_at(self) -> Optional[float]:
+    def expires_at(self) -> float | None:
         """Get expiration timestamp."""
         if self.expires_in is None:
             return None
@@ -108,7 +108,7 @@ class TokenSet:
         """Get Authorization header value."""
         return f"{self.token_type} {self.access_token}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
         return {
             "access_token": self.access_token,
@@ -121,7 +121,7 @@ class TokenSet:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TokenSet":
+    def from_dict(cls, data: dict[str, Any]) -> TokenSet:
         """Create from dictionary."""
         return cls(
             access_token=data["access_token"],
@@ -141,16 +141,16 @@ class OAuth21Config:
     client_id: str
     authorization_url: str
     token_url: str
-    client_secret: Optional[str] = None  # Not required for public clients
-    scopes: List[str] = field(default_factory=list)
-    audience: Optional[str] = None
+    client_secret: str | None = None  # Not required for public clients
+    scopes: list[str] = field(default_factory=list)
+    audience: str | None = None
 
     # PKCE is REQUIRED in OAuth 2.1
     use_pkce: bool = True
 
     # Discovery
-    issuer: Optional[str] = None
-    jwks_uri: Optional[str] = None
+    issuer: str | None = None
+    jwks_uri: str | None = None
 
 
 class OAuth21Client:
@@ -192,9 +192,9 @@ class OAuth21Client:
         client_id: str,
         authorization_url: str,
         token_url: str,
-        client_secret: Optional[str] = None,
-        scopes: Optional[List[str]] = None,
-        audience: Optional[str] = None,
+        client_secret: str | None = None,
+        scopes: list[str] | None = None,
+        audience: str | None = None,
     ):
         """Initialize OAuth 2.1 client.
 
@@ -214,15 +214,15 @@ class OAuth21Client:
             scopes=scopes or [],
             audience=audience,
         )
-        self._current_pkce: Optional[PKCEChallenge] = None
-        self._state: Optional[str] = None
+        self._current_pkce: PKCEChallenge | None = None
+        self._state: str | None = None
 
     async def get_authorization_url(
         self,
         redirect_uri: str,
-        scopes: Optional[List[str]] = None,
-        state: Optional[str] = None,
-        extra_params: Optional[Dict[str, str]] = None,
+        scopes: list[str] | None = None,
+        state: str | None = None,
+        extra_params: dict[str, str] | None = None,
     ) -> str:
         """Generate authorization URL with PKCE challenge.
 
@@ -271,7 +271,7 @@ class OAuth21Client:
         self,
         code: str,
         redirect_uri: str,
-        state: Optional[str] = None,
+        state: str | None = None,
     ) -> TokenSet:
         """Exchange authorization code for tokens.
 
@@ -392,7 +392,7 @@ class APIKeyAuth:
         self.header_name = header_name
         self.prefix = prefix
 
-    def get_headers(self) -> Dict[str, str]:
+    def get_headers(self) -> dict[str, str]:
         """Get authentication headers.
 
         Returns:
@@ -421,7 +421,7 @@ class BasicAuth:
         self.username = username
         self.password = password
 
-    def get_headers(self) -> Dict[str, str]:
+    def get_headers(self) -> dict[str, str]:
         """Get authentication headers.
 
         Returns:
@@ -455,15 +455,15 @@ class AuthConfig:
     """
 
     auth_type: AuthType = AuthType.NONE
-    api_key: Optional[str] = None
+    api_key: str | None = None
     api_key_header: str = "Authorization"
     api_key_prefix: str = "Bearer"
-    username: Optional[str] = None
-    password: Optional[str] = None
-    oauth_config: Optional[Dict[str, Any]] = None
-    tokens: Optional[TokenSet] = None
+    username: str | None = None
+    password: str | None = None
+    oauth_config: dict[str, Any] | None = None
+    tokens: TokenSet | None = None
 
-    def get_authenticator(self) -> Optional[Any]:
+    def get_authenticator(self) -> Any | None:
         """Get the appropriate authenticator instance.
 
         Returns:

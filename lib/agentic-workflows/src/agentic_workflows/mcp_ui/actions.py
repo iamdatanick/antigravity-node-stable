@@ -20,19 +20,13 @@ import asyncio
 import json
 import logging
 import uuid
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any
 
 from .ui_types import (
-    UIActionType,
     UIActionResult,
-    UIActionPayload,
-    UIActionToolPayload,
-    UIActionIntentPayload,
-    UIActionPromptPayload,
-    UIActionNotifyPayload,
-    UIActionLinkPayload,
+    UIActionType,
 )
 
 logger = logging.getLogger(__name__)
@@ -208,6 +202,7 @@ class UIActionHandlerConfig:
         intent_to_prompt: Convert intents to prompts automatically.
         log_actions: Log all incoming actions.
     """
+
     allow_tool_calls: bool = True
     allow_intents: bool = True
     allow_prompts: bool = True

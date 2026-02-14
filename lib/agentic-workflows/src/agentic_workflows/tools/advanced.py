@@ -7,11 +7,12 @@ Implements:
 - Beta header management
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
-from pathlib import Path
 import json
 import re
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 # Beta headers for advanced features
 BETA_HEADERS = [
@@ -19,13 +20,14 @@ BETA_HEADERS = [
     "interleaved-thinking-2025-05-14",
     "mcp-client-2025-11-20",
     "skills-2025-10-02",
-    "structured-outputs-2025-11-13"
+    "structured-outputs-2025-11-13",
 ]
 
 
 @dataclass
 class ToolSearchConfig:
     """Configuration for Tool Search Tool."""
+
     enabled: bool = True
     defer_loading: bool = True
     index_path: Path = None
@@ -59,7 +61,7 @@ class ToolSearchTool:
                 self._tool_index[name] = {
                     "name": name,
                     "description": skill.description,
-                    "defer_loading": name not in self.config.always_loaded_tools
+                    "defer_loading": name not in self.config.always_loaded_tools,
                 }
 
     def _flatten_index(self, data: dict) -> dict[str, dict]:
@@ -73,7 +75,7 @@ class ToolSearchTool:
                         "description": agent.get("desc", ""),
                         "category": category,
                         "model": agent.get("model", "sonnet"),
-                        "defer_loading": True
+                        "defer_loading": True,
                     }
         if "skills" in data:
             for category, skills in data["skills"].items():
@@ -82,7 +84,7 @@ class ToolSearchTool:
                         "name": skill["name"],
                         "description": skill.get("desc", ""),
                         "category": category,
-                        "defer_loading": True
+                        "defer_loading": True,
                     }
         return flat
 
@@ -108,17 +110,17 @@ class ToolSearchTool:
                 if pattern.search(name) or pattern.search(tool.get("description", "")):
                     results.append(tool)
             else:
-                if query.lower() in name.lower() or query.lower() in tool.get("description", "").lower():
+                if (
+                    query.lower() in name.lower()
+                    or query.lower() in tool.get("description", "").lower()
+                ):
                     results.append(tool)
 
-        return results[:self.config.max_results]
+        return results[: self.config.max_results]
 
     def get_tool_definition(self) -> dict:
         """Get the Tool Search Tool definition for Claude API."""
-        return {
-            "type": "tool_search_tool_regex_20251119",
-            "name": "tool_search_tool_regex"
-        }
+        return {"type": "tool_search_tool_regex_20251119", "name": "tool_search_tool_regex"}
 
     def get_all_tool_definitions(self) -> list[dict]:
         """Get all tool definitions with defer_loading flags."""
@@ -129,19 +131,21 @@ class ToolSearchTool:
             if name in self.config.always_loaded_tools:
                 defer = False
 
-            tools.append({
-                "name": f"skill_{name}",
-                "description": tool.get("description", ""),
-                "defer_loading": defer,
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "action": {"type": "string", "description": "Action to perform"},
-                        "params": {"type": "object", "description": "Action parameters"}
+            tools.append(
+                {
+                    "name": f"skill_{name}",
+                    "description": tool.get("description", ""),
+                    "defer_loading": defer,
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string", "description": "Action to perform"},
+                            "params": {"type": "object", "description": "Action parameters"},
+                        },
+                        "required": ["action"],
                     },
-                    "required": ["action"]
                 }
-            })
+            )
 
         return tools
 
@@ -173,14 +177,11 @@ class ProgrammaticToolCalling:
             Result of code execution
         """
         # Create sandboxed execution environment
-        local_vars = {
-            "tools": self._tool_handlers,
-            "context": context or {},
-            "results": {}
-        }
+        local_vars = {"tools": self._tool_handlers, "context": context or {}, "results": {}}
 
         # Add async support
         import asyncio
+
         local_vars["asyncio"] = asyncio
 
         # Execute code
@@ -191,25 +192,19 @@ class ProgrammaticToolCalling:
 
 def get_beta_headers() -> dict[str, str]:
     """Get beta headers for API calls."""
-    return {
-        "anthropic-beta": ",".join(BETA_HEADERS)
-    }
+    return {"anthropic-beta": ",".join(BETA_HEADERS)}
 
 
 def create_tool_search_config(
-    index_path: str = None,
-    always_loaded: list[str] = None
+    index_path: str = None, always_loaded: list[str] = None
 ) -> ToolSearchConfig:
     """Factory function to create ToolSearchConfig."""
     return ToolSearchConfig(
         enabled=True,
         defer_loading=True,
         index_path=Path(index_path) if index_path else None,
-        always_loaded_tools=always_loaded or [
-            "cloudflare-d1",
-            "pharma-npi-ndc",
-            "analytics-attribution"
-        ],
+        always_loaded_tools=always_loaded
+        or ["cloudflare-d1", "pharma-npi-ndc", "analytics-attribution"],
         search_regex_enabled=True,
-        max_results=10
+        max_results=10,
     )

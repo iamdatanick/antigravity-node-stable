@@ -1,5 +1,13 @@
 """Context management module for agentic workflows."""
 
+from agentic_workflows.context.agent_trust import (
+    AgentReputation,
+    AgentTrustCalculator,
+    AgentTrustConfig,
+    InteractionOutcome,
+    InteractionRecord,
+    InteractionType,
+)
 from agentic_workflows.context.graph import (
     ContextGraph,
     ContextNode,
@@ -12,17 +20,9 @@ from agentic_workflows.context.provenance import (
 )
 from agentic_workflows.context.trust import (
     TrustCalculator,
-    TrustScore,
     TrustDecayConfig,
     TrustPolicy,
-)
-from agentic_workflows.context.agent_trust import (
-    AgentTrustCalculator,
-    AgentTrustConfig,
-    AgentReputation,
-    InteractionRecord,
-    InteractionType,
-    InteractionOutcome,
+    TrustScore,
 )
 
 __all__ = [

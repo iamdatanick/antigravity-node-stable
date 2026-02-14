@@ -83,95 +83,84 @@ Reference: https://github.com/openai/openai-agents-python
 
 from __future__ import annotations
 
+# Agent implementation
+from agentic_workflows.openai_agents.agent import (
+    OpenAIAgent,
+    create_agent,
+    function_tool,
+)
+
 # Agent Types
 from agentic_workflows.openai_agents.agent_types import (
     # Core configuration
     AgentConfig,
-    RunConfig,
-    SessionConfig,
-
-    # Tool configuration
-    ToolConfig,
-    MCPServerConfig,
-
-    # Handoff configuration
-    HandoffConfig,
-    HandoffStrategy,
-    HandoffRequest,
-
     # Guardrail configuration
     GuardrailConfig,
-
+    # Handoff configuration
+    HandoffConfig,
+    HandoffRequest,
+    HandoffStrategy,
+    MCPServerConfig,
     # Message types
     Message,
-    ToolCall,
-
-    # Result types
-    RunResult,
-    RunResultStreaming,
-
     # Enums
     ModelProvider,
     OutputType,
-)
-
-# Agent implementation
-from agentic_workflows.openai_agents.agent import (
-    OpenAIAgent,
-    function_tool,
-    create_agent,
-)
-
-# Runner
-from agentic_workflows.openai_agents.runner import (
-    Runner,
-    RunContext,
-    run,
-    run_sync,
-    run_streamed,
+    RunConfig,
+    # Result types
+    RunResult,
+    RunResultStreaming,
+    SessionConfig,
+    ToolCall,
+    # Tool configuration
+    ToolConfig,
 )
 
 # Guardrails
 from agentic_workflows.openai_agents.guardrails import (
     # Base classes
     BaseGuardrail,
-    InputGuardrail,
-    OutputGuardrail,
-    GuardrailResult,
-    GuardrailAction,
-    GuardrailChain,
-
     # Built-in guardrails
     ContentFilterGuardrail,
-    PIIDetectorGuardrail,
+    GuardrailAction,
+    GuardrailChain,
+    GuardrailResult,
     InjectionDefenseGuardrail,
+    InputGuardrail,
     LengthGuardrail,
+    OutputGuardrail,
+    PIIDetectorGuardrail,
     ToxicityGuardrail,
-
     # Decorator
     guardrail,
 )
 
+# Runner
+from agentic_workflows.openai_agents.runner import (
+    RunContext,
+    Runner,
+    run,
+    run_streamed,
+    run_sync,
+)
+
 # Tracing
 from agentic_workflows.openai_agents.tracing import (
+    AgentTrace,
     # Core tracing
     AgentTracer,
-    AgentTrace,
-    TraceSpan,
     TraceEvent,
     TraceEventType,
-
+    TraceSpan,
+    export_trace_to_chrome,
+    # Export functions
+    export_trace_to_json,
+    export_trace_to_otlp,
     # Functions
     get_tracer,
     set_tracer,
     traced,
-
-    # Export functions
-    export_trace_to_json,
-    export_trace_to_otlp,
-    export_trace_to_chrome,
 )
-
 
 __all__ = [
     # ============================================================
@@ -192,14 +181,12 @@ __all__ = [
     "RunResultStreaming",
     "ModelProvider",
     "OutputType",
-
     # ============================================================
     # Agent Implementation
     # ============================================================
     "OpenAIAgent",
     "function_tool",
     "create_agent",
-
     # ============================================================
     # Runner
     # ============================================================
@@ -208,7 +195,6 @@ __all__ = [
     "run",
     "run_sync",
     "run_streamed",
-
     # ============================================================
     # Guardrails
     # ============================================================
@@ -224,7 +210,6 @@ __all__ = [
     "LengthGuardrail",
     "ToxicityGuardrail",
     "guardrail",
-
     # ============================================================
     # Tracing
     # ============================================================
@@ -367,10 +352,12 @@ def create_guardrail_chain(
     all_guardrails = []
 
     if include_defaults:
-        all_guardrails.extend([
-            LengthGuardrail(max_length=100000),
-            InjectionDefenseGuardrail(),
-        ])
+        all_guardrails.extend(
+            [
+                LengthGuardrail(max_length=100000),
+                InjectionDefenseGuardrail(),
+            ]
+        )
 
     if guardrails:
         all_guardrails.extend(guardrails)

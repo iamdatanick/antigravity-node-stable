@@ -15,9 +15,10 @@ Usage:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +41,9 @@ class SamplingMessage:
     """
 
     role: str
-    content: Union[str, Dict[str, Any], List[Dict[str, Any]]]
+    content: str | dict[str, Any] | list[dict[str, Any]]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to MCP format."""
         content = self.content
         if isinstance(content, str):
@@ -53,7 +54,7 @@ class SamplingMessage:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SamplingMessage":
+    def from_dict(cls, data: dict[str, Any]) -> SamplingMessage:
         """Create from MCP format."""
         return cls(
             role=data["role"],
@@ -72,12 +73,12 @@ class ModelPreferences:
         intelligencePriority: Priority for intelligence (0-1).
     """
 
-    hints: Optional[List[Dict[str, str]]] = None
-    costPriority: Optional[float] = None
-    speedPriority: Optional[float] = None
-    intelligencePriority: Optional[float] = None
+    hints: list[dict[str, str]] | None = None
+    costPriority: float | None = None
+    speedPriority: float | None = None
+    intelligencePriority: float | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to MCP format."""
         result = {}
         if self.hints:
@@ -106,16 +107,16 @@ class SamplingRequest:
         metadata: Additional metadata.
     """
 
-    messages: List[SamplingMessage] = field(default_factory=list)
-    modelPreferences: Optional[ModelPreferences] = None
-    systemPrompt: Optional[str] = None
+    messages: list[SamplingMessage] = field(default_factory=list)
+    modelPreferences: ModelPreferences | None = None
+    systemPrompt: str | None = None
     includeContext: str = "none"  # "none", "thisServer", "allServers"
-    temperature: Optional[float] = None
+    temperature: float | None = None
     maxTokens: int = 1024
-    stopSequences: Optional[List[str]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    stopSequences: list[str] | None = None
+    metadata: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to MCP format."""
         result = {
             "messages": [m.to_dict() for m in self.messages],
@@ -136,12 +137,9 @@ class SamplingRequest:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SamplingRequest":
+    def from_dict(cls, data: dict[str, Any]) -> SamplingRequest:
         """Create from MCP format."""
-        messages = [
-            SamplingMessage.from_dict(m)
-            for m in data.get("messages", [])
-        ]
+        messages = [SamplingMessage.from_dict(m) for m in data.get("messages", [])]
         model_prefs = None
         if "modelPreferences" in data:
             mp = data["modelPreferences"]
@@ -175,11 +173,11 @@ class SamplingResult:
     """
 
     role: str
-    content: Union[str, Dict[str, Any]]
+    content: str | dict[str, Any]
     model: str
-    stopReason: Optional[StopReason] = None
+    stopReason: StopReason | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to MCP format."""
         content = self.content
         if isinstance(content, str):
@@ -227,8 +225,8 @@ class SamplingManager:
 
     def __init__(self):
         """Initialize sampling manager."""
-        self._handler: Optional[SamplingHandler] = None
-        self._model_map: Dict[str, str] = {
+        self._handler: SamplingHandler | None = None
+        self._model_map: dict[str, str] = {
             "claude-3-opus": "claude-opus-4-0-20250514",
             "claude-3-sonnet": "claude-sonnet-4-20250514",
             "claude-3-haiku": "claude-3-5-haiku-20241022",
@@ -246,7 +244,7 @@ class SamplingManager:
         """
         self._handler = handler
 
-    def set_model_map(self, model_map: Dict[str, str]) -> None:
+    def set_model_map(self, model_map: dict[str, str]) -> None:
         """Set model name mapping.
 
         Args:
@@ -262,7 +260,7 @@ class SamplingManager:
         """
         self._default_model = model
 
-    def _select_model(self, preferences: Optional[ModelPreferences]) -> str:
+    def _select_model(self, preferences: ModelPreferences | None) -> str:
         """Select model based on preferences.
 
         Args:
@@ -327,10 +325,12 @@ class SamplingManager:
                 content = msg.content
                 if isinstance(content, dict) and content.get("type") == "text":
                     content = content["text"]
-                messages.append({
-                    "role": msg.role,
-                    "content": content,
-                })
+                messages.append(
+                    {
+                        "role": msg.role,
+                        "content": content,
+                    }
+                )
 
             # Create message
             kwargs = {
@@ -375,7 +375,7 @@ class SamplingManager:
             logger.error(f"Sampling failed: {e}")
             raise RuntimeError(f"Sampling failed: {e}")
 
-    async def handle_request(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_request(self, params: dict[str, Any]) -> dict[str, Any]:
         """Handle MCP sampling/createMessage request.
 
         Args:
