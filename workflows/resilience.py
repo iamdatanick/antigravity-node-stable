@@ -54,14 +54,12 @@ else:
 # ---------------------------------------------------------------------------
 
 if _HAS_AGENTIC:
-    retrier = Retrier(
-        config=RetryConfig(
-            max_attempts=3,
-            base_delay=1.0,
-            max_delay=15.0,
-            jitter=0.5,
-        )
-    )
+    retrier = Retrier(config=RetryConfig(
+        max_attempts=3,
+        base_delay=1.0,
+        max_delay=15.0,
+        jitter=0.5,
+    ))
 else:
     retrier = None
 
@@ -71,18 +69,14 @@ else:
 # ---------------------------------------------------------------------------
 
 if _HAS_AGENTIC:
-    rate_limiter = RateLimiter(
-        config=RateLimitConfig(
-            requests_per_second=10.0,
-            burst_size=100,
-        )
-    )
-    rate_limiter_strict = RateLimiter(
-        config=RateLimitConfig(
-            requests_per_second=2.0,
-            burst_size=30,
-        )
-    )
+    rate_limiter = RateLimiter(config=RateLimitConfig(
+        requests_per_second=10.0,
+        burst_size=100,
+    ))
+    rate_limiter_strict = RateLimiter(config=RateLimitConfig(
+        requests_per_second=2.0,
+        burst_size=30,
+    ))
 else:
     rate_limiter = None
     rate_limiter_strict = None
@@ -92,20 +86,16 @@ else:
 # Kill Switch — emergency stop
 # ---------------------------------------------------------------------------
 
-if _HAS_AGENTIC:
-    kill_switch = KillSwitch(
-        config=KillSwitchConfig(
-            max_consecutive_errors=10,
-        )
-    )
-else:
-    kill_switch = None
+kill_switch = (
+    KillSwitch(config=KillSwitchConfig(max_consecutive_errors=10))
+    if _HAS_AGENTIC
+    else None
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
 
 def get_circuit_states() -> dict:
     """Return current state of all circuit breakers."""

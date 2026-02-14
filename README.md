@@ -1,135 +1,106 @@
-# Antigravity Node v13.0 "The God Node"
+# Antigravity Node v14.1 "Phoenix"
 
-Antigravity Node is a production-grade **AI Orchestration Engine** designed to run autonomous agents with full observability, data lineage, and enterprise security. It combines a dual-protocol Python runtime (FastAPI + gRPC) with a comprehensive microservices mesh.
+Production-grade **AI Orchestration Engine** — 21-container Docker Compose stack with dual-protocol runtime (FastAPI + gRPC), circuit breakers, kill switch, and full observability.
 
-**Current Status:** Production Ready (Phases 1-4 Complete)
+## Quick Start
 
----
+**Prerequisites:** Docker Desktop (running), Git, PowerShell 5.1+
 
-## 🚀 Key Capabilities
+```powershell
+# Clone and install
+git clone https://github.com/iamdatanick/antigravity-node-stable.git
+cd antigravity-node-stable
+.\install.ps1
 
-*   **Dual-Protocol Brain**:
-    *   **FastAPI (A2A)**: HTTP endpoints for Agent-to-Agent communication.
-    *   **gRPC (SuperBuilder)**: High-performance inter-process communication with protobuf contracts.
-    *   **God Mode**: Background autonomous loop for health monitoring and context ingestion.
-*   **Deep Memory Systems**:
-    *   **StarRocks**: High-speed OLAP for episodic memory and analytics.
-    *   **Milvus**: Vector database for semantic search and long-term recall.
-    *   **SeaweedFS**: S3-compatible object storage for artifacts.
-*   **Full Observability Stack**:
-    *   **OpenLineage + Marquez**: Complete data lineage tracking.
-    *   **OpenTelemetry**: Distributed tracing across all services.
-    *   **Perses**: Visualization dashboards (Grafana alternative).
-    *   **Trace Viewer**: Custom Streamlit app for inspecting agent thought processes.
-*   **Enterprise Security**:
-    *   **Keycloak**: Identity and Access Management (IAM).
-    *   **OpenBao**: Secrets management (Vault fork).
-    *   **Falco**: Runtime security monitoring.
-    *   **Budget Proxy**: Cost control and rate limiting for LLM calls.
-
----
-
-## 🛠️ Architecture Layers
-
-The system is organized into functional layers defined in `docker-compose.yml`:
-
-| Layer | Components | Description |
-| :--- | :--- | :--- |
-| **Layer 0: Core** | Postgres, SeaweedFS, NATS, Etcd | Foundation for storage and messaging. |
-| **Layer 1: IAM & Lineage** | Keycloak, Marquez | Identity and data governance. |
-| **Layer 1.5: Workflows** | K3D, Argo Workflows | Containerized workflow orchestration. |
-| **Layer 2: Memory** | StarRocks, Valkey, Milvus, OpenBao | Hot/Cold storage and vector search. |
-| **Layer 3: Sidecars** | WasmEdge, Falco | Runtime extensions and security. |
-| **Layer 4: Observability** | Perses, Budget Proxy, OpenSearch | Monitoring, logs, and cost tracking. |
-| **Layer 5: Control Plane** | MCP Gateway, MCP Servers | Model Context Protocol (MCP) integration. |
-| **Layer 6: The Brain** | **Orchestrator** | Main Python application (FastAPI + gRPC). |
-| **Layer 7: Interfaces** | LibreChat, Master UI, Trace Viewer | Human-in-the-loop UIs. |
-
----
-
-## ⚡ Quick Start
-
-### Prerequisites
-*   **Docker Desktop** (with Kubernetes disabled, as K3D is used internally).
-*   **Python 3.11** (for local development).
-*   **Git**.
-
-### 1. Configure Environment
-Create a `.env` file in the root directory (copy from example if available, or set these minimums):
-```bash
-# API Keys (Required for LLM features)
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-...
-
-# Security (Change these for production!)
-POSTGRES_PASSWORD=secret
-KEYCLOAK_ADMIN_PASSWORD=admin
-```
-
-### 2. Launch the Stack
-```bash
+# Or manually:
+copy .env.example .env   # Edit with your API keys
 docker compose up -d
 ```
-*Note: The first launch performs heavy initialization (Postgres, Keycloak, StarRocks). Wait ~2-3 minutes for all health checks to pass.*
 
-### 3. Access Interfaces
-| Service | URL | Credentials (Default) |
-| :--- | :--- | :--- |
-| **Master UI** (Gateway) | http://localhost:1055 | N/A |
-| **Orchestrator Health** | http://localhost:8080/health | N/A |
-| **LibreChat** | http://localhost:3355 | Create account |
-| **Trace Viewer** | http://localhost:8655 | N/A |
-| **Marquez** (Lineage) | http://localhost:5055 | N/A |
-| **Perses** (Dashboards) | http://localhost:3055 | N/A |
+Wait ~2-3 minutes for all health checks to pass, then:
 
----
+```powershell
+curl http://localhost:8080/health
+```
 
-## 💻 Local Development
+## Services
 
-### Python Setup
-```bash
+| Service | Port | Description |
+|---------|------|-------------|
+| **Master UI** | [localhost:1055](http://localhost:1055) | React 19 portal |
+| **Orchestrator** | [localhost:8080](http://localhost:8080/health) | FastAPI A2A + health |
+| **gRPC** | localhost:8081 | Intel SuperBuilder |
+| **Budget Proxy** | localhost:4055 | Cost control + model routing |
+| **Perses** | [localhost:3055](http://localhost:3055) | Dashboards |
+| **Keycloak** | [localhost:8082](http://localhost:8082) | IAM |
+| **OpenBao** | localhost:8200 | Secrets (Vault fork) |
+| **SeaweedFS** | localhost:8333/9333 | S3-compatible storage |
+| **StarRocks** | localhost:9030 | OLAP memory |
+| **Milvus** | localhost:19530 | Vector DB |
+| **OpenSearch** | localhost:9200 | Log aggregation |
+| **Marquez** | localhost:5000 | OpenLineage |
+| **OVMS** | localhost:8500 | OpenVINO inference |
+| **Ollama** | localhost:11434 | Local LLM (tinyllama) |
+
+## API Endpoints
+
+```
+GET  /health                    — Stack health + circuit breakers
+GET  /capabilities              — Node capabilities
+GET  /tools                     — MCP tool registry
+POST /task                      — Submit task (x-tenant-id header required)
+POST /v1/chat/completions       — OpenAI-compatible chat proxy
+POST /upload                    — File upload to S3
+POST /webhook                   — Workflow status callback
+POST /handoff                   — Agent-to-agent handoff
+GET  /.well-known/agent.json    — A2A agent descriptor
+GET  /v1/models                 — Available models
+GET  /admin/circuits            — Circuit breaker status
+POST /admin/kill-switch         — Emergency stop
+WS   /ws/logs                   — Real-time container logs
+```
+
+## Architecture
+
+| Layer | Services |
+|-------|----------|
+| **L0: Infrastructure** | Postgres 16, SeaweedFS 3.59, NATS 2.10, etcd 3.5 |
+| **L1: IAM + Lineage** | Keycloak 26.0, Marquez 0.48 |
+| **L2: Memory + Vector** | StarRocks, Valkey 7.2, Milvus 2.4, OpenBao 2.0 |
+| **L3: Inference** | OVMS 2024.5, Ollama, WasmEdge |
+| **L4: Observability** | Perses 0.47, Budget Proxy, OpenSearch 2.17, Fluent Bit 3.1 |
+| **L5: Control Plane** | MCP Filesystem, MCP StarRocks |
+| **L6: Brain** | Orchestrator (FastAPI + gRPC + God Mode) |
+| **L8: Portal** | Master UI (React 19 + Nginx) |
+
+## Resilience
+
+Built on [agentic-workflows](https://github.com/iamdatanick/agentic-workflows) v5.0:
+
+- **Circuit Breakers** — OVMS, Ollama, S3 (opens after 5 failures, half-open at 30s)
+- **Rate Limiter** — Token bucket (10 req/s, burst 100)
+- **Kill Switch** — Emergency stop via `/admin/kill-switch`
+- **Retrier** — Exponential backoff with jitter
+
+## Cloudflare Tunnel (Optional)
+
+```powershell
+# Set token in .env
+$env:CLOUDFLARE_TUNNEL_TOKEN = "your-token"
+
+# Start tunnel
+docker compose --profile tunnel up -d cloudflare-tunnel
+```
+
+## Development
+
+```powershell
 python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+.venv\Scripts\activate
 pip install -r requirements.txt
+python -m pytest tests/test_a2a_server.py -v
 ```
 
-### gRPC Compilation
-If you modify `workflows/protos/*.proto`, regenerate the Python stubs:
-```bash
-python -m grpc_tools.protoc \
-    -I workflows/protos \
-    --python_out=workflows \
-    --grpc_python_out=workflows \
-    workflows/protos/*.proto
-```
+## License
 
-### Running Tests
-The project includes a comprehensive test suite (Unit + Integration):
-```bash
-# Run all tests
-python -m pytest
-
-# Run specific category
-python -m pytest tests/test_grpc_server.py
-```
-
----
-
-## 📦 CI/CD
-
-The repository uses **GitHub Actions** for continuous integration:
-1.  **Linting**: Ruff formatting and checks.
-2.  **Testing**: Pytest with gRPC stub compilation.
-3.  **Security**: Trivy vulnerability scanning.
-4.  **Build**: Docker Build Cloud integration.
-
----
-
-## 🤝 Contributing
-
-1.  Create a feature branch (e.g., `feature/new-agent-tool`).
-2.  Add tests for your changes.
-3.  Ensure CI passes.
-4.  Submit a Pull Request.
-
-**License**: Proprietary / Private (See repository owner for details).
+Apache-2.0 / MIT / BSD-3 / MPL-2.0 components only. No GPL/AGPL/SSPL/BSL.

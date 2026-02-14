@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Antigravity Node v13 — One-Command Install
+    Antigravity Node v14.1 — One-Command Install
 .DESCRIPTION
     Sets up the full Antigravity Node stack from scratch.
     Prerequisites: Docker Desktop (running), Git.
@@ -32,7 +32,7 @@ if ($Help) {
 }
 
 Write-Host "=" * 60
-Write-Host "  Antigravity Node v13 — Installer"
+Write-Host "  Antigravity Node v14.1 — Installer"
 Write-Host "=" * 60
 
 # --- 1. Prerequisites ---

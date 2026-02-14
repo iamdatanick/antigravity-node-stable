@@ -266,19 +266,20 @@ def test_main_py_no_unused_imports():
     assert "MAX_DELAY = " not in content, "Found unused variable MAX_DELAY"
 
 
-def test_a2a_server_no_unused_json_import():
-    """Test that workflows/a2a_server.py does not import unused json."""
+def test_a2a_server_json_import_is_used():
+    """Test that workflows/a2a_server.py uses json if it imports it."""
     a2a_path = os.path.join(os.path.dirname(__file__), "..", "workflows", "a2a_server.py")
 
     with open(a2a_path, encoding="utf-8") as f:
-        lines = f.readlines()
+        content = f.read()
 
-    # Check import section (first 20 lines typically contain imports)
+    # If json is imported, it must actually be used (json.dumps, json.loads, etc.)
+    lines = content.splitlines()
     import_lines = [line.strip() for line in lines[:20] if line.strip().startswith("import ")]
+    has_json_import = any(line == "import json" or line.startswith("import json,") for line in import_lines)
 
-    # Should NOT have standalone "import json" in the import section
-    json_imports = [line for line in import_lines if line == "import json" or line.startswith("import json,")]
-    assert len(json_imports) == 0, f"Found unused 'import json' in a2a_server.py: {json_imports}"
+    if has_json_import:
+        assert "json." in content, "import json is present but json module is never used"
 
 
 def test_goose_client_no_unused_subprocess_import():

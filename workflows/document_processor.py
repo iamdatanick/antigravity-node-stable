@@ -1,3 +1,4 @@
+
 import os
 
 import docx
@@ -17,9 +18,8 @@ def process_document(file_path: str) -> str:
         with open(file_path, encoding="utf-8") as f:
             return f.read()
 
-
 def chunk_text(text: str, size: int = 1000, overlap: int = 200) -> list[str]:
     chunks = []
     for i in range(0, len(text), size - overlap):
-        chunks.append(text[i : i + size])
+        chunks.append(text[i:i + size])
     return chunks
