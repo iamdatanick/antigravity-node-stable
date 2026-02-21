@@ -71,7 +71,12 @@ class MinIOAgent(SpecialistAgent):
         """Connect to MinIO server."""
         try:
             from minio import Minio
+        except ImportError as exc:
+            raise RuntimeError(
+                "minio package not installed. Install dependency to enable object storage."
+            ) from exc
 
+        try:
             self._client = Minio(
                 self.minio_config.endpoint,
                 access_key=self.minio_config.access_key,
@@ -83,10 +88,9 @@ class MinIOAgent(SpecialistAgent):
             # Ensure default bucket exists
             if not self._client.bucket_exists(self.minio_config.default_bucket):
                 self._client.make_bucket(self.minio_config.default_bucket)
-
-        except ImportError:
-            self.logger.warning("minio package not installed, using mock client")
+        except Exception as exc:  # pragma: no cover - network/endpoint specific
             self._client = None
+            raise RuntimeError(f"Failed to connect to MinIO: {exc}") from exc
 
     async def _disconnect(self) -> None:
         """Disconnect from MinIO."""

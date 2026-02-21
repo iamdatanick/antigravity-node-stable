@@ -10,6 +10,7 @@ pandas>=2.2
 aiohttp>=3.9
 pymysql>=1.1
 dbutils>=3.1
+minio>=7.2
 
 # Vector + Cache
 pymilvus>=2.4
@@ -34,6 +35,10 @@ fastmcp>=2.0.0
 
 # Resilience (self-correction reflex loop)
 tenacity>=8.2
+
+# LLM Clients
+openai>=1.51.0
+anthropic>=0.37.0
 
 # Agentic Workflows (shared hooks, security, orchestration framework)
 # Installed from vendored lib/agentic-workflows/ in Dockerfile

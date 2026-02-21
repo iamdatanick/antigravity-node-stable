@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
 
-import httpx
+from agentic_workflows.protocols.mcp_client import MCPClient, MCPServerConfig, MCPTransport
 
 
 class Operator(Enum):
@@ -31,19 +32,71 @@ class CAMARAClient:
 
     MCP_URL = "https://mcp.camaramcp.com/sse"
 
-    def __init__(self, mcp_url: str = None):
+    def __init__(self, mcp_url: str = None, mcp_client: MCPClient | None = None):
         self.mcp_url = mcp_url or self.MCP_URL
-        self._client: httpx.AsyncClient | None = None
+        self._client = mcp_client
+        self._connected = False
 
-    async def _get_client(self) -> httpx.AsyncClient:
+    async def _get_client(self) -> MCPClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=30.0)
+            config = MCPServerConfig(
+                name="camara",
+                url=self.mcp_url,
+                transport=MCPTransport.SSE,
+            )
+            self._client = MCPClient(config)
+
+        if not self._connected:
+            await self._client.connect()
+            self._connected = True
+
         return self._client
 
     async def close(self):
         if self._client:
-            await self._client.aclose()
+            if hasattr(self._client, "close"):
+                await self._client.close()  # type: ignore[func-returns-value]
             self._client = None
+            self._connected = False
+
+    def _normalize_result(self, result: dict | str | None, base_details: dict, default_confidence: float) -> VerificationResult:
+        """Normalize MCP result into VerificationResult."""
+        try:
+            if isinstance(result, str):
+                parsed = json.loads(result)
+            elif isinstance(result, dict):
+                parsed = result
+            elif result is None:
+                parsed = {}
+            else:
+                parsed = {"result": result}
+        except json.JSONDecodeError:
+            parsed = {"raw": result}
+
+        details = {**base_details, **parsed}
+        verified = bool(details.get("verified", details.get("status", False)))
+        confidence = float(details.get("confidence", default_confidence))
+        error = details.get("error")
+
+        return VerificationResult(
+            verified=verified,
+            confidence=confidence,
+            details=details,
+            error=error,
+        )
+
+    async def _call_camara(self, tool: str, payload: dict, default_confidence: float) -> VerificationResult:
+        try:
+            client = await self._get_client()
+            result = await client.call_tool(tool, payload)
+            return self._normalize_result(result, payload, default_confidence)
+        except Exception as exc:
+            return VerificationResult(
+                verified=False,
+                confidence=0.0,
+                details=payload,
+                error=str(exc),
+            )
 
     async def check_sim_swap(
         self, phone_number: str, operator: Operator = Operator.TELEFONICA, max_age_hours: int = 24
@@ -52,48 +105,33 @@ class CAMARAClient:
 
         Use case: Fraud prevention before sensitive transactions.
         """
-        # In production, this would call the MCP tool
-        # For now, return mock result
-        return VerificationResult(
-            verified=True,
-            confidence=0.95,
-            details={
-                "phone_number": phone_number,
-                "operator": operator.value,
-                "swapped": False,
-                "max_age_hours": max_age_hours,
-            },
-        )
+        payload = {
+            "phone_number": phone_number,
+            "operator": operator.value,
+            "max_age_hours": max_age_hours,
+        }
+        return await self._call_camara("check_sim_swap", payload, default_confidence=0.95)
 
     async def check_device_swap(
         self, phone_number: str, operator: Operator = Operator.TELEFONICA, max_age_hours: int = 24
     ) -> VerificationResult:
         """Check if device was changed in last N hours."""
-        return VerificationResult(
-            verified=True,
-            confidence=0.9,
-            details={
-                "phone_number": phone_number,
-                "operator": operator.value,
-                "device_changed": False,
-                "max_age_hours": max_age_hours,
-            },
-        )
+        payload = {
+            "phone_number": phone_number,
+            "operator": operator.value,
+            "max_age_hours": max_age_hours,
+        }
+        return await self._call_camara("check_device_swap", payload, default_confidence=0.9)
 
     async def check_roaming_status(
         self, phone_number: str, operator: Operator = Operator.TELEFONICA
     ) -> VerificationResult:
         """Check if device is roaming."""
-        return VerificationResult(
-            verified=True,
-            confidence=0.95,
-            details={
-                "phone_number": phone_number,
-                "operator": operator.value,
-                "roaming": False,
-                "country_code": None,
-            },
-        )
+        payload = {
+            "phone_number": phone_number,
+            "operator": operator.value,
+        }
+        return await self._call_camara("check_roaming_status", payload, default_confidence=0.95)
 
     async def verify_location(
         self,
@@ -104,18 +142,14 @@ class CAMARAClient:
         operator: Operator = Operator.TELEFONICA,
     ) -> VerificationResult:
         """Verify device is at expected location."""
-        return VerificationResult(
-            verified=True,
-            confidence=0.85,
-            details={
-                "phone_number": phone_number,
-                "operator": operator.value,
-                "latitude": latitude,
-                "longitude": longitude,
-                "accuracy_km": accuracy_km,
-                "within_range": True,
-            },
-        )
+        payload = {
+            "phone_number": phone_number,
+            "operator": operator.value,
+            "latitude": latitude,
+            "longitude": longitude,
+            "accuracy_km": accuracy_km,
+        }
+        return await self._call_camara("verify_location", payload, default_confidence=0.85)
 
     async def verify_kyc(
         self,
@@ -140,39 +174,26 @@ class CAMARAClient:
         if id_number:
             fields_matched.append("id_number")
 
-        return VerificationResult(
-            verified=True,
-            confidence=0.9,
-            details={
-                "phone_number": phone_number,
-                "operator": operator.value,
-                "fields_matched": fields_matched,
-                "match_score": 0.95,
-            },
-        )
+        payload = {
+            "phone_number": phone_number,
+            "operator": operator.value,
+            "first_name": first_name,
+            "last_name": last_name,
+            "date_of_birth": date_of_birth,
+            "address": address,
+            "id_number": id_number,
+            "fields_matched": fields_matched,
+        }
+        return await self._call_camara("verify_kyc", payload, default_confidence=0.9)
 
     async def verify_hcp_identity(
         self, phone_number: str, npi: str, name: str, operator: Operator = Operator.TELEFONICA
     ) -> VerificationResult:
         """PHUC-specific: Verify HCP identity via carrier data."""
-        # Combine SIM swap check with KYC verification
-        sim_check = await self.check_sim_swap(phone_number, operator)
-        kyc_check = await self.verify_kyc(
-            phone_number,
-            first_name=name.split()[0] if name else None,
-            last_name=name.split()[-1] if name and len(name.split()) > 1 else None,
-            operator=operator,
-        )
-
-        verified = sim_check.verified and kyc_check.verified
-
-        return VerificationResult(
-            verified=verified,
-            confidence=min(sim_check.confidence, kyc_check.confidence),
-            details={
-                "npi": npi,
-                "sim_verified": sim_check.verified,
-                "kyc_verified": kyc_check.verified,
-                "risk_score": 0.1 if verified else 0.7,
-            },
-        )
+        payload = {
+            "phone_number": phone_number,
+            "operator": operator.value,
+            "npi": npi,
+            "name": name,
+        }
+        return await self._call_camara("verify_hcp_identity", payload, default_confidence=0.9)
