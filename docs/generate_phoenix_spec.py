@@ -88,7 +88,7 @@ def create_blockers_sheet(wb):
         ],
         ["BLK-017", "OpenBao Dev Mode", "P0", "CLOSED", "Forced Root Token -dev-root-token-id=root.", "MVP_Cloud"],
         ["BLK-023", "Etcd Security", "P0", "CLOSED", "Upgraded to v3.5.17.", "MVP_Cloud"],
-        ["BLK-027", "MinIO AGPL Risk", "P0", "CLOSED", "Replaced with Ceph (LGPL/Apache).", "MVP_Cloud"],
+        ["BLK-027", "SeaweedFS S3 Risk", "P0", "CLOSED", "Replaced with Ceph (LGPL/Apache).", "MVP_Cloud"],
         ["BLK-028", "Argo K8s Dependency", "P0", "CLOSED", "Replaced with AsyncDAGEngine (Python).", "MVP_Cloud"],
         ["BLK-029", "Missing Orchestrator", "P0", "CLOSED", "Implemented src/orchestrator/engine.py.", "MVP_Cloud"],
         ["BLK-030", "AVX-512 Crash Risk", "P0", "CLOSED", "check_avx512.sh guardrail added.", "MVP_Cloud"],

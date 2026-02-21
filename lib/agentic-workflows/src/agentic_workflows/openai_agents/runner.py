@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable
@@ -307,7 +308,7 @@ class Runner:
             response = await self._call_llm(ctx)
 
             if response is None:
-                ctx.error = "LLM call failed"
+                ctx.error = ctx.error or "LLM call failed"
                 break
 
             # Process response
@@ -376,24 +377,47 @@ class Runner:
         tools = agent.get_tools_schema()
 
         try:
-            if self.llm_client:
-                # Use provided client
-                response = await self._call_client(
-                    self.llm_client,
-                    messages,
-                    tools,
-                    agent.model,
-                    agent.config,
-                )
-            else:
-                # Use mock for testing or auto-detect client
-                response = await self._call_mock_llm(messages, tools)
-
+            client = self.llm_client or self._resolve_llm_client()
+            response = await self._call_client(
+                client,
+                messages,
+                tools,
+                agent.model,
+                agent.config,
+            )
             return response
 
-        except Exception as e:
+        except Exception as e:  # pragma: no cover - captured by run()
+            ctx.error = str(e)
             logger.error(f"LLM call failed: {e}")
             return None
+
+    def _resolve_llm_client(self) -> Any:
+        """Resolve the LLM client from configuration or environment."""
+        openai_key = os.getenv("OPENAI_API_KEY")
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+
+        if openai_key:
+            try:
+                from openai import AsyncOpenAI
+            except ImportError as exc:
+                raise RuntimeError(
+                    "openai package not installed. Install dependency to run agents against OpenAI."
+                ) from exc
+            return AsyncOpenAI(api_key=openai_key)
+
+        if anthropic_key:
+            try:
+                from anthropic import AsyncAnthropic
+            except ImportError as exc:
+                raise RuntimeError(
+                    "anthropic package not installed. Install dependency to run agents against Anthropic."
+                ) from exc
+            return AsyncAnthropic(api_key=anthropic_key)
+
+        raise RuntimeError(
+            "No LLM client configured. Provide llm_client or set OPENAI_API_KEY/ANTHROPIC_API_KEY."
+        )
 
     async def _call_client(
         self,
@@ -516,34 +540,6 @@ class Runner:
             "name": func.get("name", ""),
             "description": func.get("description", ""),
             "input_schema": func.get("parameters", {}),
-        }
-
-    async def _call_mock_llm(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        """Mock LLM for testing.
-
-        Args:
-            messages: Input messages.
-            tools: Available tools.
-
-        Returns:
-            Mock response.
-        """
-        # Simple mock that returns the user's last message
-        last_user_msg = ""
-        for msg in reversed(messages):
-            if msg.get("role") == "user":
-                last_user_msg = msg.get("content", "")
-                break
-
-        return {
-            "content": f"I received: {last_user_msg}",
-            "role": "assistant",
-            "tool_calls": [],
-            "finish_reason": "stop",
         }
 
     async def _call_llm_streamed(self, ctx: RunContext) -> AsyncIterator[str]:

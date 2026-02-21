@@ -10,8 +10,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-# Add workflows to path
+# Add repo packages to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "workflows"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "lib", "agentic-workflows", "src")
+)
 
 
 # ---------------------------------------------------------------------------

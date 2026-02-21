@@ -132,7 +132,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # BLK-027: Ceph replaces SeaweedFS/MinIO (license-safe)
+  # BLK-027: Ceph replaces SeaweedFS (license-safe)
   # BLK-036: Data + Config Persistence (Canonical Paths)
   ceph-demo:
     image: quay.io/ceph/ceph:v18
