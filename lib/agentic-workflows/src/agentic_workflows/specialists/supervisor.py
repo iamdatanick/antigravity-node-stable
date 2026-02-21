@@ -487,7 +487,7 @@ def create_phuc_stack_supervisor(
     from .langchain_agent import LangChainAgent, LangChainConfig
     from .mcp_agent import MCPSpecialistAgent, MCPSpecialistConfig
     from .milvus_agent import MilvusAgent, MilvusConfig
-    from .minio_agent import MinIOAgent, MinIOConfig
+    from .seaweed_agent import SeaweedAgent, SeaweedConfig
     from .openmetadata_agent import OpenMetadataAgent, OpenMetadataConfig
     from .ovms_agent import OVMSAgent, OVMSConfig
     from .starrocks_agent import StarRocksAgent, StarRocksConfig
@@ -500,7 +500,7 @@ def create_phuc_stack_supervisor(
 
     # Register all specialists
     specialists = [
-        ("minio", MinIOAgent, MinIOConfig, 1),
+        ("seaweed", SeaweedAgent, SeaweedConfig, 1),
         ("kafka", KafkaAgent, KafkaConfig, 1),
         ("starrocks", StarRocksAgent, StarRocksConfig, 1),
         ("unomi", UnomiAgent, UnomiConfig, 1),

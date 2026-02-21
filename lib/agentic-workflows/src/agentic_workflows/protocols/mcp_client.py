@@ -46,6 +46,9 @@ class MCPServerConfig:
     transport: MCPTransport = MCPTransport.SSE
     timeout: float = 30.0
 
+# Backwards compatibility
+MCPConfig = MCPServerConfig
+
 
 @dataclass
 class MCPTool:

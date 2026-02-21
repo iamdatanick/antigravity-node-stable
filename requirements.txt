@@ -10,7 +10,6 @@ pandas>=2.2
 aiohttp>=3.9
 pymysql>=1.1
 dbutils>=3.1
-minio>=7.2
 
 # Vector + Cache
 pymilvus>=2.4
